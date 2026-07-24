@@ -112,6 +112,8 @@ export const ListAlbumsResponseItem = zod.object({
   ratedCount: zod.number().optional(),
   hiddenCount: zod.number().optional(),
   unratedCount: zod.number().optional(),
+  duplicateCount: zod.number().optional(),
+  nearDuplicateCount: zod.number().optional(),
   createdAt: zod.coerce.date(),
 });
 export const ListAlbumsResponse = zod.array(ListAlbumsResponseItem);
@@ -163,6 +165,8 @@ export const GetAlbumResponse = zod.object({
   ratedCount: zod.number().optional(),
   hiddenCount: zod.number().optional(),
   unratedCount: zod.number().optional(),
+  duplicateCount: zod.number().optional(),
+  nearDuplicateCount: zod.number().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -195,6 +199,8 @@ export const UpdateAlbumResponse = zod.object({
   ratedCount: zod.number().optional(),
   hiddenCount: zod.number().optional(),
   unratedCount: zod.number().optional(),
+  duplicateCount: zod.number().optional(),
+  nearDuplicateCount: zod.number().optional(),
   createdAt: zod.coerce.date(),
 });
 
@@ -355,6 +361,8 @@ export const SetAlbumCoverResponse = zod.object({
   ratedCount: zod.number().optional(),
   hiddenCount: zod.number().optional(),
   unratedCount: zod.number().optional(),
+  duplicateCount: zod.number().optional(),
+  nearDuplicateCount: zod.number().optional(),
   createdAt: zod.coerce.date(),
 });
 

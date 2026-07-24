@@ -63,8 +63,17 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
   try {
     const { name, size, contentType } = parsed.data;
 
-    if (!contentType.startsWith("image/")) {
-      res.status(400).json({ error: "Only image file types are allowed" });
+    // Photos are still image-only (the register route magic-byte-checks them);
+    // this coarse gate also allows fonts for the asset library (#162). Some
+    // browsers send fonts as octet-stream, so fall back to the extension.
+    const ct = contentType.toLowerCase();
+    const isImage = ct.startsWith("image/");
+    const isFont =
+      ct.startsWith("font/") ||
+      /(woff|ttf|otf|sfnt|fontobject|opentype|truetype)/.test(ct) ||
+      /\.(ttf|otf|woff2?|eot)$/i.test(name ?? "");
+    if (!isImage && !isFont) {
+      res.status(400).json({ error: "Only image and font files are allowed" });
       return;
     }
 

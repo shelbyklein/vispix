@@ -463,14 +463,14 @@ export default function Albums() {
   return (
     <AppLayout>
       <div className="space-y-6" data-testid="albums-page">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Albums</h1>
             <p className="text-sm text-muted-foreground mt-1">
               {albums?.length ?? 0} album{albums?.length !== 1 ? "s" : ""} ready to review
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button variant="outline" className="gap-2" onClick={() => navigate("/bulk-upload")} data-testid="bulk-upload-btn">
               <Upload className="h-4 w-4" />
               Upload
