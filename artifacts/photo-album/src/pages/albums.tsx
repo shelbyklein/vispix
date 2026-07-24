@@ -19,7 +19,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Images, CalendarDays, Camera, EyeOff, Upload, Star, Folder } from "lucide-react";
+import { Plus, Images, CalendarDays, Camera, EyeOff, Upload, Star, Folder, FolderPlus } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useGetMe } from "@workspace/api-client-react";
 import { formatDate } from "@/lib/format-date";
@@ -132,6 +133,143 @@ function CreateAlbumDialog({ onCreated, folderSuggestions }: { onCreated: () => 
             <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={isPending || !title.trim()} data-testid="create-album-submit">
               {isPending ? "Creating..." : "Create Album"}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Folder-first creation (#161): name a folder and pick which albums go in it,
+// setting each album's folder in one step — so a folder is never an empty
+// album-shaped thing. Implicit folders can't be empty, so ≥1 album is required.
+function NewFolderDialog({
+  albums,
+  folderSuggestions,
+  onCreated,
+}: {
+  albums: AlbumItem[];
+  folderSuggestions: string[];
+  onCreated: (folder: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [saving, setSaving] = useState(false);
+  const { mutateAsync: updateAlbum } = useUpdateAlbum();
+  const { toast } = useToast();
+
+  function resetState() {
+    setName("");
+    setFilter("");
+    setSelected(new Set());
+  }
+
+  const filtered = albums.filter((a) => a.title.toLowerCase().includes(filter.trim().toLowerCase()));
+
+  function toggle(id: number) {
+    setSelected((s) => {
+      const n = new Set(s);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const folder = name.trim();
+    if (!folder || selected.size === 0 || saving) return;
+    setSaving(true);
+    let ok = 0;
+    let fail = 0;
+    for (const id of selected) {
+      try {
+        await updateAlbum({ id, data: { folder } });
+        ok++;
+      } catch {
+        fail++;
+      }
+    }
+    setSaving(false);
+    setOpen(false);
+    resetState();
+    if (fail > 0) {
+      toast({
+        title: `Added ${ok} album${ok !== 1 ? "s" : ""}, ${fail} failed`,
+        description: "Only an album's owner or a platform admin can move it.",
+        variant: "destructive",
+      });
+    } else {
+      toast({ title: `Folder "${folder}" created`, description: `${ok} album${ok !== 1 ? "s" : ""} added.` });
+    }
+    if (ok > 0) onCreated(folder);
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => { setOpen(o); if (!o) resetState(); }}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="gap-2" data-testid="new-folder-btn">
+          <FolderPlus className="h-4 w-4" />
+          New Folder
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>New folder</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-folder-name">Folder name</Label>
+            <Input
+              id="new-folder-name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder='e.g. "2026"'
+              list="new-folder-options"
+              autoFocus
+              data-testid="new-folder-name"
+            />
+            <datalist id="new-folder-options">
+              {folderSuggestions.map((f) => (
+                <option key={f} value={f} />
+              ))}
+            </datalist>
+          </div>
+          <div className="space-y-1.5">
+            <Label>Albums in this folder</Label>
+            <Input
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              placeholder="Filter albums…"
+              className="h-8"
+              data-testid="new-folder-filter"
+            />
+            <div className="max-h-64 divide-y divide-border overflow-y-auto rounded-md border border-border">
+              {filtered.length === 0 ? (
+                <p className="px-3 py-4 text-center text-sm text-muted-foreground">No albums</p>
+              ) : (
+                filtered.map((a) => (
+                  <label key={a.id} className="flex cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-accent/50">
+                    <Checkbox
+                      checked={selected.has(a.id)}
+                      onCheckedChange={() => toggle(a.id)}
+                      data-testid={`new-folder-album-${a.id}`}
+                    />
+                    <span className="flex-1 truncate text-sm text-foreground">{a.title}</span>
+                    {a.folder && <span className="text-xs text-muted-foreground">in {a.folder}</span>}
+                  </label>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">{selected.size} selected</p>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button type="submit" disabled={saving || !name.trim() || selected.size === 0} data-testid="new-folder-submit">
+              {saving ? "Creating…" : "Create folder"}
             </Button>
           </div>
         </form>
@@ -337,6 +475,13 @@ export default function Albums() {
               <Upload className="h-4 w-4" />
               Upload
             </Button>
+            {(albums?.length ?? 0) > 0 && activeFolder == null && (
+              <NewFolderDialog
+                albums={albums ?? []}
+                folderSuggestions={folders}
+                onCreated={(f) => { refetch(); navigate(`/albums?folder=${encodeURIComponent(f)}`); }}
+              />
+            )}
             <CreateAlbumDialog onCreated={refetch} folderSuggestions={folders} />
           </div>
         </div>
