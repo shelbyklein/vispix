@@ -2944,6 +2944,8 @@ components:
           type: ["string", "null"]
         notes:
           type: ["string", "null"]
+        folder:
+          type: ["string", "null"]
         projectId:
           type: ["integer", "null"]
         projectName:
@@ -2979,6 +2981,8 @@ components:
           type: string
         notes:
           type: string
+        folder:
+          type: string
         projectId:
           type: integer
         storageKey:
@@ -3003,6 +3007,8 @@ components:
         variant:
           type: ["string", "null"]
         notes:
+          type: ["string", "null"]
+        folder:
           type: ["string", "null"]
         projectId:
           type: ["integer", "null"]

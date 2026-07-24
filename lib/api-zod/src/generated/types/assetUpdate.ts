@@ -16,5 +16,7 @@ export interface AssetUpdate {
   /** @nullable */
   notes?: string | null;
   /** @nullable */
+  folder?: string | null;
+  /** @nullable */
   projectId?: number | null;
 }

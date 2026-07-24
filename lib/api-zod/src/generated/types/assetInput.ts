@@ -13,6 +13,7 @@ export interface AssetInput {
   name: string;
   variant?: string;
   notes?: string;
+  folder?: string;
   projectId?: number;
   /** The objectPath returned by the storage request-url flow (must start with /objects/) */
   storageKey: string;

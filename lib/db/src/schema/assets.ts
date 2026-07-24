@@ -22,6 +22,10 @@ export const assetsTable = pgTable(
     // for brand assets; free-form ("poster", "social") for references.
     variant: text("variant"),
     notes: text("notes"),
+    // Optional organizational label grouping assets in the library (#159), same
+    // free-text role folders play for albums (#149). Distinct from kind/variant;
+    // null = ungrouped.
+    folder: text("folder"),
     // Null = org-wide/global asset, served for every project.
     projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "set null" }),
     // "/objects/…" path in private object storage (same convention as photos).
