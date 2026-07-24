@@ -27,6 +27,22 @@ type ContentBlock =
   | { type: "image"; data: string; mimeType: string }
   | { type: "resource_link"; uri: string; name: string; description?: string; mimeType?: string };
 
+// A fetchable thumbnail link for a photo (#174). Thumbnails are always JPEG
+// (see api-server thumbnailGeneration.ts), so we declare `mimeType` and a `.jpg`
+// name: the mimeType lets clients that gate on content type render the URL as an
+// inline preview instead of a bare link, and matching the name to the actual
+// JPEG bytes avoids a `.webp`-named-but-JPEG mismatch inherited from the original.
+function thumbnailLink(base: string, id: number, filename: string | null): ContentBlock {
+  const stem = filename ? `thumb-${filename.replace(/\.[^./\\]+$/, "")}` : `photo-${id}-thumb`;
+  return {
+    type: "resource_link",
+    uri: `${base}/photo/${id}/thumbnail`,
+    name: `${stem}.jpg`,
+    description: `Thumbnail of photo #${id}`,
+    mimeType: "image/jpeg",
+  };
+}
+
 export interface ServerOptions {
   /**
    * Base URL of the HTTP gateway (including any auth prefix). When set,
@@ -97,12 +113,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
       if (options.externalDownloadBase) {
         for (const p of results) {
           if (!p.thumbnailKey) continue;
-          content.push({
-            type: "resource_link",
-            uri: `${options.externalDownloadBase}/photo/${p.id}/thumbnail`,
-            name: p.filename ? `thumb-${p.filename}` : `photo-${p.id}-thumb`,
-            description: `Thumbnail of photo #${p.id}`,
-          });
+          content.push(thumbnailLink(options.externalDownloadBase, p.id, p.filename));
         }
       }
 
@@ -166,12 +177,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
         });
       }
       if (options.externalDownloadBase && photo.thumbnailKey) {
-        content.push({
-          type: "resource_link",
-          uri: `${options.externalDownloadBase}/photo/${photo.id}/thumbnail`,
-          name: photo.filename ? `thumb-${photo.filename}` : `photo-${photo.id}-thumb`,
-          description: "Thumbnail (small preview for embedding)",
-        });
+        content.push(thumbnailLink(options.externalDownloadBase, photo.id, photo.filename));
       }
       const img = await loadThumbnailImage(photo.thumbnailKey);
       if (img) content.push({ type: "image", data: img.base64, mimeType: img.mimeType });

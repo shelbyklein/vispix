@@ -167,8 +167,13 @@ export async function startHttpServer(): Promise<void> {
       res.status(404).json({ error: "Thumbnail not found" });
       return;
     }
-    res.setHeader("Content-Type", file.contentType);
-    res.setHeader("Content-Disposition", `inline; filename="${file.filename.replace(/[^\w .-]+/g, "")}"`);
+    // Thumbnails are always JPEG (api-server thumbnailGeneration.ts), so serve an
+    // authoritative image/jpeg + .jpg name — this is the correct-Content-Type
+    // guarantee behind the resource_link previews (#174), independent of whatever
+    // the stored object's GCS metadata happens to say.
+    const jpgName = file.filename.replace(/\.[^./\\]+$/, "").replace(/[^\w .-]+/g, "") + ".jpg";
+    res.setHeader("Content-Type", "image/jpeg");
+    res.setHeader("Content-Disposition", `inline; filename="${jpgName}"`);
     res.send(file.buffer);
   });
 
