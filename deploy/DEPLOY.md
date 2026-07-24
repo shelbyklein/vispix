@@ -12,6 +12,47 @@ DNS, and credentials, which the deploy tooling can't (and shouldn't) do.
 
 ---
 
+## Deploying (CI — the normal path, #163)
+
+Images are **built in GitHub Actions** (`.github/workflows/deploy.yml`), not on
+the droplet — building on the 2 GB box OOM-killed dockerd and silently failed
+releases. On every push to `main` (or `workflow_dispatch`), CI:
+
+1. builds `vispix-app` + `vispix-web` on a GitHub runner (lots of RAM),
+2. `docker save`s them and ships the tarball to the droplet over SSH,
+3. `docker load`s them and runs `docker compose … up -d --no-build` (migrate +
+   restart — **no on-box compilation**), then health-checks `vispix.dev`.
+
+**One-time setup [you]:** add repo secrets (Settings → Secrets and variables →
+Actions):
+- `DROPLET_SSH_KEY` — private key of a deploy keypair; put its **public** half in
+  the droplet's `~/.ssh/authorized_keys`.
+- `DROPLET_HOST` — `143.244.146.22`.
+
+**Manual fallback** (registry-free, if CI is down) — build locally and ship:
+```
+docker buildx build -f deploy/Dockerfile --target app --load -t vispix-app:latest .
+docker buildx build -f deploy/Dockerfile --target web --load -t vispix-web:latest .
+docker save vispix-app:latest vispix-web:latest | gzip | \
+  ssh root@143.244.146.22 'gunzip | docker load'
+ssh root@143.244.146.22 'cd /opt/vispix && git pull --ff-only origin main && \
+  docker compose -f deploy/docker-compose.prod.yml up -d --no-build'
+```
+⚠️ **Never** run `up -d --build` on the droplet — the compose file is image-only
+and building on-box OOMs the daemon.
+
+## Backups (#163)
+
+- **Nightly DB dump** on the droplet: `deploy/scripts/backup-db.sh` writes a
+  compressed `pg_dump` to `/opt/vispix/backups`, 7-day rotation. Install via
+  cron: `0 4 * * * /opt/vispix/deploy/scripts/backup-db.sh >> /var/log/vispix-backup.log 2>&1`.
+  Restore: `docker cp <dump> vispix-postgres-1:/tmp/d && docker exec vispix-postgres-1 pg_restore -U vispix -d vispix --clean /tmp/d`.
+- **Droplet loss [you]:** enable DigitalOcean **snapshots/backups** in the
+  control panel (off-site, covers total droplet loss). Optional next step: push
+  the nightly dumps to the GCS bucket for off-site DB backup.
+
+---
+
 ## What runs where
 
 | Service    | Image        | Port (host)      | Notes                                   |

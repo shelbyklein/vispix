@@ -1,0 +1,88 @@
+name: Deploy to production
+
+# Builds the prod images on GitHub's runners (plenty of RAM — no OOM like the
+# 2 GB droplet), ships them to the droplet as a tarball over SSH, and has the
+# droplet load + `up -d` with NO on-box build (#163). Fixes the deploys that
+# used to OOM-kill dockerd.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   DROPLET_SSH_KEY  — private key of a deploy keypair (public half in the
+#                      droplet's ~/.ssh/authorized_keys)
+#   DROPLET_HOST     — 143.244.146.22
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: prod-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          target: app
+          tags: vispix-app:latest
+          load: true
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          target: web
+          tags: vispix-web:latest
+          load: true
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Save images to a tarball
+        run: docker save vispix-app:latest vispix-web:latest | gzip > /tmp/vispix-images.tar.gz
+
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "${{ secrets.DROPLET_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.DROPLET_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Ship images to the droplet
+        run: |
+          scp -i ~/.ssh/id_ed25519 /tmp/vispix-images.tar.gz "root@${{ secrets.DROPLET_HOST }}:/tmp/vispix-images.tar.gz"
+          ssh -i ~/.ssh/id_ed25519 "root@${{ secrets.DROPLET_HOST }}" \
+            'gunzip -c /tmp/vispix-images.tar.gz | docker load && rm -f /tmp/vispix-images.tar.gz'
+
+      - name: Deploy (pull repo for compose/env, migrate + restart, no build)
+        run: |
+          ssh -i ~/.ssh/id_ed25519 "root@${{ secrets.DROPLET_HOST }}" '
+            set -e
+            cd /opt/vispix
+            git fetch origin -q && git checkout main -q && git pull --ff-only origin main -q
+            docker compose -f deploy/docker-compose.prod.yml up -d --no-build
+            docker image prune -f >/dev/null 2>&1 || true
+          '
+
+      - name: Verify prod health
+        run: |
+          for i in $(seq 1 20); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" https://vispix.dev/api/healthz || true)
+            if [ "$code" = "200" ]; then echo "prod healthy"; exit 0; fi
+            sleep 5
+          done
+          echo "prod did not return 200 after deploy" >&2
+          exit 1
