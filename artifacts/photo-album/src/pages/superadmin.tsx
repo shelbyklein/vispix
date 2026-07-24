@@ -59,8 +59,6 @@ export default function Superadmin() {
 
         <ServiceReadinessCard variant="platform" enabled={me.role === "admin"} />
 
-        <SendTestEmailCard />
-
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3" data-testid="superadmin-grid">
           {SECTIONS.map((section) => {
             const Icon = section.icon;
@@ -84,6 +82,8 @@ export default function Superadmin() {
               </Link>
             );
           })}
+          {/* Action tile among the nav cards — the whole card sends. */}
+          <SendTestEmailCard />
         </div>
       </div>
     </AppLayout>
