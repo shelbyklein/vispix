@@ -59,3 +59,7 @@ deploy/secrets/gcp-sa.json
 # Local machine/tooling state
 .claude/settings.local.json
 scripts/logs/
+
+# CI deploy keypair — never commit (private half lives in a GitHub secret)
+vispix-deploy
+vispix-deploy.pub
