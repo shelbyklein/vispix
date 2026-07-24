@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   useListAssets,
   useCreateAsset,
@@ -163,6 +163,41 @@ function AssetFieldInputs({
   );
 }
 
+// Fonts are a valid asset now (#162) — detect by content type, falling back to
+// the extension since browsers often send fonts as octet-stream.
+function isFontAsset(a: { contentType: string; filename?: string | null; name: string }): boolean {
+  const ct = a.contentType.toLowerCase();
+  return (
+    ct.startsWith("font/") ||
+    /(woff|ttf|otf|sfnt|opentype|truetype)/.test(ct) ||
+    /\.(ttf|otf|woff2?|eot)$/i.test(a.filename ?? a.name)
+  );
+}
+
+// Live specimen for a font asset: @font-face-load the file and render sample
+// glyphs in it. Falls back to the default face until it loads.
+function FontPreview({ url, id }: { url: string; id: number }) {
+  const family = `asset-font-${id}`;
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    let face: FontFace | null = null;
+    try {
+      face = new FontFace(family, `url("${url}")`);
+      face.load().then((f) => { document.fonts.add(f); setLoaded(true); }).catch(() => {});
+    } catch {
+      /* FontFace unsupported — leave the fallback face */
+    }
+    return () => { if (face) { try { document.fonts.delete(face); } catch { /* noop */ } } };
+  }, [url, family]);
+  const ff = loaded ? `"${family}"` : undefined;
+  return (
+    <div className="flex h-full w-full flex-col items-center justify-center gap-1 p-3 text-center">
+      <span style={{ fontFamily: ff }} className="text-3xl leading-none text-foreground">Ag</span>
+      <span style={{ fontFamily: ff }} className="text-xs text-muted-foreground">The quick brown fox</span>
+    </div>
+  );
+}
+
 function stripExtension(filename: string): string {
   const dot = filename.lastIndexOf(".");
   return dot > 0 ? filename.slice(0, dot) : filename;
@@ -244,12 +279,12 @@ function UploadAssetDialog({ onSaved, testId = "upload-asset-btn" }: { onSaved: 
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <Label htmlFor="asset-file">File * (SVG, PNG, JPEG…)</Label>
+            <Label htmlFor="asset-file">File * (SVG, PNG, JPEG, or a font: TTF/OTF/WOFF)</Label>
             <Input
               id="asset-file"
               ref={fileInputRef}
               type="file"
-              accept="image/*"
+              accept="image/*,.ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2"
               onChange={handleFileChange}
               required
               data-testid="asset-file-input"
@@ -360,6 +395,8 @@ function AssetCard({ asset, onChanged }: { asset: Asset; onChanged: () => void }
       <div className="aspect-[4/3] bg-muted flex items-center justify-center overflow-hidden [background-image:repeating-conic-gradient(hsl(var(--border))_0%_25%,transparent_0%_50%)] [background-size:16px_16px]">
         {asset.contentType.startsWith("image/") ? (
           <img src={fileUrl} alt={asset.name} className="max-h-full max-w-full object-contain p-4" loading="lazy" />
+        ) : isFontAsset(asset) ? (
+          <FontPreview url={fileUrl} id={asset.id} />
         ) : (
           <FileImage className="h-10 w-10 text-muted-foreground/40" />
         )}
@@ -466,14 +503,16 @@ export default function Assets() {
   return (
     <AppLayout>
       <div className="space-y-6" data-testid="assets-page">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Assets</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Brand assets (logos to drop into deliverables) and reference works (past output to match) — also served to AI agents over MCP
             </p>
           </div>
-          <UploadAssetDialog onSaved={refetch} />
+          <div className="shrink-0">
+            <UploadAssetDialog onSaved={refetch} />
+          </div>
         </div>
 
         <div className="flex items-center gap-1" data-testid="asset-kind-filter">

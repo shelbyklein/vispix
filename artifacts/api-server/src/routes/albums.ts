@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, count, sql, desc, avg } from "drizzle-orm";
-import { db, albumsTable, photosTable, usersTable, ratingsTable } from "@workspace/db";
+import { db, albumsTable, photosTable, usersTable, ratingsTable, nearDuplicatePairsTable, nearDuplicateIgnoresTable } from "@workspace/db";
 import {
   ListAlbumsResponse,
   ListAlbumsResponseItem,
@@ -28,7 +28,7 @@ const router: IRouter = Router();
 // caller has already confirmed is in their org, but it re-asserts the org here
 // so a foreign album id resolves to null (→ 404) as defense-in-depth.
 async function buildAlbumResponse(albumId: number, orgId: number) {
-  const [[row], [ratedRow], [unratedRow]] = await Promise.all([
+  const [[row], [ratedRow], [unratedRow], [dupRow], [nearRow]] = await Promise.all([
     db
       .select({
         album: albumsTable,
@@ -58,6 +58,35 @@ async function buildAlbumResponse(albumId: number, orgId: number) {
           sql`not exists (select 1 from ${ratingsTable} where ${ratingsTable.photoId} = ${photosTable.id})`,
         ),
       ),
+    // Exact duplicates within this album: photos whose content_hash is shared
+    // by another photo in the same album (#166).
+    db
+      .select({ n: sql<number>`cast(count(*) as integer)` })
+      .from(photosTable)
+      .where(
+        and(
+          eq(photosTable.albumId, albumId),
+          sql`${photosTable.contentHash} is not null`,
+          sql`${photosTable.contentHash} in (select content_hash from ${photosTable} where album_id = ${albumId} and content_hash is not null group by content_hash having count(*) > 1)`,
+        ),
+      ),
+    // Near-duplicates: distinct photos in this album that are part of a
+    // non-ignored near-duplicate pair (#166), org-scoped.
+    db
+      .select({ n: sql<number>`cast(count(distinct pid) as integer)` })
+      .from(
+        sql`(
+          select ${nearDuplicatePairsTable.photoA} as pid from ${nearDuplicatePairsTable}
+            where ${nearDuplicatePairsTable.organizationId} = ${orgId}
+              and ${nearDuplicatePairsTable.photoA} in (select id from ${photosTable} where album_id = ${albumId})
+              and not exists (select 1 from ${nearDuplicateIgnoresTable} ni where ni.photo_a = ${nearDuplicatePairsTable.photoA} and ni.photo_b = ${nearDuplicatePairsTable.photoB})
+          union
+          select ${nearDuplicatePairsTable.photoB} from ${nearDuplicatePairsTable}
+            where ${nearDuplicatePairsTable.organizationId} = ${orgId}
+              and ${nearDuplicatePairsTable.photoB} in (select id from ${photosTable} where album_id = ${albumId})
+              and not exists (select 1 from ${nearDuplicateIgnoresTable} ni where ni.photo_a = ${nearDuplicatePairsTable.photoA} and ni.photo_b = ${nearDuplicatePairsTable.photoB})
+        ) t`,
+      ),
   ]);
 
   if (!row) return null;
@@ -80,6 +109,8 @@ async function buildAlbumResponse(albumId: number, orgId: number) {
     hiddenCount: Number(row.hiddenCount),
     ratedCount: Number(ratedRow?.ratedCount ?? 0),
     unratedCount: Number(unratedRow?.unratedCount ?? 0),
+    duplicateCount: Number(dupRow?.n ?? 0),
+    nearDuplicateCount: Number(nearRow?.n ?? 0),
     coverPhotoUrl,
     coverPhotoThumbnailKey,
   };

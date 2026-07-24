@@ -90,6 +90,8 @@ import {
   Eye,
   Bot,
   FolderOpen,
+  Copy,
+  CopyCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -115,6 +117,17 @@ function sortPhotos(photos: Photo[], sort: SortOption): Photo[] {
     });
   }
   return sorted;
+}
+
+// Duplicate / near-duplicate stat in the album header (#166). Amber, links to
+// the admin review flow for admins; a plain badge for everyone else.
+function DupStat({ isAdmin, href, icon, label }: { isAdmin: boolean; href: string; icon: React.ReactNode; label: string }) {
+  const cls = "flex items-center gap-1 whitespace-nowrap text-amber-600 dark:text-amber-500";
+  return isAdmin ? (
+    <Link href={href} className={`${cls} hover:underline`}>{icon}{label}</Link>
+  ) : (
+    <span className={cls}>{icon}{label}</span>
+  );
 }
 
 export default function AlbumDetail() {
@@ -534,6 +547,24 @@ export default function AlbumDetail() {
                   <Camera className="h-3.5 w-3.5" />
                   {album.photoCount} photo{album.photoCount !== 1 ? "s" : ""}
                 </span>
+                {/* Duplicate / near-duplicate heads-up (#166). Admins link to
+                    the review flow; others just see the count. */}
+                {!!album.duplicateCount && (
+                  <DupStat
+                    isAdmin={me?.role === "admin"}
+                    href="/admin/duplicates"
+                    icon={<Copy className="h-3.5 w-3.5" />}
+                    label={`${album.duplicateCount} duplicate${album.duplicateCount !== 1 ? "s" : ""}`}
+                  />
+                )}
+                {!!album.nearDuplicateCount && (
+                  <DupStat
+                    isAdmin={me?.role === "admin"}
+                    href="/admin/near-duplicates"
+                    icon={<CopyCheck className="h-3.5 w-3.5" />}
+                    label={`${album.nearDuplicateCount} near-dup${album.nearDuplicateCount !== 1 ? "s" : ""}`}
+                  />
+                )}
                 {me?.role === "admin" && !!album.hiddenCount && (
                   <span className="flex items-center gap-1 text-muted-foreground/70 whitespace-nowrap">
                     <EyeOff className="h-3 w-3" />

@@ -2501,6 +2501,10 @@ components:
           type: integer
         unratedCount:
           type: integer
+        duplicateCount:
+          type: integer
+        nearDuplicateCount:
+          type: integer
         createdAt:
           type: string
           format: date-time

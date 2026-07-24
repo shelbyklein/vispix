@@ -28,5 +28,7 @@ export interface Album {
   ratedCount?: number;
   hiddenCount?: number;
   unratedCount?: number;
+  duplicateCount?: number;
+  nearDuplicateCount?: number;
   createdAt: Date;
 }
