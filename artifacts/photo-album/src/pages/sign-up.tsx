@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthCardLogo } from "@/pages/sign-in";
+import { AuthLayout } from "@/components/auth/AuthLayout";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -42,8 +43,8 @@ export default function SignUpPage() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4">
-      <Card className="w-[440px] max-w-full rounded-2xl shadow-md">
+    <AuthLayout>
+      <Card className="w-full rounded-2xl border-none shadow-none sm:border sm:shadow-md">
         <CardHeader className="text-center">
           <AuthCardLogo />
           <CardTitle>{verifySent ? "Confirm your email" : "Join Vispix"}</CardTitle>
@@ -113,6 +114,6 @@ export default function SignUpPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AuthCardLogo } from "@/pages/sign-in";
+import { AuthLayout } from "@/components/auth/AuthLayout";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -31,8 +32,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-[100dvh] flex-col items-center justify-center bg-background px-4">
-      <Card className="w-[440px] max-w-full rounded-2xl shadow-md">
+    <AuthLayout>
+      <Card className="w-full rounded-2xl border-none shadow-none sm:border sm:shadow-md">
         <CardHeader className="text-center">
           <AuthCardLogo />
           <CardTitle>Reset your password</CardTitle>
@@ -78,6 +79,6 @@ export default function ForgotPasswordPage() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </AuthLayout>
   );
 }
