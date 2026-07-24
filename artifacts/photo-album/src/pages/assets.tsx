@@ -44,8 +44,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Palette, Download, Pencil, Trash2, Upload, FileImage } from "lucide-react";
+import { useSearch } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { collectFolders, FolderCard, FolderBreadcrumb } from "@/components/FolderBrowser";
 
 // The asset library holds non-photo files pulled into deliverables: brand
 // assets (logos/marks to embed) and reference works (past output to match).
@@ -61,6 +63,7 @@ type AssetFields = {
   name: string;
   variant: string;
   notes: string;
+  folder: string;
   projectId: string; // Select value: GLOBAL or a project id as string
 };
 
@@ -74,6 +77,8 @@ function AssetFieldInputs({
   idPrefix: string;
 }) {
   const { data: projects } = useListProjects();
+  const { data: allAssets } = useListAssets();
+  const folderSuggestions = collectFolders(allAssets);
   return (
     <>
       <div className="grid grid-cols-2 gap-3">
@@ -128,6 +133,22 @@ function AssetFieldInputs({
         />
       </div>
       <div className="space-y-1.5">
+        <Label htmlFor={`${idPrefix}-folder`}>Folder</Label>
+        <Input
+          id={`${idPrefix}-folder`}
+          value={fields.folder}
+          onChange={(e) => setFields({ ...fields, folder: e.target.value })}
+          placeholder='Optional — e.g. "Logos" or "2026"'
+          list={`${idPrefix}-folder-options`}
+          data-testid={`${idPrefix}-folder`}
+        />
+        <datalist id={`${idPrefix}-folder-options`}>
+          {folderSuggestions.map((f) => (
+            <option key={f} value={f} />
+          ))}
+        </datalist>
+      </div>
+      <div className="space-y-1.5">
         <Label htmlFor={`${idPrefix}-notes`}>Usage notes</Label>
         <Textarea
           id={`${idPrefix}-notes`}
@@ -150,7 +171,7 @@ function stripExtension(filename: string): string {
 function UploadAssetDialog({ onSaved, testId = "upload-asset-btn" }: { onSaved: () => void; testId?: string }) {
   const [open, setOpen] = useState(false);
   const [file, setFile] = useState<File | null>(null);
-  const [fields, setFields] = useState<AssetFields>({ kind: "brand", name: "", variant: "", notes: "", projectId: GLOBAL });
+  const [fields, setFields] = useState<AssetFields>({ kind: "brand", name: "", variant: "", notes: "", folder: "", projectId: GLOBAL });
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, isUploading } = useUpload();
   const { mutate: createAsset, isPending: creating } = useCreateAsset();
@@ -160,7 +181,7 @@ function UploadAssetDialog({ onSaved, testId = "upload-asset-btn" }: { onSaved: 
 
   function reset() {
     setFile(null);
-    setFields({ kind: "brand", name: "", variant: "", notes: "", projectId: GLOBAL });
+    setFields({ kind: "brand", name: "", variant: "", notes: "", folder: "", projectId: GLOBAL });
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
@@ -189,6 +210,7 @@ function UploadAssetDialog({ onSaved, testId = "upload-asset-btn" }: { onSaved: 
           name: fields.name.trim(),
           variant: fields.variant.trim() || undefined,
           notes: fields.notes.trim() || undefined,
+          folder: fields.folder.trim() || undefined,
           projectId: fields.projectId === GLOBAL ? undefined : parseInt(fields.projectId, 10),
           storageKey: uploaded.objectPath,
           contentType: file.type || "application/octet-stream",
@@ -255,6 +277,7 @@ function EditAssetDialog({ asset, onSaved }: { asset: Asset; onSaved: () => void
     name: asset.name,
     variant: asset.variant ?? "",
     notes: asset.notes ?? "",
+    folder: asset.folder ?? "",
     projectId: asset.projectId != null ? String(asset.projectId) : GLOBAL,
   });
   const { mutate: updateAsset, isPending } = useUpdateAsset();
@@ -271,6 +294,7 @@ function EditAssetDialog({ asset, onSaved }: { asset: Asset; onSaved: () => void
           name: fields.name.trim(),
           variant: fields.variant.trim() || null,
           notes: fields.notes.trim() || null,
+          folder: fields.folder.trim() || null,
           projectId: fields.projectId === GLOBAL ? null : parseInt(fields.projectId, 10),
         },
       },
@@ -409,12 +433,35 @@ export default function Assets() {
   const [kindFilter, setKindFilter] = useState<AssetKind | "all">("all");
   const params = kindFilter === "all" ? undefined : { kind: kindFilter };
   const { data: assets, isLoading } = useListAssets(params);
+  const search = useSearch();
+
+  // Folder drill-down (#159/#158) layered on top of the kind filter: ?folder=X
+  // shows just that folder; no param shows the folder index + ungrouped assets.
+  const folders = collectFolders(assets);
+  const activeFolder = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("folder");
+  const ungrouped = (assets ?? []).filter((a) => !a.folder);
+  const inFolder = activeFolder != null ? (assets ?? []).filter((a) => a.folder === activeFolder) : [];
+
+  function folderCovers(name: string): string[] {
+    return (assets ?? [])
+      .filter((a) => a.folder === name && a.contentType.startsWith("image/"))
+      .map((a) => `/api/storage${a.storageKey}`)
+      .slice(0, 4);
+  }
 
   function refetch() {
     // Key without params is a prefix of every kind-filtered key, so this
     // invalidates all three filter views at once.
     qc.invalidateQueries({ queryKey: getListAssetsQueryKey() });
   }
+
+  const assetGrid = (items: Asset[], testId = "assets-grid") => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" data-testid={testId}>
+      {items.map((asset) => (
+        <AssetCard key={asset.id} asset={asset} onChanged={refetch} />
+      ))}
+    </div>
+  );
 
   return (
     <AppLayout>
@@ -456,11 +503,39 @@ export default function Assets() {
             ))}
           </div>
         ) : assets && assets.length > 0 ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" data-testid="assets-grid">
-            {assets.map((asset) => (
-              <AssetCard key={asset.id} asset={asset} onChanged={refetch} />
-            ))}
-          </div>
+          activeFolder != null ? (
+            <div className="space-y-4">
+              <FolderBreadcrumb rootHref="/assets" rootLabel="Assets" folder={activeFolder} />
+              {inFolder.length > 0 ? assetGrid(inFolder) : (
+                <p className="text-sm text-muted-foreground">This folder is empty.</p>
+              )}
+            </div>
+          ) : folders.length > 0 ? (
+            <div className="space-y-8">
+              <div>
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Folders</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {folders.map((f) => (
+                    <FolderCard
+                      key={f}
+                      name={f}
+                      count={(assets ?? []).filter((a) => a.folder === f).length}
+                      covers={folderCovers(f)}
+                      href={`/assets?folder=${encodeURIComponent(f)}`}
+                    />
+                  ))}
+                </div>
+              </div>
+              {ungrouped.length > 0 && (
+                <div>
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Ungrouped</h2>
+                  {assetGrid(ungrouped)}
+                </div>
+              )}
+            </div>
+          ) : (
+            assetGrid(assets)
+          )
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center" data-testid="assets-empty">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">

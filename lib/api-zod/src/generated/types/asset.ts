@@ -16,6 +16,8 @@ export interface Asset {
   /** @nullable */
   notes?: string | null;
   /** @nullable */
+  folder?: string | null;
+  /** @nullable */
   projectId?: number | null;
   /** @nullable */
   projectName?: string | null;

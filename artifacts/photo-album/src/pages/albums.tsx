@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { FadeImage } from "@/components/ui/fade-image";
 import { useListAlbums, useCreateAlbum, useReorderAlbums, useUpdateAlbum, getListAlbumsQueryKey, type Album } from "@workspace/api-client-react";
 import { useCardReorder } from "@/hooks/useCardReorder";
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Loader2, Folder } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import {
   Dialog,
@@ -19,19 +19,17 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, Images, CalendarDays, Camera, EyeOff, Upload, Star } from "lucide-react";
+import { Plus, Images, CalendarDays, Camera, EyeOff, Upload, Star, Folder } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useGetMe } from "@workspace/api-client-react";
 import { formatDate } from "@/lib/format-date";
+import { collectFolders, FolderCard, FolderBreadcrumb } from "@/components/FolderBrowser";
 
 type AlbumItem = Album;
 
-// Distinct non-empty folder labels across albums, for datalist suggestions.
-export function collectFolders(albums: AlbumItem[] | undefined): string[] {
-  const set = new Set<string>();
-  for (const a of albums ?? []) if (a.folder) set.add(a.folder);
-  return [...set].sort((x, y) => y.localeCompare(x, undefined, { numeric: true }));
-}
+// The generic folder helper lives in FolderBrowser; re-export so EditAlbumDialog
+// (which imports it from here) keeps working.
+export { collectFolders };
 
 function CreateAlbumDialog({ onCreated, folderSuggestions }: { onCreated: () => void; folderSuggestions: string[] }) {
   const [open, setOpen] = useState(false);
@@ -244,27 +242,33 @@ function AlbumGrid({
 export default function Albums() {
   const qc = useQueryClient();
   const [, navigate] = useLocation();
+  const search = useSearch();
   const { data: albums, isLoading } = useListAlbums();
   const { data: me } = useGetMe();
   const [visibleCount, setVisibleCount] = useState(ALBUMS_PAGE_SIZE);
   const isAdmin = me?.role === "admin";
 
   const folders = collectFolders(albums);
-  const grouped = folders.length > 0;
+  // Drill-down (#158): ?folder=X shows just that folder; no param shows the
+  // folder index (cards) plus any ungrouped albums.
+  const activeFolder = new URLSearchParams(search.startsWith("?") ? search.slice(1) : search).get("folder");
+  const ungrouped = (albums ?? []).filter((a) => !a.folder);
+  const inFolder = activeFolder != null ? (albums ?? []).filter((a) => a.folder === activeFolder) : [];
 
-  // Grouped view (#149): folder sections newest-label-first (numeric-aware, so
-  // "2026" sorts above "2025"), with ungrouped albums in a trailing section.
-  const sections: { label: string | null; albums: AlbumItem[] }[] = grouped
-    ? [
-        ...folders.map((label) => ({ label: label as string | null, albums: (albums ?? []).filter((a) => a.folder === label) })),
-        { label: null, albums: (albums ?? []).filter((a) => !a.folder) },
-      ].filter((s) => s.albums.length > 0)
-    : [{ label: null, albums: albums ?? [] }];
+  // Up to 4 cover thumbnails for a folder's index tile.
+  function folderCovers(name: string): string[] {
+    return (albums ?? [])
+      .filter((a) => a.folder === name)
+      .map((a) => (a.coverPhotoThumbnailKey ? `/api/storage${a.coverPhotoThumbnailKey}` : a.coverPhotoUrl))
+      .filter((u): u is string => !!u)
+      .slice(0, 4);
+  }
 
-  // Windowing only in the flat view (see ALBUMS_PAGE_SIZE note).
+  // Flat-view windowing only when there are no folders at all.
+  const flatView = folders.length === 0;
   const totalAlbums = albums?.length ?? 0;
-  const visibleAlbums = grouped ? (albums ?? []) : (albums?.slice(0, visibleCount) ?? []);
-  const hasMore = !grouped && totalAlbums > visibleCount;
+  const visibleAlbums = flatView ? (albums?.slice(0, visibleCount) ?? []) : [];
+  const hasMore = flatView && totalAlbums > visibleCount;
   const sentinelRef = useInfiniteScroll(
     () => setVisibleCount((c) => c + ALBUMS_PAGE_SIZE),
     hasMore,
@@ -309,17 +313,13 @@ export default function Albums() {
     );
   }
 
-  // A section commits its own new order; persist the full flat order with the
-  // other sections (and any albums beyond the flat-view window) unchanged.
-  function commitSectionOrder(sectionLabel: string | null, orderedIds: number[]) {
-    const inSection = new Set(orderedIds);
-    const flat: number[] = [];
-    for (const section of sections) {
-      if (section.label === sectionLabel) flat.push(...orderedIds);
-      else flat.push(...section.albums.map((a) => a.id));
-    }
-    const rest = (albums ?? []).map((a) => a.id).filter((id) => !flat.includes(id) && !inSection.has(id));
-    reorderMutation.mutate({ data: { ids: [...flat, ...rest] } }, { onSuccess: refetch });
+  // Persist a reordered subset (a folder's albums, or the ungrouped grid),
+  // slotting its new order into place and keeping every other album fixed.
+  function commitOrder(orderedIds: number[]) {
+    const idSet = new Set(orderedIds);
+    let qi = 0;
+    const result = (albums ?? []).map((a) => (idSet.has(a.id) ? orderedIds[qi++] : a.id));
+    reorderMutation.mutate({ data: { ids: result } }, { onSuccess: refetch });
   }
 
   return (
@@ -354,46 +354,55 @@ export default function Albums() {
             ))}
           </div>
         ) : albums && albums.length > 0 ? (
-          <>
-          {grouped ? (
+          activeFolder != null ? (
+            // Drilled into a folder.
+            <div className="space-y-4">
+              <FolderBreadcrumb rootHref="/albums" rootLabel="Albums" folder={activeFolder} />
+              {inFolder.length > 0 ? (
+                <AlbumGrid albums={inFolder} isAdmin={isAdmin} onCommit={commitOrder} onMove={openMove} />
+              ) : (
+                <p className="text-sm text-muted-foreground">This folder is empty.</p>
+              )}
+            </div>
+          ) : folders.length > 0 ? (
+            // Folder index: folder tiles, then any ungrouped albums.
             <div className="space-y-8">
-              {sections.map((section) => (
-                <div key={section.label ?? "(ungrouped)"} className="space-y-3" data-testid={`albums-folder-${section.label ?? "ungrouped"}`}>
-                  <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-                    <Folder className="h-4 w-4 text-muted-foreground" />
-                    {section.label ?? "Ungrouped"}
-                    <span className="text-xs font-normal text-muted-foreground">
-                      {section.albums.length} album{section.albums.length !== 1 ? "s" : ""}
-                    </span>
-                  </h2>
-                  <AlbumGrid
-                    albums={section.albums}
-                    isAdmin={isAdmin}
-                    onCommit={(ids) => commitSectionOrder(section.label, ids)}
-                    onMove={openMove}
-                    testId={section.label ? undefined : "albums-grid"}
-                  />
+              <div>
+                <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Folders</h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {folders.map((f) => (
+                    <FolderCard
+                      key={f}
+                      name={f}
+                      count={(albums ?? []).filter((a) => a.folder === f).length}
+                      covers={folderCovers(f)}
+                      href={`/albums?folder=${encodeURIComponent(f)}`}
+                    />
+                  ))}
                 </div>
-              ))}
+              </div>
+              {ungrouped.length > 0 && (
+                <div>
+                  <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">Ungrouped</h2>
+                  <AlbumGrid albums={ungrouped} isAdmin={isAdmin} onCommit={commitOrder} onMove={openMove} testId="albums-grid" />
+                </div>
+              )}
             </div>
           ) : (
-            <AlbumGrid
-              albums={visibleAlbums}
-              isAdmin={isAdmin}
-              onCommit={(ids) => commitSectionOrder(null, ids)}
-              onMove={openMove}
-            />
-          )}
-          {hasMore && (
-            <div
-              ref={sentinelRef}
-              className="flex items-center justify-center py-8 text-sm text-muted-foreground"
-              data-testid="albums-load-more"
-            >
-              <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading more albums…
-            </div>
-          )}
-          </>
+            // No folders anywhere — flat, windowed list.
+            <>
+              <AlbumGrid albums={visibleAlbums} isAdmin={isAdmin} onCommit={commitOrder} onMove={openMove} testId="albums-grid" />
+              {hasMore && (
+                <div
+                  ref={sentinelRef}
+                  className="flex items-center justify-center py-8 text-sm text-muted-foreground"
+                  data-testid="albums-load-more"
+                >
+                  <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading more albums…
+                </div>
+              )}
+            </>
+          )
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center" data-testid="albums-empty">
             <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mb-4">

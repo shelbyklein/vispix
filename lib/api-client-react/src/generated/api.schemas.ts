@@ -418,6 +418,8 @@ export interface Asset {
   /** @nullable */
   notes?: string | null;
   /** @nullable */
+  folder?: string | null;
+  /** @nullable */
   projectId?: number | null;
   /** @nullable */
   projectName?: string | null;
@@ -447,6 +449,7 @@ export interface AssetInput {
   name: string;
   variant?: string;
   notes?: string;
+  folder?: string;
   projectId?: number;
   /** The objectPath returned by the storage request-url flow (must start with /objects/) */
   storageKey: string;
@@ -471,6 +474,8 @@ export interface AssetUpdate {
   variant?: string | null;
   /** @nullable */
   notes?: string | null;
+  /** @nullable */
+  folder?: string | null;
   /** @nullable */
   projectId?: number | null;
 }

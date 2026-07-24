@@ -4286,6 +4286,7 @@ export const ListAssetsResponseItem = zod.object({
   name: zod.string(),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
+  folder: zod.string().nullish(),
   projectId: zod.number().nullish(),
   projectName: zod.string().nullish(),
   storageKey: zod.string(),
@@ -4307,6 +4308,7 @@ export const CreateAssetBody = zod.object({
   name: zod.string().min(1),
   variant: zod.string().optional(),
   notes: zod.string().optional(),
+  folder: zod.string().optional(),
   projectId: zod.number().optional(),
   storageKey: zod
     .string()
@@ -4330,6 +4332,7 @@ export const UpdateAssetBody = zod.object({
   name: zod.string().min(1).optional(),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
+  folder: zod.string().nullish(),
   projectId: zod.number().nullish(),
 });
 
@@ -4339,6 +4342,7 @@ export const UpdateAssetResponse = zod.object({
   name: zod.string(),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
+  folder: zod.string().nullish(),
   projectId: zod.number().nullish(),
   projectName: zod.string().nullish(),
   storageKey: zod.string(),
