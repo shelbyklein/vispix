@@ -104,6 +104,36 @@ export function useNearDuplicatePhotoGroups(params: NearDuplicatePhotoGroupsPara
 // DuplicatePhoto card shape; the near-duplicates route provides imageUrl.
 export type NearDuplicateModalPhoto = DuplicatePhoto & { imageUrl: string; perceptualHash: string | null };
 
+const NEAR_DUP_EXACT_SUMMARY_KEY = ["admin", "photos", "near-duplicates", "exact-summary"] as const;
+
+// Count of deletable copies across all 100%-identical (perceptual distance 0)
+// groups — drives the one-click bulk cleanup button (#177).
+export function useNearDuplicateExactSummary() {
+  return useQuery({
+    queryKey: NEAR_DUP_EXACT_SUMMARY_KEY,
+    queryFn: () =>
+      customFetch<{ groupCount: number; extraCount: number }>(
+        "/api/admin/photos/near-duplicates/exact-summary",
+      ),
+  });
+}
+
+// Delete one copy of every 100% match in one shot (keeps covers / one per group).
+export function useDeleteNearDuplicateExactExtras() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      customFetch<{ deleted: number }>("/api/admin/photos/near-duplicates/delete-exact-extras", {
+        method: "POST",
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "photos", "near-duplicates"] });
+      queryClient.invalidateQueries({ queryKey: NEAR_DUP_EXACT_SUMMARY_KEY });
+      queryClient.invalidateQueries({ queryKey: NEAR_DUP_INDEX_STATUS_KEY });
+    },
+  });
+}
+
 // Dismiss a comparison as not-duplicates (issue #124): every pair among the
 // given photos is persisted as ignored and the group stops resurfacing.
 export function useIgnoreNearDuplicates() {

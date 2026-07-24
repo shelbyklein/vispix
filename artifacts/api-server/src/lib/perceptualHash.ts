@@ -419,6 +419,33 @@ export async function listNearDuplicatePhotoGroups(
   return groups;
 }
 
+// "100% matches" = visually-identical groups (perceptual distance 0). These two
+// mirror the exact content-hash helpers in contentHash.ts, but for perceptual
+// duplicates: they power the one-click "delete one copy of every 100% match"
+// action (#177). The keep rule matches the exact-duplicate one: keep album
+// covers when a group has any (covers can't be deleted), else keep the newest
+// photo, and mark the rest deletable.
+
+function deletableExactExtras(group: NearDuplicateGroup): number[] {
+  const hasCover = group.photos.some((p) => p.isAlbumCover);
+  // photos come newest-first, so slice(1) keeps the newest as the surviving copy.
+  const deletable = hasCover ? group.photos.filter((p) => !p.isAlbumCover) : group.photos.slice(1);
+  return deletable.map((p) => p.id);
+}
+
+export async function getExactNearDuplicateSummary(
+  organizationId?: number,
+): Promise<{ groupCount: number; extraCount: number }> {
+  const groups = await listNearDuplicatePhotoGroups(0, organizationId);
+  const extraCount = groups.reduce((sum, g) => sum + deletableExactExtras(g).length, 0);
+  return { groupCount: groups.length, extraCount };
+}
+
+export async function computeExactNearDuplicateExtraIds(organizationId?: number): Promise<number[]> {
+  const groups = await listNearDuplicatePhotoGroups(0, organizationId);
+  return groups.flatMap(deletableExactExtras);
+}
+
 // Dismiss a near-duplicate comparison (issue #124): record every pair among the
 // given photos as ignored so the group never resurfaces — including after an
 // index rebuild, and even if a future rescan connects only a subset of them.

@@ -99,6 +99,8 @@ import {
   ignoreNearDuplicatePhotos,
   getNearDuplicateIndexStatus,
   rebuildNearDuplicatePairs,
+  getExactNearDuplicateSummary,
+  computeExactNearDuplicateExtraIds,
   DEFAULT_NEAR_DUP_THRESHOLD,
   MAX_NEAR_DUP_THRESHOLD,
 } from "../lib/perceptualHash";
@@ -790,6 +792,39 @@ router.post("/admin/photos/near-duplicates/ignore", ...requireOrgAdmin, async (r
   }
   const result = await ignoreNearDuplicatePhotos(req.org!.id, body.data.photoIds);
   res.json(IgnoreNearDuplicatesResponse.parse(result));
+});
+
+// One-click cleanup of "100% matches" (#177): every visually-identical
+// (perceptual distance 0) group, keeping album covers or one photo per group and
+// deleting the rest. The summary lets the UI show the count + confirm first.
+// Mirrors the exact content-hash delete-extras above, reusing its response shapes.
+router.get("/admin/photos/near-duplicates/exact-summary", ...requireOrgAdmin, async (req, res): Promise<void> => {
+  res.json(GetDuplicatesSummaryResponse.parse(await getExactNearDuplicateSummary(req.org!.id)));
+});
+
+router.post("/admin/photos/near-duplicates/delete-exact-extras", ...requireOrgAdmin, async (req, res): Promise<void> => {
+  const orgId = req.org!.id;
+  const extraIds = await computeExactNearDuplicateExtraIds(orgId);
+  if (extraIds.length === 0) {
+    res.json(DeleteDuplicateExtrasResponse.parse({ deleted: 0 }));
+    return;
+  }
+
+  // extraIds are already org-scoped; re-assert org on the reads/delete as
+  // defense-in-depth so no foreign id can ever be removed.
+  const toDelete = await db
+    .select({ id: photosTable.id, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+    .from(photosTable)
+    .where(and(inArray(photosTable.id, extraIds), eq(photosTable.organizationId, orgId)));
+
+  const deleted = await db
+    .delete(photosTable)
+    .where(and(inArray(photosTable.id, extraIds), eq(photosTable.organizationId, orgId)))
+    .returning({ id: photosTable.id });
+
+  await Promise.all(toDelete.map((photo) => deletePhotoStorageObjects(photo)));
+
+  res.json(DeleteDuplicateExtrasResponse.parse({ deleted: deleted.length }));
 });
 
 router.get("/admin/photos/near-duplicate-index-status", ...requireOrgAdmin, async (req, res): Promise<void> => {
