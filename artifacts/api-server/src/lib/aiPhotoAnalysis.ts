@@ -5,6 +5,7 @@ import {
   collectionsTable,
   photoCollectionSuggestionsTable,
   photoNewCollectionSuggestionsTable,
+  photoAiEvaluationsTable,
   aiAnalysisEventsTable,
   type AiAnalysisEvent,
 } from "@workspace/db";
@@ -13,6 +14,7 @@ import { logger } from "./logger";
 import { ObjectStorageService } from "./objectStorage";
 import { getActiveProvider } from "./aiProviders";
 import type { ProviderId } from "./aiProviders";
+import { normalizeEvaluation, type PhotoEvaluationScores } from "./aiEvaluation";
 import { createLimiter } from "./concurrencyLimit";
 
 const storageService = new ObjectStorageService();
@@ -84,6 +86,8 @@ export interface PhotoAnalysisResult {
   description: string;
   suggestedCollectionIds: number[];
   suggestedNewCollectionNames: string[];
+  /** Normalized criteria scores (#181), or null when the provider omitted/garbled them. */
+  evaluation: PhotoEvaluationScores | null;
 }
 
 export type AnalyzePhotoOutcome =
@@ -112,13 +116,13 @@ export async function analyzePhoto(
     .join("\n");
 
   const systemPrompt =
-    "You are a photo describer for a team photo album. Look at the photo and (1) write one plain-English description (max 60 words) of what is in it — for every person visible include their approximate age range (child/teen/adult/elderly), sex, race/ethnicity, pose (e.g. standing, sitting, crouching), and general disposition or expression (e.g. smiling, laughing, serious, focused); also describe the setting and overall scene; if no people are present, describe the subject, objects, and environment in detail; (2) from the user's existing collections, pick up to 3 that this photo would naturally belong in (only clear thematic matches, otherwise empty; never invent collection ids); (3) if no existing collections match well, suggest 1–2 short new category names (2–4 words each, title case) that would suit this photo — only when existing collections don't already cover it well.";
+    "You are a photo describer for a team photo album. Look at the photo and (1) write one plain-English description (max 60 words) of what is in it — for every person visible include their approximate age range (child/teen/adult/elderly), sex, race/ethnicity, pose (e.g. standing, sitting, crouching), and general disposition or expression (e.g. smiling, laughing, serious, focused); also describe the setting and overall scene; if no people are present, describe the subject, objects, and environment in detail; (2) from the user's existing collections, pick up to 3 that this photo would naturally belong in (only clear thematic matches, otherwise empty; never invent collection ids); (3) if no existing collections match well, suggest 1–2 short new category names (2–4 words each, title case) that would suit this photo — only when existing collections don't already cover it well; (4) evaluate the photo on five criteria, each an integer 0–10 (0–2 unusable, 3–4 poor, 5–6 usable, 7–8 good, 9–10 exceptional; use the full range and be critical — most ordinary photos should land 4–7): technicalQuality (sharpness/focus, exposure, noise — blurry or badly exposed shots score low), composition (framing, subject placement, background clutter), subjectClarity (how clearly the main subject reads — isolation, timing, eye contact), emotionalImpact (expressiveness, energy, storytelling value), marketingUsability (hero-shot potential: would this work in a campaign, website banner or social post?); also list concrete flaws if any (short phrases like \"motion blur\", \"closed eyes\", \"harsh shadows\", \"cluttered background\"; empty list if clean) and one short orientationSuitability phrase describing which crops/uses the framing suits (e.g. \"wide banner\", \"square social crop\", \"tight portrait\").";
 
   const collectionsText = collections.length
     ? `Existing collections:\n${collectionsBlock}`
     : "The user has no collections yet.";
 
-  const userText = `${collectionsText}\n\nDescribe the photo, pick up to 3 fitting existing collection ids (empty array if none match well), and if no existing collections are a good fit, suggest 1–2 short new collection names (empty array otherwise).`;
+  const userText = `${collectionsText}\n\nDescribe the photo, pick up to 3 fitting existing collection ids (empty array if none match well), if no existing collections are a good fit suggest 1–2 short new collection names (empty array otherwise), and score the photo on the five evaluation criteria with any flaws and orientation suitability.`;
 
   let image: ResolvedImage;
   let result: Awaited<ReturnType<typeof provider.analyze>>;
@@ -168,6 +172,7 @@ export async function analyzePhoto(
       description: result.description,
       suggestedCollectionIds,
       suggestedNewCollectionNames,
+      evaluation: normalizeEvaluation(result.evaluation),
     },
   };
 }
@@ -268,6 +273,30 @@ async function runAndRecordPhotoAnalysisUnbounded(
         .update(photosTable)
         .set({ aiDescription: result.description || null })
         .where(eq(photosTable.id, photo.id));
+
+      // Criteria evaluation (#181): upsert alongside the description. When a
+      // provider omits/garbles the block we keep any previous evaluation rather
+      // than destroying scores on re-analysis.
+      if (result.evaluation) {
+        const ev = result.evaluation;
+        const evalValues = {
+          organizationId: photo.organizationId,
+          technicalQuality: ev.technicalQuality,
+          composition: ev.composition,
+          subjectClarity: ev.subjectClarity,
+          emotionalImpact: ev.emotionalImpact,
+          marketingUsability: ev.marketingUsability,
+          overallScore: ev.overallScore,
+          flaws: ev.flaws,
+          orientationSuitability: ev.orientationSuitability,
+          provider: outcome.provider,
+          evaluatedAt: new Date(),
+        };
+        await tx
+          .insert(photoAiEvaluationsTable)
+          .values({ photoId: photo.id, ...evalValues })
+          .onConflictDoUpdate({ target: photoAiEvaluationsTable.photoId, set: evalValues });
+      }
 
       if (result.suggestedCollectionIds.length > 0) {
         await tx

@@ -1,4 +1,4 @@
-import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable } from "@workspace/db";
+import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
 import { eq, and, avg, count, desc, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
@@ -6,6 +6,22 @@ import { logger } from "./logger";
 const objectStorageService = new ObjectStorageService();
 
 export type AiStatusFilter = "has_description" | "failed" | "not_analysed";
+
+// Criteria evaluation (#181) as exposed on photo responses.
+function serializeAiEvaluation(row: PhotoAiEvaluation | undefined | null) {
+  if (!row) return null;
+  return {
+    technicalQuality: row.technicalQuality,
+    composition: row.composition,
+    subjectClarity: row.subjectClarity,
+    emotionalImpact: row.emotionalImpact,
+    marketingUsability: row.marketingUsability,
+    overallScore: row.overallScore,
+    flaws: Array.isArray(row.flaws) ? row.flaws : [],
+    orientationSuitability: row.orientationSuitability ?? null,
+    evaluatedAt: row.evaluatedAt instanceof Date ? row.evaluatedAt.toISOString() : String(row.evaluatedAt),
+  };
+}
 
 export interface AlbumPhotoPageOptions {
   // Tenant scope (issue #113): only photos in this org are returned, even if the
@@ -125,7 +141,7 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
 
   if (!photo) return null;
 
-  const [photoCollections, photoProjects, photoAttributionTags, ratingDataArr, ratingsList, suggestedCollections, suggestedNewCollections, latestAiEvents] = await Promise.all([
+  const [photoCollections, photoProjects, photoAttributionTags, ratingDataArr, ratingsList, suggestedCollections, suggestedNewCollections, latestAiEvents, aiEvaluationRows] = await Promise.all([
     db
       .select({
         id: collectionsTable.id,
@@ -193,10 +209,15 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
       .where(eq(aiAnalysisEventsTable.photoId, photoId))
       .orderBy(desc(aiAnalysisEventsTable.createdAt))
       .limit(1),
+    db
+      .select()
+      .from(photoAiEvaluationsTable)
+      .where(eq(photoAiEvaluationsTable.photoId, photoId)),
   ]);
 
   const ratingData = ratingDataArr[0];
   const latestAiStatus = latestAiEvents[0]?.status ?? null;
+  const aiEvaluation = serializeAiEvaluation(aiEvaluationRows[0]);
 
   let myRating: number | null = null;
   if (currentUserId) {
@@ -236,6 +257,7 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
     suggestedCollections,
     suggestedNewCollections,
     latestAiStatus,
+    aiEvaluation,
   };
 }
 
@@ -261,6 +283,7 @@ export async function buildPhotosResponse(photoIds: number[], orgId: number, cur
     suggestedNewCollectionRows,
     latestAiRows,
     myRatingRows,
+    aiEvaluationRows,
   ] = await Promise.all([
     db
       .select({ photo: photosTable, albumTitle: albumsTable.title })
@@ -362,6 +385,10 @@ export async function buildPhotosResponse(photoIds: number[], orgId: number, cur
           .from(ratingsTable)
           .where(and(inArray(ratingsTable.photoId, photoIds), eq(ratingsTable.userId, currentUserId)))
       : Promise.resolve([] as { photoId: number; score: number }[]),
+    db
+      .select()
+      .from(photoAiEvaluationsTable)
+      .where(inArray(photoAiEvaluationsTable.photoId, photoIds)),
   ]);
 
   const photoById = new Map(photoRows.map((r) => [r.photo.id, r]));
@@ -393,6 +420,7 @@ export async function buildPhotosResponse(photoIds: number[], orgId: number, cur
   }
   const latestAiByPhoto = new Map(latestAiRows.map((r) => [r.photoId, r.status]));
   const myRatingByPhoto = new Map(myRatingRows.map((r) => [r.photoId, r.score]));
+  const aiEvaluationByPhoto = new Map(aiEvaluationRows.map((r) => [r.photoId, r]));
 
   return photoIds
     .map((id) => {
@@ -428,6 +456,7 @@ export async function buildPhotosResponse(photoIds: number[], orgId: number, cur
         suggestedCollections: (suggestedByPhoto.get(id) ?? []).map((s) => ({ id: s.id, title: s.title })),
         suggestedNewCollections: (suggestedNewByPhoto.get(id) ?? []).map((s) => ({ id: s.id, suggestedName: s.suggestedName })),
         latestAiStatus: latestAiByPhoto.get(id) ?? null,
+        aiEvaluation: serializeAiEvaluation(aiEvaluationByPhoto.get(id)),
       };
     })
     .filter(Boolean);

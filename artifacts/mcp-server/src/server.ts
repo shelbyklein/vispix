@@ -80,13 +80,14 @@ export function createServer(options: ServerOptions = {}): McpServer {
         count: z.number().int().min(1).max(50).default(8).describe("How many results to return"),
         exclude: z.string().optional().describe("Concept to steer away from (e.g. 'crowds', 'indoor range')"),
         minRating: z.number().min(1).max(5).optional().describe("Only photos with at least this average star rating"),
+        minQuality: z.number().min(0).max(10).optional().describe("Only photos with at least this AI quality score (0-10; e.g. 7 for hero-shot candidates)"),
         rightsTag: z.string().optional().describe("Only photos cleared for this usage-rights tag (see list_usage_rights)"),
         person: z.string().optional().describe("Only photos tagged to this person (see list_people)"),
         includeImages: z.boolean().default(true).describe("Inline thumbnail images in the response"),
       },
     },
-    async ({ query, count, exclude, minRating, rightsTag, person, includeImages }) => {
-      const { results, note } = await searchPhotos({ query, count, exclude, minRating, rightsTag, person, organizationId: options.organizationId });
+    async ({ query, count, exclude, minRating, minQuality, rightsTag, person, includeImages }) => {
+      const { results, note } = await searchPhotos({ query, count, exclude, minRating, minQuality, rightsTag, person, organizationId: options.organizationId });
       if (results.length === 0) {
         return { content: [textBlock(note ?? `No photos matched "${query}".`)] };
       }
@@ -98,6 +99,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
           p.albumTitle && `album: ${p.albumTitle}`,
           p.width && p.height && `${p.width}x${p.height}`,
           p.averageRating != null && `rating: ${p.averageRating.toFixed(1)}/5 (${p.ratingCount})`,
+          p.aiScore != null && `quality: ${p.aiScore.toFixed(1)}/10${p.aiFlaws.length > 0 ? ` (flaws: ${p.aiFlaws.join(", ")})` : ""}`,
           p.rights.length > 0 && `rights: ${p.rights.join(", ")}`,
         ].filter(Boolean);
         const desc = p.aiDescription ? `\n   ${p.aiDescription.slice(0, 300)}` : "";
@@ -161,6 +163,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
         photo.albumTitle && `album: ${photo.albumTitle}`,
         photo.width && photo.height && `dimensions: ${photo.width}x${photo.height}`,
         photo.averageRating != null && `rating: ${photo.averageRating.toFixed(1)}/5 (${photo.ratingCount} ratings)`,
+        photo.aiScore != null && `AI quality score: ${photo.aiScore.toFixed(1)}/10${photo.aiFlaws.length > 0 ? ` — flaws: ${photo.aiFlaws.join(", ")}` : ""}`,
         photo.rights.length > 0 ? `usage rights: ${photo.rights.join(", ")}` : "usage rights: none recorded",
         photo.takenAt && `taken: ${photo.takenAt}`,
         photo.aiDescription && `description: ${photo.aiDescription}`,

@@ -204,6 +204,26 @@ export interface AttributionTag {
   name: string;
 }
 
+/**
+ * AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).
+ */
+export interface PhotoAiEvaluation {
+  technicalQuality: number;
+  composition: number;
+  subjectClarity: number;
+  emotionalImpact: number;
+  marketingUsability: number;
+  overallScore: number;
+  /** Detected flaws (short phrases); empty when clean. */
+  flaws: string[];
+  /**
+   * Which crops/uses the framing suits.
+   * @nullable
+   */
+  orientationSuitability?: string | null;
+  evaluatedAt?: string;
+}
+
 export interface SuggestedCollection {
   id: number;
   title: string;
@@ -273,6 +293,8 @@ export interface Photo {
    * @nullable
    */
   latestAiStatus?: PhotoLatestAiStatus;
+  /** AI criteria evaluation of the photo (quality/composition scores), or null if not yet evaluated. */
+  aiEvaluation?: PhotoAiEvaluation | null;
   suggestedCollections?: SuggestedCollection[];
   suggestedNewCollections?: SuggestedNewCollection[];
   ratings?: PhotoRating[];
@@ -818,6 +840,10 @@ export type SearchPhotosParams = {
    * Terms to exclude — photos whose AI description matches any are dropped.
    */
   exclude?: string[];
+  /**
+   * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+   */
+  minQuality?: number;
 };
 
 export type SemanticSearchPhotosParams = {
@@ -828,6 +854,10 @@ export type SemanticSearchPhotosParams = {
    * Concepts to steer away from — the query vector is pushed away from their embedding.
    */
   exclude?: string[];
+  /**
+   * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+   */
+  minQuality?: number;
 };
 
 export type ListSimilarPhotosParams = {

@@ -306,6 +306,34 @@ export const GetAlbumTopRatedResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -486,6 +514,34 @@ export const ListAlbumPhotosResponse = zod.object({
         ])
         .nullish()
         .describe("Status of the most recent AI analysis event for this photo"),
+      aiEvaluation: zod
+        .union([
+          zod
+            .object({
+              technicalQuality: zod.number(),
+              composition: zod.number(),
+              subjectClarity: zod.number(),
+              emotionalImpact: zod.number(),
+              marketingUsability: zod.number(),
+              overallScore: zod.number(),
+              flaws: zod
+                .array(zod.string())
+                .describe("Detected flaws (short phrases); empty when clean."),
+              orientationSuitability: zod
+                .string()
+                .nullish()
+                .describe("Which crops\/uses the framing suits."),
+              evaluatedAt: zod.string().optional(),
+            })
+            .describe(
+              "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+            ),
+          zod.null(),
+        ])
+        .optional()
+        .describe(
+          "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+        ),
       suggestedCollections: zod
         .array(
           zod.object({
@@ -551,6 +607,12 @@ export const SearchPhotosQueryParams = zod.object({
     .optional()
     .describe(
       "Terms to exclude — photos whose AI description matches any are dropped.",
+    ),
+  minQuality: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.",
     ),
 });
 
@@ -648,6 +710,34 @@ export const SearchPhotosResponse = zod.object({
         ])
         .nullish()
         .describe("Status of the most recent AI analysis event for this photo"),
+      aiEvaluation: zod
+        .union([
+          zod
+            .object({
+              technicalQuality: zod.number(),
+              composition: zod.number(),
+              subjectClarity: zod.number(),
+              emotionalImpact: zod.number(),
+              marketingUsability: zod.number(),
+              overallScore: zod.number(),
+              flaws: zod
+                .array(zod.string())
+                .describe("Detected flaws (short phrases); empty when clean."),
+              orientationSuitability: zod
+                .string()
+                .nullish()
+                .describe("Which crops\/uses the framing suits."),
+              evaluatedAt: zod.string().optional(),
+            })
+            .describe(
+              "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+            ),
+          zod.null(),
+        ])
+        .optional()
+        .describe(
+          "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+        ),
       suggestedCollections: zod
         .array(
           zod.object({
@@ -691,6 +781,12 @@ export const SemanticSearchPhotosQueryParams = zod.object({
     .optional()
     .describe(
       "Concepts to steer away from — the query vector is pushed away from their embedding.",
+    ),
+  minQuality: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.",
     ),
 });
 
@@ -782,6 +878,34 @@ export const SemanticSearchPhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -912,6 +1036,34 @@ export const ListSimilarPhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1066,6 +1218,34 @@ export const ListPhotosResponse = zod.object({
         ])
         .nullish()
         .describe("Status of the most recent AI analysis event for this photo"),
+      aiEvaluation: zod
+        .union([
+          zod
+            .object({
+              technicalQuality: zod.number(),
+              composition: zod.number(),
+              subjectClarity: zod.number(),
+              emotionalImpact: zod.number(),
+              marketingUsability: zod.number(),
+              overallScore: zod.number(),
+              flaws: zod
+                .array(zod.string())
+                .describe("Detected flaws (short phrases); empty when clean."),
+              orientationSuitability: zod
+                .string()
+                .nullish()
+                .describe("Which crops\/uses the framing suits."),
+              evaluatedAt: zod.string().optional(),
+            })
+            .describe(
+              "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+            ),
+          zod.null(),
+        ])
+        .optional()
+        .describe(
+          "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+        ),
       suggestedCollections: zod
         .array(
           zod.object({
@@ -1326,6 +1506,34 @@ export const GetPhotoResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1455,6 +1663,34 @@ export const UpdatePhotoResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1589,6 +1825,34 @@ export const AddPhotoTagResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1713,6 +1977,34 @@ export const RemovePhotoTagResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1840,6 +2132,34 @@ export const AddPhotoCategoryResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -1964,6 +2284,34 @@ export const RemovePhotoCategoryResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -2093,6 +2441,34 @@ export const RatePhotoResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -2216,6 +2592,34 @@ export const ClearPhotoRatingResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -2770,6 +3174,34 @@ export const GetDashboardStatsResponse = zod.object({
         ])
         .nullish()
         .describe("Status of the most recent AI analysis event for this photo"),
+      aiEvaluation: zod
+        .union([
+          zod
+            .object({
+              technicalQuality: zod.number(),
+              composition: zod.number(),
+              subjectClarity: zod.number(),
+              emotionalImpact: zod.number(),
+              marketingUsability: zod.number(),
+              overallScore: zod.number(),
+              flaws: zod
+                .array(zod.string())
+                .describe("Detected flaws (short phrases); empty when clean."),
+              orientationSuitability: zod
+                .string()
+                .nullish()
+                .describe("Which crops\/uses the framing suits."),
+              evaluatedAt: zod.string().optional(),
+            })
+            .describe(
+              "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+            ),
+          zod.null(),
+        ])
+        .optional()
+        .describe(
+          "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+        ),
       suggestedCollections: zod
         .array(
           zod.object({
@@ -2891,6 +3323,34 @@ export const GetRecentPhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -3011,6 +3471,34 @@ export const GetTopRatedPhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -3264,6 +3752,36 @@ export const GetCollectionResponse = zod.object({
           .describe(
             "Status of the most recent AI analysis event for this photo",
           ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+          ),
         suggestedCollections: zod
           .array(
             zod.object({
@@ -3422,6 +3940,36 @@ export const UpdateCollectionResponse = zod.object({
           .describe(
             "Status of the most recent AI analysis event for this photo",
           ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+          ),
         suggestedCollections: zod
           .array(
             zod.object({
@@ -3574,6 +4122,34 @@ export const ListCollectionNegativePhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -3748,6 +4324,36 @@ export const SetCollectionCoverResponse = zod.object({
           .describe(
             "Status of the most recent AI analysis event for this photo",
           ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+          ),
         suggestedCollections: zod
           .array(
             zod.object({
@@ -3887,6 +4493,34 @@ export const GetSmartCollectionPhotosResponseItem = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -4075,6 +4709,36 @@ export const GetProjectResponse = zod.object({
           .describe(
             "Status of the most recent AI analysis event for this photo",
           ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+          ),
         suggestedCollections: zod
           .array(
             zod.object({
@@ -4222,6 +4886,36 @@ export const UpdateProjectResponse = zod.object({
           .nullish()
           .describe(
             "Status of the most recent AI analysis event for this photo",
+          ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
           ),
         suggestedCollections: zod
           .array(
@@ -4465,6 +5159,34 @@ export const AcceptPhotoSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -4589,6 +5311,34 @@ export const DismissPhotoSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -4713,6 +5463,34 @@ export const AcceptPhotoTagSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -4837,6 +5615,34 @@ export const DismissPhotoTagSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -4961,6 +5767,34 @@ export const AcceptPhotoCategorySuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -5085,6 +5919,34 @@ export const DismissPhotoCategorySuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -5213,6 +6075,34 @@ export const AcceptPhotoNewCollectionSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({
@@ -5337,6 +6227,34 @@ export const DismissPhotoNewCollectionSuggestionResponse = zod.object({
     ])
     .nullish()
     .describe("Status of the most recent AI analysis event for this photo"),
+  aiEvaluation: zod
+    .union([
+      zod
+        .object({
+          technicalQuality: zod.number(),
+          composition: zod.number(),
+          subjectClarity: zod.number(),
+          emotionalImpact: zod.number(),
+          marketingUsability: zod.number(),
+          overallScore: zod.number(),
+          flaws: zod
+            .array(zod.string())
+            .describe("Detected flaws (short phrases); empty when clean."),
+          orientationSuitability: zod
+            .string()
+            .nullish()
+            .describe("Which crops\/uses the framing suits."),
+          evaluatedAt: zod.string().optional(),
+        })
+        .describe(
+          "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+        ),
+      zod.null(),
+    ])
+    .optional()
+    .describe(
+      "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+    ),
   suggestedCollections: zod
     .array(
       zod.object({

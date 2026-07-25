@@ -55,11 +55,51 @@ export interface AnalysisRequest {
   userText: string;
 }
 
+// Criteria scores from the same analysis call (#181): 0–10 each, plus detected
+// flaws and which crops/uses the framing suits. Providers return this raw and
+// unvalidated; lib/aiEvaluation.ts normalizes/clamps before persistence.
+export interface RawPhotoEvaluation {
+  technicalQuality: number;
+  composition: number;
+  subjectClarity: number;
+  emotionalImpact: number;
+  marketingUsability: number;
+  flaws: string[];
+  orientationSuitability: string;
+}
+
 export interface RawAnalysisResult {
   description: string;
   suggestedCollectionIds: number[];
   suggestedNewCollectionNames?: string[];
+  evaluation?: RawPhotoEvaluation | null;
 }
+
+// Shared JSON-schema fragment for the evaluation block, in the plain
+// draft-style shape OpenAI (strict json_schema) and Anthropic (tool
+// input_schema) both accept. Gemini's typed schema mirrors this in gemini.ts.
+export const EVALUATION_SCHEMA_FRAGMENT = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    technicalQuality: { type: "integer" },
+    composition: { type: "integer" },
+    subjectClarity: { type: "integer" },
+    emotionalImpact: { type: "integer" },
+    marketingUsability: { type: "integer" },
+    flaws: { type: "array", items: { type: "string" }, maxItems: 6 },
+    orientationSuitability: { type: "string" },
+  },
+  required: [
+    "technicalQuality",
+    "composition",
+    "subjectClarity",
+    "emotionalImpact",
+    "marketingUsability",
+    "flaws",
+    "orientationSuitability",
+  ],
+} as const;
 
 export interface AnalysisProvider {
   id: ProviderId;

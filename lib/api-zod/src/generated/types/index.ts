@@ -76,6 +76,7 @@ export * from "./listPhotosParams";
 export * from "./listSimilarPhotosParams";
 export * from "./navOrderUpdate";
 export * from "./photo";
+export * from "./photoAiEvaluation";
 export * from "./photoAttributionTagInput";
 export * from "./photoCategoryInput";
 export * from "./photoLatestAiStatus";

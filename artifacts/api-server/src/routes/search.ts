@@ -10,6 +10,7 @@ import {
   collectionTagsTable,
   photoCollectionsTable,
   photoEmbeddingsTable,
+  photoAiEvaluationsTable,
   aiAnalysisEventsTable,
   photoAttributionTagsTable,
 } from "@workspace/db";
@@ -23,6 +24,23 @@ const router: IRouter = Router();
 
 // How hard an excluded concept pushes the semantic query vector away from it.
 const NEGATIVE_LAMBDA = 0.75;
+
+// AI criteria evaluation (#181) as a search signal. In semantic search the
+// final rank blends embedding similarity with the photo's overall AI score:
+// final = similarity * (1 - W) + (score / 10) * W. Small on purpose — relevance
+// still dominates; the score breaks ties between similar matches. Photos not
+// yet evaluated get a neutral 5/10 so the progressive backfill doesn't bury them.
+const SEMANTIC_QUALITY_WEIGHT = 0.15;
+const NEUTRAL_QUALITY_SCORE = 5;
+
+// Parse an optional ?minQuality= (0–10) — photos below the AI overall score are
+// dropped; photos without an evaluation are dropped too when the filter is set.
+function parseMinQuality(raw: unknown): number | undefined {
+  if (typeof raw !== "string" || raw.trim() === "") return undefined;
+  const n = parseFloat(raw);
+  if (!Number.isFinite(n)) return undefined;
+  return Math.min(10, Math.max(0, n));
+}
 
 // Parse repeated `?exclude=` query params (or a single one) into trimmed terms.
 function parseExcludeTerms(raw: unknown): string[] {
@@ -249,6 +267,7 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
   const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
   const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
   const uploaderId = req.query.uploaderId ? parseInt(String(req.query.uploaderId), 10) : undefined;
+  const minQuality = parseMinQuality(req.query.minQuality);
   const includeHidden = req.query.includeHidden === "true";
   const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
 
@@ -299,13 +318,26 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // The ILIKE union has no inherent order — impose a stable one (newest-first,
-  // id tiebreaker) so offset pagination is consistent across pages.
+  // The ILIKE union has no inherent order — impose a stable one so offset
+  // pagination is consistent across pages: AI quality tier first (#181 — whole
+  // scores so recency still matters within a tier; unevaluated photos sort as a
+  // middle 5 so the progressive backfill doesn't bury them), then newest-first
+  // with an id tiebreaker. An optional minQuality floor drops low scorers.
   const orderedRows = await db
     .select({ id: photosTable.id })
     .from(photosTable)
-    .where(inArray(photosTable.id, candidateIds))
-    .orderBy(desc(photosTable.createdAt), desc(photosTable.id));
+    .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photosTable.id))
+    .where(
+      and(
+        inArray(photosTable.id, candidateIds),
+        minQuality != null ? gte(photoAiEvaluationsTable.overallScore, minQuality) : undefined,
+      ),
+    )
+    .orderBy(
+      sql`round(coalesce(${photoAiEvaluationsTable.overallScore}, ${NEUTRAL_QUALITY_SCORE})) DESC`,
+      desc(photosTable.createdAt),
+      desc(photosTable.id),
+    );
 
   const filtered = await applyFiltersAndFetchIds(orderedRows.map((r) => r.id), {
     ratingMin,
@@ -331,6 +363,7 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
 
   const topKRaw = req.query.topK ? parseInt(String(req.query.topK), 10) : 30;
   const topK = Number.isInteger(topKRaw) && topKRaw > 0 ? Math.min(topKRaw, 100) : 30;
+  const minQuality = parseMinQuality(req.query.minQuality);
   const includeHidden = req.query.includeHidden === "true";
   const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
 
@@ -356,24 +389,44 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
   const vecLiteral = `[${queryVec.join(",")}]`;
 
   // Nearest neighbours by cosine distance (matches the HNSW vector_cosine_ops
-  // index). Join photos to respect hidden visibility.
+  // index). Join photos to respect hidden visibility, and the AI evaluation
+  // (#181) for the quality blend — over-fetch so re-ranking has candidates
+  // beyond the raw topK to promote from.
+  const fetchK = Math.min(topK * 2, 200);
   const rows = await withIterativeVectorScan((tx) =>
     tx
-      .select({ id: photoEmbeddingsTable.photoId })
+      .select({
+        id: photoEmbeddingsTable.photoId,
+        similarity: sql<number>`1 - (${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector)`,
+        aiScore: photoAiEvaluationsTable.overallScore,
+      })
       .from(photoEmbeddingsTable)
       .innerJoin(photosTable, eq(photosTable.id, photoEmbeddingsTable.photoId))
+      .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photoEmbeddingsTable.photoId))
       .where(
         and(
           eq(photosTable.organizationId, req.org!.id),
           canSeeHidden ? undefined : eq(photosTable.isHidden, false),
+          minQuality != null ? gte(photoAiEvaluationsTable.overallScore, minQuality) : undefined,
         ),
       )
       .orderBy(sql`${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector`)
-      .limit(topK),
+      .limit(fetchK),
   );
 
+  // Blend similarity with the AI quality score (#181), re-rank, keep topK.
+  const ranked = rows
+    .map((r) => ({
+      id: r.id,
+      final:
+        Number(r.similarity) * (1 - SEMANTIC_QUALITY_WEIGHT) +
+        ((r.aiScore ?? NEUTRAL_QUALITY_SCORE) / 10) * SEMANTIC_QUALITY_WEIGHT,
+    }))
+    .sort((a, b) => b.final - a.final)
+    .slice(0, topK);
+
   // buildPhotosResponse preserves input id order → results stay ranked.
-  const photos = await buildPhotosResponse(rows.map((r) => r.id), req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(ranked.map((r) => r.id), req.org!.id, req.dbUser?.id);
   res.json(SemanticSearchPhotosResponse.parse(photos));
 });
 

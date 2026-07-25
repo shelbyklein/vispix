@@ -41,6 +41,7 @@ function parseSearch(search: string) {
     mode: p.get("mode") === "semantic" ? "semantic" : "keyword",
     ratingMin: p.get("ratingMin") ?? "",
     ratingMax: p.get("ratingMax") ?? "",
+    minQuality: p.get("minQuality") ?? "",
     dateFrom: p.get("dateFrom") ?? "",
     dateTo: p.get("dateTo") ?? "",
     uploaderId: p.get("uploaderId") ?? "",
@@ -95,7 +96,7 @@ export default function SearchPage() {
   const searchString = useSearch();
 
   const urlParams = parseSearch(searchString);
-  const { q, mode, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, exclude } = urlParams;
+  const { q, mode, ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId, exclude } = urlParams;
   const isSemantic = mode === "semantic";
 
   // Exclusion terms (dedicated field) — comma-joined in the URL, applied in both modes.
@@ -115,7 +116,7 @@ export default function SearchPage() {
   const { data: users } = useListUsers({ query: { enabled: me?.role === "admin", queryKey: getListUsersQueryKey() } });
 
   const hasActiveFilters =
-    !!ratingMin || !!ratingMax || !!dateFrom || !!dateTo || !!uploaderId;
+    !!ratingMin || !!ratingMax || !!minQuality || !!dateFrom || !!dateTo || !!uploaderId;
 
   // Keyword search paginates (infinite scroll); semantic returns one ranked page.
   const [offset, setOffset] = useState(0);
@@ -125,6 +126,7 @@ export default function SearchPage() {
     q,
     ...(ratingMin && { ratingMin: parseFloat(ratingMin) }),
     ...(ratingMax && { ratingMax: parseFloat(ratingMax) }),
+    ...(minQuality && { minQuality: parseFloat(minQuality) }),
     ...(dateFrom && { dateFrom }),
     ...(dateTo && { dateTo }),
     ...(uploaderId && { uploaderId: parseInt(uploaderId, 10) }),
@@ -134,12 +136,14 @@ export default function SearchPage() {
     offset,
   };
 
-  // Semantic search ignores the keyword filters + pagination — it ranks by
-  // image-embedding similarity to the query, and only respects hidden visibility.
+  // Semantic search ignores most keyword filters + pagination — it ranks by
+  // image-embedding similarity to the query, respecting hidden visibility and
+  // the AI quality floor (#181).
   const semanticParams = {
     q,
     ...(showHidden && { includeHidden: true }),
     ...(excludeTerms.length && { exclude: excludeTerms }),
+    ...(minQuality && { minQuality: parseFloat(minQuality) }),
   };
 
   const keyword = useSearchPhotos(searchParams, {
@@ -152,7 +156,7 @@ export default function SearchPage() {
   const keywordPage = keyword.data;
   const [keywordHasMore, setKeywordHasMore] = useState(false);
   // Reset the keyword accumulator when the query / filters / mode change.
-  const resetKey = JSON.stringify({ q, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, showHidden, isSemantic, exclude });
+  const resetKey = JSON.stringify({ q, ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId, showHidden, isSemantic, exclude });
   useEffect(() => {
     setOffset(0);
     setAllKeywordPhotos([]);
@@ -239,6 +243,7 @@ export default function SearchPage() {
     navigate({
       ratingMin: "",
       ratingMax: "",
+      minQuality: "",
       dateFrom: "",
       dateTo: "",
       uploaderId: "",
@@ -323,7 +328,7 @@ export default function SearchPage() {
               Filters
               {hasActiveFilters && (
                 <span className="ml-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
-                  {[ratingMin, ratingMax, dateFrom, dateTo, uploaderId].filter(Boolean).length}
+                  {[ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId].filter(Boolean).length}
                 </span>
               )}
             </Button>
@@ -422,6 +427,28 @@ export default function SearchPage() {
 
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Min AI quality
+                </label>
+                <Select
+                  value={minQuality || "__any__"}
+                  onValueChange={(v) => handleFilterChange("minQuality", v === "__any__" ? "" : v)}
+                >
+                  <SelectTrigger className="h-9 text-sm" data-testid="filter-min-quality">
+                    <SelectValue placeholder="Any quality" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__any__">Any quality</SelectItem>
+                    <SelectItem value="5">5+ — usable</SelectItem>
+                    <SelectItem value="6">6+ — decent</SelectItem>
+                    <SelectItem value="7">7+ — good</SelectItem>
+                    <SelectItem value="8">8+ — great</SelectItem>
+                    <SelectItem value="9">9+ — exceptional</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
                   Date from
                 </label>
                 <Input
@@ -481,6 +508,18 @@ export default function SearchPage() {
                     <button
                       type="button"
                       onClick={() => handleFilterChange("ratingMin", "")}
+                      className="ml-1 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                )}
+                {minQuality && (
+                  <Badge variant="secondary" className="gap-1 text-xs">
+                    AI quality: {minQuality}+
+                    <button
+                      type="button"
+                      onClick={() => handleFilterChange("minQuality", "")}
                       className="ml-1 hover:text-destructive"
                     >
                       <X className="h-3 w-3" />

@@ -20,4 +20,8 @@ export type SearchPhotosParams = {
    * Terms to exclude — photos whose AI description matches any are dropped.
    */
   exclude?: string[];
+  /**
+   * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+   */
+  minQuality?: number;
 };

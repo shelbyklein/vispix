@@ -37,6 +37,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { PhotoDetailHeader } from "@/components/photo-detail/PhotoDetailHeader";
 import { AiDescriptionPanel } from "@/components/photo-detail/AiDescriptionPanel";
+import { AiEvaluationPanel } from "@/components/photo-detail/AiEvaluationPanel";
 import { RatingsPanel } from "@/components/photo-detail/RatingsPanel";
 import { CollectionsPanel } from "@/components/photo-detail/CollectionsPanel";
 import { AttributionPanel } from "@/components/photo-detail/AttributionPanel";
@@ -380,6 +381,7 @@ export default function PhotoDetail() {
               onCreateNewCollection={(s) => setConfirmNewCollection(s)}
               onDismissNewCollectionSuggestion={handleDismissNewCollectionSuggestion}
             />
+            {photo.aiEvaluation && <AiEvaluationPanel evaluation={photo.aiEvaluation} />}
           </div>
 
           <div className="space-y-6">
