@@ -460,6 +460,12 @@ paths:
             type: array
             items:
               type: string
+        - name: minQuality
+          in: query
+          required: false
+          description: Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+          schema:
+            type: number
       responses:
         "200":
           description: Search results (one page)
@@ -499,6 +505,12 @@ paths:
             type: array
             items:
               type: string
+        - name: minQuality
+          in: query
+          required: false
+          description: Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+          schema:
+            type: number
       responses:
         "200":
           description: Photos ranked by semantic similarity (most similar first)
@@ -2679,6 +2691,11 @@ components:
           type: ["string", "null"]
           enum: ["success", "skipped", "failed", null]
           description: Status of the most recent AI analysis event for this photo
+        aiEvaluation:
+          oneOf:
+            - $ref: "#/components/schemas/PhotoAiEvaluation"
+            - type: "null"
+          description: AI criteria evaluation of the photo (quality/composition scores), or null if not yet evaluated.
         suggestedCollections:
           type: array
           items:
@@ -2691,6 +2708,43 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PhotoRating"
+
+    PhotoAiEvaluation:
+      type: object
+      description: AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).
+      required:
+        [
+          technicalQuality,
+          composition,
+          subjectClarity,
+          emotionalImpact,
+          marketingUsability,
+          overallScore,
+          flaws,
+        ]
+      properties:
+        technicalQuality:
+          type: integer
+        composition:
+          type: integer
+        subjectClarity:
+          type: integer
+        emotionalImpact:
+          type: integer
+        marketingUsability:
+          type: integer
+        overallScore:
+          type: number
+        flaws:
+          type: array
+          items:
+            type: string
+          description: Detected flaws (short phrases); empty when clean.
+        orientationSuitability:
+          type: ["string", "null"]
+          description: Which crops/uses the framing suits.
+        evaluatedAt:
+          type: string
 
     ListAlbumPhotosPagedResponse:
       type: object

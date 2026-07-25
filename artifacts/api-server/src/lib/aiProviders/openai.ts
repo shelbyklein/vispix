@@ -4,6 +4,7 @@ import {
   AnalysisProvider,
   AnalysisRequest,
   DEFAULT_PROVIDER_MODELS,
+  EVALUATION_SCHEMA_FRAGMENT,
   RawAnalysisResult,
 } from "./types";
 
@@ -70,8 +71,9 @@ export class OpenAIProvider implements AnalysisProvider {
                   items: { type: "string" },
                   maxItems: 2,
                 },
+                evaluation: EVALUATION_SCHEMA_FRAGMENT,
               },
-              required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames"],
+              required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames", "evaluation"],
             },
           },
         },
@@ -88,6 +90,7 @@ export class OpenAIProvider implements AnalysisProvider {
         suggestedNewCollectionNames: Array.isArray(parsed.suggestedNewCollectionNames)
           ? parsed.suggestedNewCollectionNames.map((n) => String(n).trim()).filter(Boolean)
           : [],
+        evaluation: parsed.evaluation ?? null,
       };
     } catch (err) {
       // Surface the real provider error (e.g. a 400 "unsupported image") to the

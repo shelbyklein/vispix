@@ -14,4 +14,8 @@ export type SemanticSearchPhotosParams = {
    * Concepts to steer away from — the query vector is pushed away from their embedding.
    */
   exclude?: string[];
+  /**
+   * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+   */
+  minQuality?: number;
 };

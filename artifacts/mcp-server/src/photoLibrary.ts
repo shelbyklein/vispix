@@ -13,6 +13,7 @@ import {
   photoAttributionTagsTable,
   collectionsTable,
   photoCollectionsTable,
+  photoAiEvaluationsTable,
 } from "@workspace/db";
 import { embedText } from "@workspace/api-server/src/lib/aiEmbedding";
 import { withIterativeVectorScan } from "@workspace/api-server/src/lib/vectorSearch";
@@ -52,11 +53,15 @@ export interface PhotoSummary {
   rights: string[];
   thumbnailKey: string | null;
   takenAt: string | null;
+  /** AI overall evaluation score 0–10 (#181), or null if not yet evaluated. */
+  aiScore: number | null;
+  /** AI-detected flaws (short phrases); empty when clean or unevaluated. */
+  aiFlaws: string[];
 }
 
 async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
   if (ids.length === 0) return [];
-  const [rows, ratingRows, rightsRows] = await Promise.all([
+  const [rows, ratingRows, rightsRows, evalRows] = await Promise.all([
     db
       .select({ photo: photosTable, albumTitle: albumsTable.title })
       .from(photosTable)
@@ -76,6 +81,14 @@ async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
       .from(photoAttributionTagsTable)
       .innerJoin(attributionTagsTable, eq(photoAttributionTagsTable.tagId, attributionTagsTable.id))
       .where(inArray(photoAttributionTagsTable.photoId, ids)),
+    db
+      .select({
+        photoId: photoAiEvaluationsTable.photoId,
+        overallScore: photoAiEvaluationsTable.overallScore,
+        flaws: photoAiEvaluationsTable.flaws,
+      })
+      .from(photoAiEvaluationsTable)
+      .where(inArray(photoAiEvaluationsTable.photoId, ids)),
   ]);
 
   const ratingByPhoto = new Map(
@@ -90,6 +103,7 @@ async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
     list.push(r.name);
     rightsByPhoto.set(r.photoId, list);
   }
+  const evalByPhoto = new Map(evalRows.map((r) => [r.photoId, r]));
   const byId = new Map(
     rows.map(({ photo, albumTitle }) => [
       photo.id,
@@ -105,6 +119,8 @@ async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
         rights: rightsByPhoto.get(photo.id) ?? [],
         thumbnailKey: photo.thumbnailKey,
         takenAt: photo.takenAt instanceof Date ? photo.takenAt.toISOString() : null,
+        aiScore: evalByPhoto.get(photo.id)?.overallScore ?? null,
+        aiFlaws: (evalByPhoto.get(photo.id)?.flaws as string[] | undefined) ?? [],
       } satisfies PhotoSummary,
     ]),
   );
@@ -117,6 +133,8 @@ export interface SearchOptions {
   count: number;
   exclude?: string;
   minRating?: number;
+  /** Only photos with an AI overall evaluation score (0–10) at least this (#181). */
+  minQuality?: number;
   rightsTag?: string;
   /** Restrict to photos tagged to this person (People page groups). */
   person?: string;
@@ -129,6 +147,7 @@ export async function searchPhotos({
   count: wanted,
   exclude,
   minRating,
+  minQuality,
   rightsTag,
   person,
   organizationId,
@@ -222,7 +241,7 @@ export async function searchPhotos({
   }
 
   // Post-ranking filters thin the list, so over-fetch when any are active.
-  const hasPostFilters = minRating != null || rightsPhotoIds != null;
+  const hasPostFilters = minRating != null || minQuality != null || rightsPhotoIds != null;
   const fetchLimit = hasPostFilters ? Math.min(500, wanted * 10) : wanted;
 
   const vecLiteral = `[${queryVec.join(",")}]`;
@@ -245,6 +264,10 @@ export async function searchPhotos({
   let summaries = await buildSummaries(ranked.map((r) => r.id));
   if (minRating != null) {
     summaries = summaries.filter((p) => (p.averageRating ?? 0) >= minRating);
+  }
+  if (minQuality != null) {
+    // Photos not yet evaluated are dropped when a quality floor is requested.
+    summaries = summaries.filter((p) => p.aiScore != null && p.aiScore >= minQuality);
   }
   const results = summaries.slice(0, wanted);
   const note =

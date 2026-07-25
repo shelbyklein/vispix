@@ -11,6 +11,7 @@ export * from "./ratings";
 export * from "./collections";
 export * from "./projects";
 export * from "./photoEmbeddings";
+export * from "./photoAiEvaluations";
 export * from "./appSettings";
 export * from "./aiAnalysisEvents";
 export * from "./aiBackfillRuns";

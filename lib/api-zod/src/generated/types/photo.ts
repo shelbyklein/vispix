@@ -7,6 +7,7 @@
  */
 import type { AttributionTag } from "./attributionTag";
 import type { CollectionSummary } from "./collectionSummary";
+import type { PhotoAiEvaluation } from "./photoAiEvaluation";
 import type { PhotoLatestAiStatus } from "./photoLatestAiStatus";
 import type { PhotoProjectMembership } from "./photoProjectMembership";
 import type { PhotoRating } from "./photoRating";
@@ -64,6 +65,8 @@ export interface Photo {
    * @nullable
    */
   latestAiStatus?: PhotoLatestAiStatus;
+  /** AI criteria evaluation of the photo (quality/composition scores), or null if not yet evaluated. */
+  aiEvaluation?: PhotoAiEvaluation | null;
   suggestedCollections?: SuggestedCollection[];
   suggestedNewCollections?: SuggestedNewCollection[];
   ratings?: PhotoRating[];

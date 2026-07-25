@@ -4,6 +4,7 @@ import {
   AnalysisProvider,
   AnalysisRequest,
   DEFAULT_PROVIDER_MODELS,
+  EVALUATION_SCHEMA_FRAGMENT,
   RawAnalysisResult,
 } from "./types";
 
@@ -92,8 +93,9 @@ export class AnthropicProvider implements AnalysisProvider {
                   items: { type: "string" },
                   maxItems: 2,
                 },
+                evaluation: EVALUATION_SCHEMA_FRAGMENT,
               },
-              required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames"],
+              required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames", "evaluation"],
             },
           },
         ],
@@ -119,6 +121,7 @@ export class AnthropicProvider implements AnalysisProvider {
         suggestedNewCollectionNames: Array.isArray(input.suggestedNewCollectionNames)
           ? input.suggestedNewCollectionNames.map((n: unknown) => String(n).trim()).filter(Boolean)
           : [],
+        evaluation: input.evaluation ?? null,
       };
     } catch (err) {
       // Surface the real provider error so it lands on the ai_analysis_events

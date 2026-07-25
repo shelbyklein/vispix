@@ -79,8 +79,31 @@ export class GeminiProvider implements AnalysisProvider {
                 type: Type.ARRAY,
                 items: { type: Type.STRING },
               },
+              // Mirrors EVALUATION_SCHEMA_FRAGMENT in types.ts (Gemini uses its
+              // own typed schema objects rather than draft JSON schema).
+              evaluation: {
+                type: Type.OBJECT,
+                properties: {
+                  technicalQuality: { type: Type.INTEGER },
+                  composition: { type: Type.INTEGER },
+                  subjectClarity: { type: Type.INTEGER },
+                  emotionalImpact: { type: Type.INTEGER },
+                  marketingUsability: { type: Type.INTEGER },
+                  flaws: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  orientationSuitability: { type: Type.STRING },
+                },
+                required: [
+                  "technicalQuality",
+                  "composition",
+                  "subjectClarity",
+                  "emotionalImpact",
+                  "marketingUsability",
+                  "flaws",
+                  "orientationSuitability",
+                ],
+              },
             },
-            required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames"],
+            required: ["description", "suggestedCollectionIds", "suggestedNewCollectionNames", "evaluation"],
           },
         },
       });
@@ -96,6 +119,7 @@ export class GeminiProvider implements AnalysisProvider {
         suggestedNewCollectionNames: Array.isArray(parsed.suggestedNewCollectionNames)
           ? parsed.suggestedNewCollectionNames.map((n: unknown) => String(n).trim()).filter(Boolean).slice(0, 2)
           : [],
+        evaluation: parsed.evaluation ?? null,
       };
     } catch (err) {
       // Surface the real provider error so it lands on the ai_analysis_events

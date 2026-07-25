@@ -1,5 +1,5 @@
-import { and, desc, eq, isNull, notInArray, sql } from "drizzle-orm";
-import { db, photosTable, aiBackfillRunsTable, aiAnalysisEventsTable, type AiBackfillRun } from "@workspace/db";
+import { and, desc, eq, isNull, notExists, notInArray, or, sql } from "drizzle-orm";
+import { db, photosTable, aiBackfillRunsTable, aiAnalysisEventsTable, photoAiEvaluationsTable, type AiBackfillRun } from "@workspace/db";
 import { runAndRecordPhotoAnalysis } from "./aiPhotoAnalysis";
 import { logger } from "./logger";
 
@@ -23,12 +23,24 @@ async function cappedPhotoIds(): Promise<number[]> {
   return rows.map((r) => r.photoId).filter((id): id is number => id != null);
 }
 
-// Photos that still want an AI description and haven't exhausted their retries.
+// Photos that still want analysis and haven't exhausted their retries: no AI
+// description yet, or described before criteria evaluation existed (#181) and
+// so lacking an evaluation row — re-analysis backfills the scores (and
+// refreshes the description) progressively.
 async function eligibleForAnalysis() {
   const capped = await cappedPhotoIds();
+  const wantsAnalysis = or(
+    isNull(photosTable.aiDescription),
+    notExists(
+      db
+        .select({ one: sql`1` })
+        .from(photoAiEvaluationsTable)
+        .where(eq(photoAiEvaluationsTable.photoId, photosTable.id)),
+    ),
+  );
   return capped.length > 0
-    ? and(isNull(photosTable.aiDescription), notInArray(photosTable.id, capped))
-    : isNull(photosTable.aiDescription);
+    ? and(wantsAnalysis, notInArray(photosTable.id, capped))
+    : wantsAnalysis;
 }
 
 export async function countPhotosNeedingAiAnalysis(organizationId?: number): Promise<number> {
