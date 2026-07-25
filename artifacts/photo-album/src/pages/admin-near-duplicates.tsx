@@ -7,8 +7,8 @@ import {
   useNearDuplicateIndexStatus,
   useRebuildNearDuplicateIndex,
   useIgnoreNearDuplicates,
-  useNearDuplicateExactSummary,
-  useDeleteNearDuplicateExactExtras,
+  useNearDuplicateExtrasSummary,
+  useDeleteNearDuplicateExtras,
   useDeletePhoto,
   useBulkDeletePhotos,
   getGetRecentPhotosQueryKey,
@@ -36,7 +36,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { CopyCheck, CheckCircle2, Loader2, Check, Trash2, X } from "lucide-react";
+import { CopyCheck, CheckCircle2, Loader2, Trash2, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { cn } from "@/lib/utils";
@@ -79,8 +79,8 @@ export default function AdminNearDuplicatesPage() {
   const { mutate: deletePhoto, isPending: isDeleting } = useDeletePhoto();
   const { mutate: bulkDelete, isPending: isBulkDeleting } = useBulkDeletePhotos();
   const { mutate: ignoreGroupPhotos, isPending: isIgnoring } = useIgnoreNearDuplicates();
-  const { data: exactSummary } = useNearDuplicateExactSummary();
-  const { mutate: deleteExactExtras, isPending: isDeletingExact } = useDeleteNearDuplicateExactExtras();
+  const { data: extrasSummary } = useNearDuplicateExtrasSummary(threshold);
+  const { mutate: deleteExtras, isPending: isDeletingExtras } = useDeleteNearDuplicateExtras();
   const [cleanupOpen, setCleanupOpen] = useState(false);
 
   const missingCount = statusData?.missingCount ?? null;
@@ -174,18 +174,19 @@ export default function AdminNearDuplicatesPage() {
     );
   }
 
-  // One-click "delete a match of every 100% pair" (#177): removes one copy of
-  // each visually-identical group library-wide, keeping covers / one per group.
-  function handleDeleteExactExtras() {
-    deleteExactExtras(undefined, {
+  // One-click "delete a match of every group at this sensitivity" (#177/#179):
+  // removes one copy of each group over the selected similarity threshold
+  // library-wide, keeping covers / one per group.
+  function handleDeleteExtras() {
+    deleteExtras(threshold, {
       onSuccess: (result) => {
         toast({
-          title: `Deleted ${result.deleted} exact duplicate${result.deleted !== 1 ? "s" : ""}`,
+          title: `Deleted ${result.deleted} photo${result.deleted !== 1 ? "s" : ""}`,
         });
         resetList();
         invalidateAfterDelete();
       },
-      onError: () => toast({ title: "Failed to delete 100% matches", variant: "destructive" }),
+      onError: () => toast({ title: "Failed to delete matches", variant: "destructive" }),
     });
   }
 
@@ -238,6 +239,11 @@ export default function AdminNearDuplicatesPage() {
 
   const pairCount = indexStatus?.pairCount ?? null;
   const needsIndex = indexStatus != null && indexStatus.pairCount === 0 && indexStatus.hashedPhotos >= 2;
+
+  // Lowest similarity swept by the current sensitivity (0 bits = 100%), shown on
+  // the bulk "delete all matches over X%" action (#179).
+  const minSimilarity = Math.round(((64 - threshold) / 64) * 100);
+  const extrasCount = extrasSummary?.extraCount ?? 0;
 
   return (
     <AdminSectionShell
@@ -368,41 +374,41 @@ export default function AdminNearDuplicatesPage() {
             <CopyCheck className="h-4 w-4 mr-1.5" /> Interactive cleanup
           </Button>
         )}
-        {/* One-click cleanup of every 100% (visually identical) match (#177). */}
-        {(exactSummary?.extraCount ?? 0) > 0 && (
+        {/* One-click cleanup of every group at the current sensitivity (#179). */}
+        {extrasCount > 0 && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
                 size="sm"
                 variant="outline"
-                disabled={isDeletingExact}
+                disabled={isDeletingExtras}
                 className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
-                data-testid="delete-exact-matches-btn"
+                data-testid="delete-all-matches-btn"
               >
-                {isDeletingExact ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Delete {exactSummary!.extraCount} 100% match{exactSummary!.extraCount !== 1 ? "es" : ""}
+                {isDeletingExtras ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete {extrasCount} match{extrasCount !== 1 ? "es" : ""} ≥ {minSimilarity}%
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>
-                  Delete {exactSummary!.extraCount} exact duplicate{exactSummary!.extraCount !== 1 ? "s" : ""}?
+                  Delete {extrasCount} duplicate{extrasCount !== 1 ? "s" : ""} at ≥ {minSimilarity}% similar?
                 </AlertDialogTitle>
                 <AlertDialogDescription>
-                  Across {exactSummary!.groupCount} set{exactSummary!.groupCount !== 1 ? "s" : ""} of visually
-                  identical (100%) photos, this keeps one copy of each — album covers are always kept — and
-                  permanently deletes the {exactSummary!.extraCount} extra
-                  {exactSummary!.extraCount !== 1 ? " copies" : " copy"} and their stored files. This cannot be undone.
+                  Across {extrasSummary!.groupCount} group{extrasSummary!.groupCount !== 1 ? "s" : ""} of photos
+                  at least {minSimilarity}% similar, this keeps one copy of each — album covers are always kept —
+                  and permanently deletes the {extrasCount} extra
+                  {extrasCount !== 1 ? " copies" : " copy"} and their stored files. This cannot be undone.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Cancel</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={handleDeleteExactExtras}
+                  onClick={handleDeleteExtras}
                   className="bg-destructive hover:bg-destructive/90"
-                  data-testid="confirm-delete-exact-matches"
+                  data-testid="confirm-delete-all-matches"
                 >
-                  Delete {exactSummary!.extraCount}
+                  Delete {extrasCount}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -447,30 +453,16 @@ export default function AdminNearDuplicatesPage() {
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {group.photos.map((photo) => {
-                  const isSelected = selected.has(photo.id);
-                  return (
-                    <div key={photo.id} className={cn("relative", isSelected && "ring-2 ring-primary rounded-lg")}>
-                      {/* Covers can't be deleted, so they aren't selectable either. */}
-                      {!photo.isAlbumCover && (
-                        <button
-                          type="button"
-                          onClick={() => toggleSelected(photo.id)}
-                          className={cn(
-                            "absolute top-2 left-2 z-10 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors",
-                            isSelected ? "bg-primary border-primary" : "bg-background/80 border-muted-foreground/60 hover:border-primary",
-                          )}
-                          aria-pressed={isSelected}
-                          aria-label={isSelected ? "Deselect photo" : "Select photo for deletion"}
-                          data-testid={`select-near-dup-${photo.id}`}
-                        >
-                          {isSelected && <Check className="h-3 w-3 text-primary-foreground" />}
-                        </button>
-                      )}
-                      <DuplicatePhotoCard photo={photo} onDelete={handleDelete} deleting={isDeleting} />
-                    </div>
-                  );
-                })}
+                {group.photos.map((photo) => (
+                  <DuplicatePhotoCard
+                    key={photo.id}
+                    photo={photo}
+                    onDelete={handleDelete}
+                    deleting={isDeleting}
+                    selected={selected.has(photo.id)}
+                    onToggleSelect={toggleSelected}
+                  />
+                ))}
               </div>
             </div>
           ))}

@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { eq, desc, isNull, isNotNull, and, inArray, sql } from "drizzle-orm";
 import {
   db,
@@ -99,8 +99,8 @@ import {
   ignoreNearDuplicatePhotos,
   getNearDuplicateIndexStatus,
   rebuildNearDuplicatePairs,
-  getExactNearDuplicateSummary,
-  computeExactNearDuplicateExtraIds,
+  getNearDuplicateExtrasSummary,
+  computeNearDuplicateExtraIds,
   DEFAULT_NEAR_DUP_THRESHOLD,
   MAX_NEAR_DUP_THRESHOLD,
 } from "../lib/perceptualHash";
@@ -794,17 +794,23 @@ router.post("/admin/photos/near-duplicates/ignore", ...requireOrgAdmin, async (r
   res.json(IgnoreNearDuplicatesResponse.parse(result));
 });
 
-// One-click cleanup of "100% matches" (#177): every visually-identical
-// (perceptual distance 0) group, keeping album covers or one photo per group and
-// deleting the rest. The summary lets the UI show the count + confirm first.
-// Mirrors the exact content-hash delete-extras above, reusing its response shapes.
-router.get("/admin/photos/near-duplicates/exact-summary", ...requireOrgAdmin, async (req, res): Promise<void> => {
-  res.json(GetDuplicatesSummaryResponse.parse(await getExactNearDuplicateSummary(req.org!.id)));
+// One-click cleanup of every near-duplicate group at a sensitivity threshold
+// (#177/#179): threshold 0 = only visually-identical (100%) groups, higher =
+// looser matches too. Keeps album covers or one photo per group and deletes the
+// rest. The summary lets the UI show the count + confirm first. Mirrors the
+// exact content-hash delete-extras above, reusing its response shapes.
+function nearDupThresholdFromQuery(req: Request): number {
+  const raw = req.query.threshold ? parseInt(String(req.query.threshold), 10) : 0;
+  return Number.isInteger(raw) ? Math.min(Math.max(raw, 0), MAX_NEAR_DUP_THRESHOLD) : 0;
+}
+
+router.get("/admin/photos/near-duplicates/extras-summary", ...requireOrgAdmin, async (req, res): Promise<void> => {
+  res.json(GetDuplicatesSummaryResponse.parse(await getNearDuplicateExtrasSummary(nearDupThresholdFromQuery(req), req.org!.id)));
 });
 
-router.post("/admin/photos/near-duplicates/delete-exact-extras", ...requireOrgAdmin, async (req, res): Promise<void> => {
+router.post("/admin/photos/near-duplicates/delete-extras", ...requireOrgAdmin, async (req, res): Promise<void> => {
   const orgId = req.org!.id;
-  const extraIds = await computeExactNearDuplicateExtraIds(orgId);
+  const extraIds = await computeNearDuplicateExtraIds(nearDupThresholdFromQuery(req), orgId);
   if (extraIds.length === 0) {
     res.json(DeleteDuplicateExtrasResponse.parse({ deleted: 0 }));
     return;
