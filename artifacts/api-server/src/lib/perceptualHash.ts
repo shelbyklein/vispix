@@ -419,31 +419,36 @@ export async function listNearDuplicatePhotoGroups(
   return groups;
 }
 
-// "100% matches" = visually-identical groups (perceptual distance 0). These two
-// mirror the exact content-hash helpers in contentHash.ts, but for perceptual
-// duplicates: they power the one-click "delete one copy of every 100% match"
-// action (#177). The keep rule matches the exact-duplicate one: keep album
-// covers when a group has any (covers can't be deleted), else keep the newest
-// photo, and mark the rest deletable.
+// Bulk-cleanup helpers for near-duplicate groups at a given sensitivity
+// threshold (#177/#179): they power the one-click "delete a match of every group
+// over X% similar" action. threshold 0 = only visually-identical (100%) groups;
+// higher thresholds also sweep looser matches. These mirror the exact
+// content-hash helpers in contentHash.ts, but for perceptual duplicates. The
+// keep rule matches the exact-duplicate one: keep album covers when a group has
+// any (covers can't be deleted), else keep the newest photo, delete the rest.
 
-function deletableExactExtras(group: NearDuplicateGroup): number[] {
+function deletableExtras(group: NearDuplicateGroup): number[] {
   const hasCover = group.photos.some((p) => p.isAlbumCover);
   // photos come newest-first, so slice(1) keeps the newest as the surviving copy.
   const deletable = hasCover ? group.photos.filter((p) => !p.isAlbumCover) : group.photos.slice(1);
   return deletable.map((p) => p.id);
 }
 
-export async function getExactNearDuplicateSummary(
+export async function getNearDuplicateExtrasSummary(
+  threshold: number,
   organizationId?: number,
 ): Promise<{ groupCount: number; extraCount: number }> {
-  const groups = await listNearDuplicatePhotoGroups(0, organizationId);
-  const extraCount = groups.reduce((sum, g) => sum + deletableExactExtras(g).length, 0);
+  const groups = await listNearDuplicatePhotoGroups(threshold, organizationId);
+  const extraCount = groups.reduce((sum, g) => sum + deletableExtras(g).length, 0);
   return { groupCount: groups.length, extraCount };
 }
 
-export async function computeExactNearDuplicateExtraIds(organizationId?: number): Promise<number[]> {
-  const groups = await listNearDuplicatePhotoGroups(0, organizationId);
-  return groups.flatMap(deletableExactExtras);
+export async function computeNearDuplicateExtraIds(
+  threshold: number,
+  organizationId?: number,
+): Promise<number[]> {
+  const groups = await listNearDuplicatePhotoGroups(threshold, organizationId);
+  return groups.flatMap(deletableExtras);
 }
 
 // Dismiss a near-duplicate comparison (issue #124): record every pair among the

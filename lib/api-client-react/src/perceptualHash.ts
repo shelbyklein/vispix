@@ -104,31 +104,34 @@ export function useNearDuplicatePhotoGroups(params: NearDuplicatePhotoGroupsPara
 // DuplicatePhoto card shape; the near-duplicates route provides imageUrl.
 export type NearDuplicateModalPhoto = DuplicatePhoto & { imageUrl: string; perceptualHash: string | null };
 
-const NEAR_DUP_EXACT_SUMMARY_KEY = ["admin", "photos", "near-duplicates", "exact-summary"] as const;
+const NEAR_DUP_EXTRAS_SUMMARY_KEY = ["admin", "photos", "near-duplicates", "extras-summary"] as const;
 
-// Count of deletable copies across all 100%-identical (perceptual distance 0)
-// groups — drives the one-click bulk cleanup button (#177).
-export function useNearDuplicateExactSummary() {
+// Count of deletable copies across all groups at a sensitivity threshold — drives
+// the one-click "delete a match of every group over X% similar" button
+// (#177/#179). threshold 0 = only visually-identical (100%) groups.
+export function useNearDuplicateExtrasSummary(threshold: number) {
   return useQuery({
-    queryKey: NEAR_DUP_EXACT_SUMMARY_KEY,
+    queryKey: [...NEAR_DUP_EXTRAS_SUMMARY_KEY, threshold],
     queryFn: () =>
       customFetch<{ groupCount: number; extraCount: number }>(
-        "/api/admin/photos/near-duplicates/exact-summary",
+        `/api/admin/photos/near-duplicates/extras-summary?threshold=${threshold}`,
       ),
   });
 }
 
-// Delete one copy of every 100% match in one shot (keeps covers / one per group).
-export function useDeleteNearDuplicateExactExtras() {
+// Delete one copy of every group at the given threshold in one shot (keeps
+// covers / one per group).
+export function useDeleteNearDuplicateExtras() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () =>
-      customFetch<{ deleted: number }>("/api/admin/photos/near-duplicates/delete-exact-extras", {
-        method: "POST",
-      }),
+    mutationFn: (threshold: number) =>
+      customFetch<{ deleted: number }>(
+        `/api/admin/photos/near-duplicates/delete-extras?threshold=${threshold}`,
+        { method: "POST" },
+      ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["admin", "photos", "near-duplicates"] });
-      queryClient.invalidateQueries({ queryKey: NEAR_DUP_EXACT_SUMMARY_KEY });
+      queryClient.invalidateQueries({ queryKey: NEAR_DUP_EXTRAS_SUMMARY_KEY });
       queryClient.invalidateQueries({ queryKey: NEAR_DUP_INDEX_STATUS_KEY });
     },
   });

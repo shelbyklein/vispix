@@ -12,8 +12,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trash2, ImageIcon, Star, FolderOpen } from "lucide-react";
+import { Trash2, ImageIcon, Star, FolderOpen, Check } from "lucide-react";
 import { Link } from "wouter";
+import { cn } from "@/lib/utils";
 
 export function formatDupDate(iso: string): string {
   const d = new Date(iso);
@@ -27,28 +28,69 @@ export function DuplicatePhotoCard({
   photo,
   onDelete,
   deleting,
+  selected = false,
+  onToggleSelect,
 }: {
   photo: DuplicatePhoto;
   onDelete: (id: number) => void;
   deleting: boolean;
+  selected?: boolean;
+  onToggleSelect?: (id: number) => void;
 }) {
   const inCollections = photo.collectionCount > 0;
+  // On the near-duplicate page the card is selectable: clicking the image toggles
+  // selection instead of navigating (#179). Album covers can't be deleted, so
+  // they're never selectable. Elsewhere (exact-duplicate page) the image stays a
+  // link to the photo. Either way the filename links to the photo's page.
+  const selectable = !!onToggleSelect && !photo.isAlbumCover;
+  const imageInner = photo.thumbnailUrl ? (
+    <img src={photo.thumbnailUrl} alt={photo.filename ?? `Photo ${photo.id}`} className="h-full w-full object-cover" loading="lazy" />
+  ) : (
+    <div className="h-full w-full flex items-center justify-center text-muted-foreground">
+      <ImageIcon className="h-8 w-8" />
+    </div>
+  );
   return (
-    <div className="rounded-lg border border-border bg-background/50 overflow-hidden flex flex-col" data-testid={`duplicate-photo-${photo.id}`}>
-      <Link href={`/photos/${photo.id}`}>
-        <div className="aspect-square bg-muted overflow-hidden">
-          {photo.thumbnailUrl ? (
-            <img src={photo.thumbnailUrl} alt={photo.filename ?? `Photo ${photo.id}`} className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <div className="h-full w-full flex items-center justify-center text-muted-foreground">
-              <ImageIcon className="h-8 w-8" />
-            </div>
-          )}
-        </div>
-      </Link>
+    <div
+      className={cn(
+        "rounded-lg border bg-background/50 overflow-hidden flex flex-col",
+        selected ? "border-primary ring-2 ring-primary" : "border-border",
+      )}
+      data-testid={`duplicate-photo-${photo.id}`}
+    >
+      {selectable ? (
+        <button
+          type="button"
+          onClick={() => onToggleSelect!(photo.id)}
+          aria-pressed={selected}
+          aria-label={selected ? "Deselect photo" : "Select photo for deletion"}
+          className="relative block aspect-square w-full bg-muted overflow-hidden"
+          data-testid={`select-near-dup-${photo.id}`}
+        >
+          {imageInner}
+          <span
+            className={cn(
+              "absolute top-2 left-2 h-5 w-5 rounded border-2 flex items-center justify-center transition-colors",
+              selected ? "bg-primary border-primary" : "bg-background/80 border-muted-foreground/60",
+            )}
+          >
+            {selected && <Check className="h-3 w-3 text-primary-foreground" />}
+          </span>
+        </button>
+      ) : (
+        <Link href={`/photos/${photo.id}`}>
+          <div className="aspect-square bg-muted overflow-hidden">{imageInner}</div>
+        </Link>
+      )}
       <div className="p-2.5 space-y-1.5 flex-1 flex flex-col">
-        <div className="text-xs font-medium text-foreground truncate" title={photo.filename ?? undefined}>
-          {photo.filename ?? `Photo #${photo.id}`}
+        <div className="text-xs font-medium truncate" title={photo.filename ?? undefined}>
+          <Link
+            href={`/photos/${photo.id}`}
+            className="text-foreground hover:text-primary hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {photo.filename ?? `Photo #${photo.id}`}
+          </Link>
         </div>
         <div className="text-[11px] text-muted-foreground truncate">
           {photo.albumTitle ?? "Untitled album"} · {formatDupDate(String(photo.createdAt))}
