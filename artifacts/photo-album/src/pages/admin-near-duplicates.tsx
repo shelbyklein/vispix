@@ -7,6 +7,8 @@ import {
   useNearDuplicateIndexStatus,
   useRebuildNearDuplicateIndex,
   useIgnoreNearDuplicates,
+  useNearDuplicateExactSummary,
+  useDeleteNearDuplicateExactExtras,
   useDeletePhoto,
   useBulkDeletePhotos,
   getGetRecentPhotosQueryKey,
@@ -77,6 +79,8 @@ export default function AdminNearDuplicatesPage() {
   const { mutate: deletePhoto, isPending: isDeleting } = useDeletePhoto();
   const { mutate: bulkDelete, isPending: isBulkDeleting } = useBulkDeletePhotos();
   const { mutate: ignoreGroupPhotos, isPending: isIgnoring } = useIgnoreNearDuplicates();
+  const { data: exactSummary } = useNearDuplicateExactSummary();
+  const { mutate: deleteExactExtras, isPending: isDeletingExact } = useDeleteNearDuplicateExactExtras();
   const [cleanupOpen, setCleanupOpen] = useState(false);
 
   const missingCount = statusData?.missingCount ?? null;
@@ -168,6 +172,21 @@ export default function AdminNearDuplicatesPage() {
         onError: () => toast({ title: "Bulk delete failed", variant: "destructive" }),
       },
     );
+  }
+
+  // One-click "delete a match of every 100% pair" (#177): removes one copy of
+  // each visually-identical group library-wide, keeping covers / one per group.
+  function handleDeleteExactExtras() {
+    deleteExactExtras(undefined, {
+      onSuccess: (result) => {
+        toast({
+          title: `Deleted ${result.deleted} exact duplicate${result.deleted !== 1 ? "s" : ""}`,
+        });
+        resetList();
+        invalidateAfterDelete();
+      },
+      onError: () => toast({ title: "Failed to delete 100% matches", variant: "destructive" }),
+    });
   }
 
   // Dismiss a comparison as not-duplicates (#124): persisted server-side so the
@@ -348,6 +367,46 @@ export default function AdminNearDuplicatesPage() {
           <Button size="sm" onClick={() => setCleanupOpen(true)} data-testid="interactive-cleanup-btn">
             <CopyCheck className="h-4 w-4 mr-1.5" /> Interactive cleanup
           </Button>
+        )}
+        {/* One-click cleanup of every 100% (visually identical) match (#177). */}
+        {(exactSummary?.extraCount ?? 0) > 0 && (
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isDeletingExact}
+                className="gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                data-testid="delete-exact-matches-btn"
+              >
+                {isDeletingExact ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete {exactSummary!.extraCount} 100% match{exactSummary!.extraCount !== 1 ? "es" : ""}
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>
+                  Delete {exactSummary!.extraCount} exact duplicate{exactSummary!.extraCount !== 1 ? "s" : ""}?
+                </AlertDialogTitle>
+                <AlertDialogDescription>
+                  Across {exactSummary!.groupCount} set{exactSummary!.groupCount !== 1 ? "s" : ""} of visually
+                  identical (100%) photos, this keeps one copy of each — album covers are always kept — and
+                  permanently deletes the {exactSummary!.extraCount} extra
+                  {exactSummary!.extraCount !== 1 ? " copies" : " copy"} and their stored files. This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDeleteExactExtras}
+                  className="bg-destructive hover:bg-destructive/90"
+                  data-testid="confirm-delete-exact-matches"
+                >
+                  Delete {exactSummary!.extraCount}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         )}
       </div>
 
