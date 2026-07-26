@@ -6,6 +6,7 @@ import { db, imageGenerationSessionsTable, imageGenerationsTable, type ImageGene
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
+import { planGeneration } from "../lib/imageGeneration/plan";
 
 // AI image generation — the Create workspace backend (#167). All routes are
 // org-scoped; generation itself runs on the org's own OpenAI key.
@@ -53,6 +54,30 @@ function serializeGeneration(g: ImageGeneration) {
     createdAt: g.createdAt instanceof Date ? g.createdAt.toISOString() : String(g.createdAt),
   };
 }
+
+const PlanBody = z.object({
+  prompt: z.string().trim().min(1).max(4000),
+  attachedNames: z.array(z.string().max(200)).max(8).default([]),
+});
+
+// Collaborative planning (#167 §3–4): analyze the prompt, propose library
+// candidates and clarifying questions. Read-only — generates nothing.
+router.post("/image-generation/plan", requireOrgAuth, async (req: Request, res: Response) => {
+  const body = PlanBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid plan request" });
+    return;
+  }
+  try {
+    const plan = await planGeneration(req.org!.id, body.data.prompt, body.data.attachedNames);
+    res.json(plan);
+  } catch (error) {
+    const status = (error as { statusCode?: number }).statusCode ?? 500;
+    const message = error instanceof Error ? error.message : "Planning failed";
+    if (status >= 500) req.log.error({ err: error }, "Generation planning failed");
+    res.status(status).json({ error: message });
+  }
+});
 
 // Generate one or more variants (or revise an earlier output). Synchronous:
 // the client waits — an image call takes roughly 15–60s per variant.

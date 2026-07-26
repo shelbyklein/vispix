@@ -93,3 +93,38 @@ export function useGenerateImages() {
 export function generationDownloadUrl(id: number, format: "png" | "jpg"): string {
   return `/api/image-generation/${id}/download?format=${format}`;
 }
+
+// Collaborative planning (#167 §3–4): the assistant analyzes the prompt,
+// proposes library candidates per slot, and asks clarifying questions.
+
+export interface PlanCandidate {
+  kind: "photo" | "asset";
+  refId: number;
+  name: string;
+  previewUrl: string;
+  role: GenerationInputRole;
+}
+
+export interface PlanCandidateSlot {
+  slot: string;
+  role: GenerationInputRole;
+  query: string;
+  items: PlanCandidate[];
+}
+
+export interface GenerationPlan {
+  summary: string;
+  questions: string[];
+  suggestedFormat: GenerationFormatId | null;
+  slots: PlanCandidateSlot[];
+}
+
+export function usePlanGeneration() {
+  return useMutation({
+    mutationFn: (body: { prompt: string; attachedNames: string[] }) =>
+      customFetch<GenerationPlan>("/api/image-generation/plan", {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+  });
+}

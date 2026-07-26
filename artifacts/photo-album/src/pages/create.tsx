@@ -4,6 +4,7 @@ import {
   useGenerateImages,
   useGenerationSessions,
   useGenerationSession,
+  usePlanGeneration,
   generationDownloadUrl,
   useSearchPhotos,
   getSearchPhotosQueryKey,
@@ -13,6 +14,8 @@ import {
   type GenerationInputRole,
   type GenerationFormatId,
   type ImageGenerationResult,
+  type GenerationPlan,
+  type PlanCandidate,
 } from "@workspace/api-client-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { Button } from "@/components/ui/button";
@@ -44,6 +47,9 @@ import {
   Plus,
   AlertTriangle,
   Search,
+  MessageCircleQuestion,
+  Check,
+  Lightbulb,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -194,6 +200,97 @@ function VispixPickerDialog({
   );
 }
 
+function PlanCard({
+  plan,
+  isAttached,
+  onToggleCandidate,
+  onApplyFormat,
+  formatApplied,
+}: {
+  plan: GenerationPlan;
+  isAttached: (c: PlanCandidate) => boolean;
+  onToggleCandidate: (c: PlanCandidate) => void;
+  onApplyFormat: (f: GenerationFormatId) => void;
+  formatApplied: boolean;
+}) {
+  return (
+    <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
+      <div className="flex items-start gap-2 text-sm text-foreground">
+        <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+        <p>{plan.summary}</p>
+      </div>
+      {plan.questions.length > 0 && (
+        <div className="space-y-1 text-sm">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+            <MessageCircleQuestion className="h-3.5 w-3.5" /> Before generating, it would help to know:
+          </p>
+          <ul className="list-disc space-y-0.5 pl-6 text-foreground">
+            {plan.questions.map((q) => (
+              <li key={q}>{q}</li>
+            ))}
+          </ul>
+          <p className="text-[11px] text-muted-foreground/70">Add answers to your prompt below, then generate.</p>
+        </div>
+      )}
+      {plan.slots.map((slot) => (
+        <div key={slot.slot} className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">
+            {slot.slot} — suggested from your library (searched “{slot.query}”). Click to attach:
+          </p>
+          {slot.items.length === 0 ? (
+            <p className="text-xs italic text-muted-foreground/70">No matches in your library.</p>
+          ) : (
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {slot.items.map((c) => {
+                const attached = isAttached(c);
+                return (
+                  <button
+                    key={`${c.kind}-${c.refId}`}
+                    type="button"
+                    title={c.name}
+                    onClick={() => onToggleCandidate(c)}
+                    className={cn(
+                      "relative aspect-square overflow-hidden rounded-md border",
+                      attached ? "border-primary ring-2 ring-primary" : "border-border hover:ring-2 hover:ring-primary/50",
+                    )}
+                    data-testid={`plan-candidate-${c.kind}-${c.refId}`}
+                  >
+                    <img src={c.previewUrl} alt={c.name} className="h-full w-full object-cover" loading="lazy" />
+                    {attached && (
+                      <span className="absolute right-1 top-1 rounded-full bg-primary p-0.5">
+                        <Check className="h-3 w-3 text-primary-foreground" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      ))}
+      {plan.suggestedFormat && (
+        <button
+          type="button"
+          onClick={() => onApplyFormat(plan.suggestedFormat!)}
+          className={cn(
+            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs",
+            formatApplied
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border text-muted-foreground hover:border-primary/50",
+          )}
+          data-testid="plan-format-suggestion"
+        >
+          {formatApplied && <Check className="h-3 w-3" />}
+          Suggested format: {FORMATS.find((f) => f.id === plan.suggestedFormat)?.label ?? plan.suggestedFormat}
+        </button>
+      )}
+      <p className="text-[11px] text-muted-foreground/70">
+        Pick what you like, adjust your prompt, then hit Generate.
+      </p>
+    </div>
+  );
+}
+
 function GenerationCard({
   generation,
   onRevise,
@@ -258,19 +355,60 @@ export default function CreatePage() {
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Collaborate mode (#167 §3–4): plan first — the assistant proposes library
+  // candidates + questions — then generate. Off = straight to the image model.
+  const [collabMode, setCollabMode] = useState(true);
+  const [activePlan, setActivePlan] = useState<GenerationPlan | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const sessions = useGenerationSessions();
   const session = useGenerationSession(sessionId);
   const generate = useGenerateImages();
+  const planner = usePlanGeneration();
   const { uploadFile, isUploading } = useUpload();
 
   const generations = session.data?.generations ?? [];
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [generations.length, generate.isPending]);
+  }, [generations.length, generate.isPending, activePlan, planner.isPending]);
+
+  function candidateAttached(c: PlanCandidate): boolean {
+    return attached.some((a) => a.kind === c.kind && a.refId === c.refId);
+  }
+
+  function toggleCandidate(c: PlanCandidate) {
+    setAttached((prev) => {
+      const existing = prev.find((a) => a.kind === c.kind && a.refId === c.refId);
+      if (existing) return prev.filter((a) => a !== existing);
+      return [
+        ...prev,
+        { localId: crypto.randomUUID(), kind: c.kind, refId: c.refId, role: c.role, name: c.name, previewUrl: c.previewUrl },
+      ];
+    });
+  }
+
+  function handlePlan() {
+    const trimmed = prompt.trim();
+    if (!trimmed || planner.isPending) return;
+    planner.mutate(
+      { prompt: trimmed, attachedNames: attached.map((a) => a.name ?? "attachment") },
+      {
+        onSuccess: (plan) => {
+          setActivePlan(plan);
+          if (plan.suggestedFormat) setFormat(plan.suggestedFormat);
+        },
+        onError: (err) => {
+          toast({
+            title: "Planning failed",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          });
+        },
+      },
+    );
+  }
 
   async function handleUploadReference(file: File) {
     const uploaded = await uploadFile(file);
@@ -289,6 +427,13 @@ export default function CreatePage() {
         previewUrl: `/api/storage${uploaded.objectPath}`,
       },
     ]);
+  }
+
+  // Primary action: in collaborate mode the first submit plans; once a plan is
+  // showing (or collab is off / revising), submit generates.
+  function handleSubmit() {
+    if (collabMode && !reviseTarget && !activePlan) handlePlan();
+    else handleGenerate();
   }
 
   function handleGenerate() {
@@ -311,6 +456,7 @@ export default function CreatePage() {
           setPrompt("");
           setAttached([]);
           setReviseTarget(null);
+          setActivePlan(null);
           const failed = result.generations.filter((g) => g.status === "failed").length;
           if (failed > 0) {
             toast({
@@ -425,6 +571,21 @@ export default function CreatePage() {
               </div>
             </div>
           ))}
+          {planner.isPending && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="plan-pending">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Thinking about what this graphic needs…
+            </div>
+          )}
+          {activePlan && !generate.isPending && (
+            <PlanCard
+              plan={activePlan}
+              isAttached={candidateAttached}
+              onToggleCandidate={toggleCandidate}
+              onApplyFormat={setFormat}
+              formatApplied={activePlan.suggestedFormat != null && format === activePlan.suggestedFormat}
+            />
+          )}
           {generate.isPending && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="generation-pending">
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -491,7 +652,7 @@ export default function CreatePage() {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleGenerate();
+              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
             }}
             placeholder={
               reviseTarget
@@ -563,16 +724,41 @@ export default function CreatePage() {
                 </Select>
               </>
             )}
+            {!reviseTarget && (
+              <Button
+                type="button"
+                size="sm"
+                variant={collabMode ? "secondary" : "ghost"}
+                className="gap-1.5"
+                onClick={() => {
+                  setCollabMode((v) => !v);
+                  setActivePlan(null);
+                }}
+                title={collabMode ? "Collaborate: the assistant plans, proposes library images and asks questions first" : "Direct: straight to the image model"}
+                data-testid="collab-toggle"
+              >
+                <MessageCircleQuestion className="h-3.5 w-3.5" />
+                {collabMode ? "Collaborate" : "Direct"}
+              </Button>
+            )}
             <Button
               type="button"
               size="sm"
               className="ml-auto gap-1.5"
-              onClick={handleGenerate}
-              disabled={!prompt.trim() || generate.isPending}
+              onClick={handleSubmit}
+              disabled={!prompt.trim() || generate.isPending || planner.isPending}
               data-testid="generate-btn"
             >
-              {generate.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-              {reviseTarget ? "Revise" : "Generate"}
+              {generate.isPending || planner.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Sparkles className="h-3.5 w-3.5" />
+              )}
+              {reviseTarget
+                ? "Revise"
+                : collabMode && !activePlan
+                  ? "Plan"
+                  : "Generate"}
             </Button>
           </div>
           {attached.length === 0 && !reviseTarget && (
