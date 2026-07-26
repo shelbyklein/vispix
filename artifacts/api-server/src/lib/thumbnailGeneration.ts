@@ -85,6 +85,14 @@ async function generateAndStoreThumbnailUnbounded(photoId: number, storageKey: s
       return "skipped";
     }
 
+    // Thumbnails are keyed under the photo's org so the storage ACL serves
+    // them to that org's members (unprefixed keys gate to the default org).
+    const [photoRow] = await db
+      .select({ organizationId: photosTable.organizationId })
+      .from(photosTable)
+      .where(eq(photosTable.id, photoId));
+    if (!photoRow) return "skipped";
+
     const privateObjectDir = getPrivateObjectDir();
     const entityId = storageKey.slice("/objects/".length);
     let entityDir = privateObjectDir;
@@ -117,8 +125,8 @@ async function generateAndStoreThumbnailUnbounded(photoId: number, storageKey: s
       .jpeg({ quality: 80, progressive: true })
       .toBuffer();
 
-    const thumbnailId = randomUUID();
-    const thumbnailPath = `${entityDir}thumbnails/${thumbnailId}`;
+    const thumbnailId = `orgs/${photoRow.organizationId}/thumbnails/${randomUUID()}`;
+    const thumbnailPath = `${entityDir}${thumbnailId}`;
     const { bucketName: thumbBucket, objectName: thumbObject } = parseObjectPath(thumbnailPath);
 
     const uploadURL = await signObjectURL({
@@ -150,7 +158,7 @@ async function generateAndStoreThumbnailUnbounded(photoId: number, storageKey: s
       throw new Error(`Thumbnail upload failed with status ${uploadResponse?.status}`);
     }
 
-    const thumbnailKey = `/objects/thumbnails/${thumbnailId}`;
+    const thumbnailKey = `/objects/${thumbnailId}`;
 
     await db
       .update(photosTable)

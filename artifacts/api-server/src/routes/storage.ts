@@ -4,8 +4,8 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { and, asc, eq } from "drizzle-orm";
-import { db, organizationMembersTable, organizationsTable } from "@workspace/db";
+import { and, asc, eq, or } from "drizzle-orm";
+import { db, organizationMembersTable, organizationsTable, photosTable } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOrgAuth } from "../middlewares/requireOrg";
@@ -21,10 +21,22 @@ const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
 
 // Resolve which org an object path belongs to: the prefix's org for
-// orgs/<id>/… keys, else the default (lowest-id) org for legacy keys.
+// orgs/<id>/… keys. Unprefixed keys are either derived objects written without
+// a prefix (historically, thumbnails — resolved via the photo that references
+// the key, so non-default-org thumbnails serve correctly) or true legacy
+// objects predating org-prefixing, which all belong to the default org.
 async function objectOrgId(wildcardPath: string): Promise<number | null> {
   const m = wildcardPath.match(/^orgs\/(\d+)\//);
   if (m) return Number.parseInt(m[1], 10);
+
+  const key = `/objects/${wildcardPath}`;
+  const [owner] = await db
+    .select({ organizationId: photosTable.organizationId })
+    .from(photosTable)
+    .where(or(eq(photosTable.thumbnailKey, key), eq(photosTable.storageKey, key)))
+    .limit(1);
+  if (owner) return owner.organizationId;
+
   const [defaultOrg] = await db
     .select({ id: organizationsTable.id })
     .from(organizationsTable)
