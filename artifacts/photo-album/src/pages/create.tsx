@@ -55,6 +55,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
 
 // The Create workspace (#167): a chat between the user and a planning
@@ -91,10 +92,12 @@ function VispixPickerDialog({
   open,
   onOpenChange,
   onPick,
+  orgName,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (input: Omit<AttachedInput, "localId">) => void;
+  orgName: string;
 }) {
   const [photoQuery, setPhotoQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
@@ -110,7 +113,7 @@ function VispixPickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add from Vispix</DialogTitle>
+          <DialogTitle>Search {orgName}</DialogTitle>
         </DialogHeader>
         <Tabs defaultValue="photos">
           <TabsList>
@@ -542,6 +545,8 @@ export default function CreatePage() {
   const generate = useGenerateImages();
   const planner = usePlanGeneration();
   const { uploadFile, isUploading } = useUpload();
+  const { activeOrg } = useOrg();
+  const searchLabel = `Search ${activeOrg?.name ?? "library"}`;
 
   const generations = session.data?.generations ?? [];
   const latestPlanId = [...chatLog].reverse().find((t) => t.type === "plan")?.id ?? null;
@@ -928,7 +933,7 @@ export default function CreatePage() {
                       onClick={() => setPickerOpen(true)}
                       data-testid="mobile-add-from-vispix-btn"
                     >
-                      <Images className="h-3.5 w-3.5" /> Add from Vispix
+                      <Images className="h-3.5 w-3.5" /> {searchLabel}
                     </Button>
                     <Button
                       type="button"
@@ -981,7 +986,7 @@ export default function CreatePage() {
                   onClick={() => setPickerOpen(true)}
                   data-testid="add-from-vispix-btn"
                 >
-                  <Images className="h-3.5 w-3.5" /> Add from Vispix
+                  <Images className="h-3.5 w-3.5" /> {searchLabel}
                 </Button>
                 {/* Desktop: the same controls inline. */}
                 <div className="hidden items-center gap-2 sm:flex">
@@ -1035,6 +1040,7 @@ export default function CreatePage() {
         open={pickerOpen}
         onOpenChange={setPickerOpen}
         onPick={(input) => setAttached((prev) => [...prev, { ...input, localId: crypto.randomUUID() }])}
+        orgName={activeOrg?.name ?? "your library"}
       />
       <ResizeDialog generation={resizeTarget} onOpenChange={(open) => !open && setResizeTarget(null)} />
     </AppLayout>
