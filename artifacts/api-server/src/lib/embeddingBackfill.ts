@@ -37,6 +37,17 @@ export async function countPhotosNeedingEmbedding(organizationId?: number): Prom
   return row?.n ?? 0;
 }
 
+/** A batch of photo ids still needing (re-)embedding — for the auto scheduler. */
+export async function listPhotoIdsNeedingEmbedding(limit: number, organizationId?: number): Promise<number[]> {
+  const rows = await db
+    .select({ id: photosTable.id })
+    .from(photosTable)
+    .where(needsEmbeddingIn(organizationId))
+    .orderBy(photosTable.createdAt)
+    .limit(limit);
+  return rows.map((r) => r.id);
+}
+
 // --- Cancellable background backfill with live progress (#31) ---
 //
 // The embedding backfill can run for thousands of photos, so instead of one
