@@ -16,6 +16,29 @@ import { logger } from "./logger";
 // similarity works. See lib/db photoEmbeddings.ts for the fixed dimension.
 export const VERTEX_EMBEDDING_MODEL = "multimodalembedding@001";
 export const EMBEDDING_MODEL_TAG = `vertex/${VERTEX_EMBEDDING_MODEL}`;
+// Tag for vectors that blend the photo's AI description into the image vector —
+// lets the backfill find image-only vectors that should be upgraded once the
+// photo has a description.
+export const EMBEDDING_MODEL_TAG_BLENDED = `${EMBEDDING_MODEL_TAG}+desc`;
+
+// How much the description's text vector pulls the stored photo vector (image
+// stays dominant). Both parts live in the same multimodal space, so a weighted
+// blend is a legitimate late fusion; 0 disables blending entirely.
+const DESCRIPTION_EMBED_WEIGHT = (() => {
+  const raw = parseFloat(process.env.EMBED_DESCRIPTION_WEIGHT ?? "");
+  return Number.isFinite(raw) ? Math.min(0.5, Math.max(0, raw)) : 0.3;
+})();
+
+function normalizeVec(v: number[]): number[] {
+  const m = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
+  return v.map((x) => x / m);
+}
+
+function blendVectors(imageVec: number[], textVec: number[], weight: number): number[] {
+  const img = normalizeVec(imageVec);
+  const txt = normalizeVec(textVec);
+  return normalizeVec(img.map((x, i) => x * (1 - weight) + txt[i] * weight));
+}
 
 // Bound concurrent image embeds — each holds a downscaled image in memory while
 // the Vertex call is in flight, and uploads fire these without awaiting.
@@ -49,11 +72,18 @@ async function getAccessToken(): Promise<string | null> {
   }
 }
 
-type EmbedInstance = { image: { bytesBase64Encoded: string } } | { text: string };
+// One instance may carry an image, a text, or both — multimodalembedding
+// returns a vector for each part it was given, in one prediction.
+type EmbedInstance = { image?: { bytesBase64Encoded: string }; text?: string };
+
+interface VertexPrediction {
+  imageVec: number[] | null;
+  textVec: number[] | null;
+}
 
 // Low-level call to the Vertex :predict endpoint. Returns null (never throws) on
 // any config/auth/HTTP/shape error, so callers degrade gracefully.
-async function callVertexEmbedding(instance: EmbedInstance): Promise<number[] | null> {
+async function callVertexPredict(instance: EmbedInstance): Promise<VertexPrediction | null> {
   const { project, location } = vertexConfig();
   if (!project) {
     logger.warn("VERTEX_PROJECT is not set — skipping embedding");
@@ -87,12 +117,18 @@ async function callVertexEmbedding(instance: EmbedInstance): Promise<number[] | 
     predictions?: Array<{ imageEmbedding?: number[]; textEmbedding?: number[] }>;
   } | null;
   const pred = json?.predictions?.[0];
-  const vec = pred?.imageEmbedding ?? pred?.textEmbedding;
-  if (!vec || vec.length !== EMBEDDING_DIMENSION) {
-    logger.error({ length: vec?.length, expected: EMBEDDING_DIMENSION }, "Vertex embedding: unexpected response");
+  const validate = (v: number[] | undefined): number[] | null =>
+    v && v.length === EMBEDDING_DIMENSION ? v : null;
+  const imageVec = validate(pred?.imageEmbedding);
+  const textVec = validate(pred?.textEmbedding);
+  if (!imageVec && !textVec) {
+    logger.error(
+      { imageLen: pred?.imageEmbedding?.length, textLen: pred?.textEmbedding?.length, expected: EMBEDDING_DIMENSION },
+      "Vertex embedding: unexpected response",
+    );
     return null;
   }
-  return vec;
+  return { imageVec, textVec };
 }
 
 /** Embed a natural-language query (for semantic search). Not concurrency-bounded
@@ -100,7 +136,8 @@ async function callVertexEmbedding(instance: EmbedInstance): Promise<number[] | 
 export async function embedText(query: string): Promise<number[] | null> {
   const q = query.trim();
   if (!q) return null;
-  return callVertexEmbedding({ text: q });
+  const pred = await callVertexPredict({ text: q });
+  return pred?.textVec ?? null;
 }
 
 async function isEmbeddingEnabled(organizationId: number): Promise<boolean> {
@@ -112,13 +149,22 @@ async function isEmbeddingEnabled(organizationId: number): Promise<boolean> {
 }
 
 /**
- * Generate and upsert the image embedding for one photo. No-ops (returns false)
- * when embeddings are disabled, the photo/image is unavailable, or Vertex isn't
- * configured — so it's safe to fire-and-forget on upload and to run in CI.
+ * Generate and upsert the embedding for one photo. The image pixels are the
+ * base; when the photo has an AI description, its text vector (same multimodal
+ * space, same Vertex call) is blended in at DESCRIPTION_EMBED_WEIGHT so the
+ * description influences retrieval — event names, roles and context that the
+ * pixels alone can't carry. No-ops (returns false) when embeddings are
+ * disabled, the photo/image is unavailable, or Vertex isn't configured — so
+ * it's safe to fire-and-forget on upload and to run in CI.
  */
 export async function generateAndStorePhotoEmbedding(photoId: number): Promise<boolean> {
   const [photo] = await db
-    .select({ url: photosTable.url, storageKey: photosTable.storageKey, organizationId: photosTable.organizationId })
+    .select({
+      url: photosTable.url,
+      storageKey: photosTable.storageKey,
+      organizationId: photosTable.organizationId,
+      aiDescription: photosTable.aiDescription,
+    })
     .from(photosTable)
     .where(eq(photosTable.id, photoId));
   if (!photo) return false;
@@ -136,19 +182,31 @@ export async function generateAndStorePhotoEmbedding(photoId: number): Promise<b
   }
   const base64 = dataUrl.slice(dataUrl.indexOf(",") + 1);
 
-  const vec = await embeddingLimiter(() =>
-    callVertexEmbedding({ image: { bytesBase64Encoded: base64 } }),
+  const description = photo.aiDescription?.trim().slice(0, 1000) || null;
+  const wantBlend = description != null && DESCRIPTION_EMBED_WEIGHT > 0;
+
+  const pred = await embeddingLimiter(() =>
+    callVertexPredict({
+      image: { bytesBase64Encoded: base64 },
+      ...(wantBlend ? { text: description } : {}),
+    }),
   );
-  if (!vec) return false;
+  if (!pred?.imageVec) return false;
+
+  const blended = wantBlend && pred.textVec != null;
+  const vec = blended
+    ? blendVectors(pred.imageVec, pred.textVec!, DESCRIPTION_EMBED_WEIGHT)
+    : pred.imageVec;
+  const modelTag = blended ? EMBEDDING_MODEL_TAG_BLENDED : EMBEDDING_MODEL_TAG;
 
   await db
     .insert(photoEmbeddingsTable)
     // organizationId denormalized from the photo (#113) so vector search can
     // stay within a tenant without a join when needed.
-    .values({ photoId, organizationId: photo.organizationId, embedding: vec, model: EMBEDDING_MODEL_TAG })
+    .values({ photoId, organizationId: photo.organizationId, embedding: vec, model: modelTag })
     .onConflictDoUpdate({
       target: photoEmbeddingsTable.photoId,
-      set: { embedding: vec, model: EMBEDDING_MODEL_TAG, createdAt: new Date(), organizationId: photo.organizationId },
+      set: { embedding: vec, model: modelTag, createdAt: new Date(), organizationId: photo.organizationId },
     });
   return true;
 }

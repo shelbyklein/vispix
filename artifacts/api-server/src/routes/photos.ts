@@ -427,6 +427,12 @@ router.patch("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => {
     await db.update(photosTable).set(updateData).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
   }
 
+  // The description influences the stored vector (blended embedding) — re-embed
+  // when it was edited. Fire-and-forget; failures just leave the old vector.
+  if (body.data.aiDescription !== undefined && body.data.aiDescription !== existing.aiDescription) {
+    void generateAndStorePhotoEmbedding(params.data.id).catch(() => {});
+  }
+
   const photo = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
   res.json(UpdatePhotoResponse.parse(photo));
 });

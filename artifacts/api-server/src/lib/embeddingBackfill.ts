@@ -3,10 +3,23 @@ import { db, photosTable } from "@workspace/db";
 import { generateAndStorePhotoEmbedding } from "./aiEmbedding";
 import { logger } from "./logger";
 
-// Photos that have a storageKey (so bytes are fetchable) but no embedding yet.
+// Photos that have a storageKey (so bytes are fetchable) and either no
+// embedding yet, or an image-only vector while the photo now has an AI
+// description — descriptions are blended into the stored vector, so those get
+// progressively re-embedded (the '+desc' model-tag suffix marks blended
+// vectors; see aiEmbedding.ts).
 const needsEmbedding = and(
   isNotNull(photosTable.storageKey),
-  sql`NOT EXISTS (SELECT 1 FROM photo_embeddings pe WHERE pe.photo_id = ${photosTable.id})`,
+  sql`(
+    NOT EXISTS (SELECT 1 FROM photo_embeddings pe WHERE pe.photo_id = ${photosTable.id})
+    OR (
+      ${photosTable.aiDescription} IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM photo_embeddings pe
+        WHERE pe.photo_id = ${photosTable.id} AND pe.model NOT LIKE '%+desc'
+      )
+    )
+  )`,
 );
 
 // Scope to one org (#113) when an id is given; otherwise instance-wide.
