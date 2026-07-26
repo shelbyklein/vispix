@@ -18,16 +18,14 @@ import { getOpenAIKeyForOrg } from "../aiProviders";
 import { generateImage, type ImageSize } from "./openaiImage";
 import { logger } from "../logger";
 
-// Output formats offered by the Create workspace (#167 §1), mapped to the
-// image model's supported sizes. Letter is generated portrait and printed at
-// 8.5x11 — the model can't do exact print dimensions, so we get the closest
-// aspect and note the intent in the brief.
+// Output formats offered by the Create workspace — exactly the image model's
+// native canvases, nothing more (#167). Ratios the model can't render (4:5,
+// 9:16, print sizes) are deliberately not offered: a fake ratio would need
+// cropping, and cropping a composed design amputates it.
 export const GENERATION_FORMATS = {
   "1:1": { size: "1024x1024" as ImageSize, label: "Square 1:1" },
-  "4:5": { size: "1024x1536" as ImageSize, label: "Social portrait 4:5" },
-  "9:16": { size: "1024x1536" as ImageSize, label: "Story 9:16" },
-  "16:9": { size: "1536x1024" as ImageSize, label: "Wide 16:9" },
-  letter: { size: "1024x1536" as ImageSize, label: "US Letter 8.5×11" },
+  "2:3": { size: "1024x1536" as ImageSize, label: "Portrait 2:3" },
+  "3:2": { size: "1536x1024" as ImageSize, label: "Landscape 3:2" },
 } as const;
 
 export type GenerationFormat = keyof typeof GENERATION_FORMATS;

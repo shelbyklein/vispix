@@ -6,7 +6,8 @@ import { customFetch } from "./custom-fetch";
 
 export type GenerationInputKind = "upload" | "photo" | "asset";
 export type GenerationInputRole = "style" | "hero_photo" | "exact_asset";
-export type GenerationFormatId = "1:1" | "4:5" | "9:16" | "16:9" | "letter";
+// Exactly the image model's native canvases — no fake ratios.
+export type GenerationFormatId = "1:1" | "2:3" | "3:2";
 
 export interface GenerationRequestInput {
   kind: GenerationInputKind;

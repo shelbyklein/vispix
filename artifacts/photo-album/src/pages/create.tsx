@@ -72,12 +72,11 @@ import { cn } from "@/lib/utils";
 // generation lands, that turn is summarized by its prompt + variants (from the
 // server session) and a fresh exchange can begin.
 
+// Exactly the image model's native canvases — resizes it can truly accommodate.
 const FORMATS: { id: GenerationFormatId; label: string }[] = [
   { id: "1:1", label: "Square 1:1" },
-  { id: "4:5", label: "Social 4:5" },
-  { id: "9:16", label: "Story 9:16" },
-  { id: "16:9", label: "Wide 16:9" },
-  { id: "letter", label: "US Letter" },
+  { id: "2:3", label: "Portrait 2:3" },
+  { id: "3:2", label: "Landscape 3:2" },
 ];
 
 const ROLE_LABELS: Record<GenerationInputRole, string> = {
