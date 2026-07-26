@@ -90,8 +90,15 @@ export function useGenerateImages() {
   });
 }
 
-export function generationDownloadUrl(id: number, format: "png" | "jpg"): string {
-  return `/api/image-generation/${id}/download?format=${format}`;
+export function generationDownloadUrl(
+  id: number,
+  format: "png" | "jpg",
+  dims?: { w?: number; h?: number },
+): string {
+  const p = new URLSearchParams({ format });
+  if (dims?.w) p.set("w", String(Math.round(dims.w)));
+  if (dims?.h) p.set("h", String(Math.round(dims.h)));
+  return `/api/image-generation/${id}/download?${p.toString()}`;
 }
 
 // Collaborative planning (#167 §3–4): the assistant analyzes the prompt,
