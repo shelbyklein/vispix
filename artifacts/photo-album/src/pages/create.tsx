@@ -21,7 +21,6 @@ import { useUpload } from "@workspace/object-storage-web";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Select,
   SelectContent,
@@ -50,14 +49,18 @@ import {
   MessageCircleQuestion,
   Check,
   Lightbulb,
+  SendHorizonal,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-// The Create workspace (#167, thin end-to-end loop): conversational image
-// generation on the org's own OpenAI key, with references pulled from uploads
-// or the Vispix library, role-tagged inputs, variants, in-chat revision, and
-// PNG/JPG downloads.
+// The Create workspace (#167): a chat between the user and a planning
+// assistant. Every submit is a chat message — the assistant replies with a
+// plan (summary, clarifying questions, candidate images from the library);
+// the user keeps replying to refine, and generates from the assistant's card
+// when ready. The back-and-forth stays in the transcript; once an image
+// generation lands, that turn is summarized by its prompt + variants (from the
+// server session) and a fresh exchange can begin.
 
 const FORMATS: { id: GenerationFormatId; label: string }[] = [
   { id: "1:1", label: "Square 1:1" },
@@ -73,10 +76,13 @@ const ROLE_LABELS: Record<GenerationInputRole, string> = {
 };
 
 interface AttachedInput extends GenerationRequestInput {
-  /** Local id for chip list keys. */
   localId: string;
   previewUrl: string | null;
 }
+
+type ChatTurn =
+  | { id: string; type: "user"; text: string }
+  | { id: string; type: "plan"; plan: GenerationPlan };
 
 function VispixPickerDialog({
   open,
@@ -202,16 +208,24 @@ function VispixPickerDialog({
 
 function PlanCard({
   plan,
+  isLatest,
   isAttached,
   onToggleCandidate,
   onApplyFormat,
   formatApplied,
+  onGenerate,
+  generating,
+  variantCount,
 }: {
   plan: GenerationPlan;
+  isLatest: boolean;
   isAttached: (c: PlanCandidate) => boolean;
   onToggleCandidate: (c: PlanCandidate) => void;
   onApplyFormat: (f: GenerationFormatId) => void;
   formatApplied: boolean;
+  onGenerate: () => void;
+  generating: boolean;
+  variantCount: number;
 }) {
   return (
     <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
@@ -222,14 +236,13 @@ function PlanCard({
       {plan.questions.length > 0 && (
         <div className="space-y-1 text-sm">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-            <MessageCircleQuestion className="h-3.5 w-3.5" /> Before generating, it would help to know:
+            <MessageCircleQuestion className="h-3.5 w-3.5" /> A few questions — reply below:
           </p>
           <ul className="list-disc space-y-0.5 pl-6 text-foreground">
             {plan.questions.map((q) => (
               <li key={q}>{q}</li>
             ))}
           </ul>
-          <p className="text-[11px] text-muted-foreground/70">Add answers to your prompt below, then generate.</p>
         </div>
       )}
       {plan.slots.map((slot) => (
@@ -268,25 +281,37 @@ function PlanCard({
           )}
         </div>
       ))}
-      {plan.suggestedFormat && (
-        <button
-          type="button"
-          onClick={() => onApplyFormat(plan.suggestedFormat!)}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs",
-            formatApplied
-              ? "border-primary bg-primary/10 text-primary"
-              : "border-border text-muted-foreground hover:border-primary/50",
-          )}
-          data-testid="plan-format-suggestion"
-        >
-          {formatApplied && <Check className="h-3 w-3" />}
-          Suggested format: {FORMATS.find((f) => f.id === plan.suggestedFormat)?.label ?? plan.suggestedFormat}
-        </button>
-      )}
-      <p className="text-[11px] text-muted-foreground/70">
-        Pick what you like, adjust your prompt, then hit Generate.
-      </p>
+      <div className="flex flex-wrap items-center gap-2 pt-1">
+        {plan.suggestedFormat && (
+          <button
+            type="button"
+            onClick={() => onApplyFormat(plan.suggestedFormat!)}
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs",
+              formatApplied
+                ? "border-primary bg-primary/10 text-primary"
+                : "border-border text-muted-foreground hover:border-primary/50",
+            )}
+            data-testid="plan-format-suggestion"
+          >
+            {formatApplied && <Check className="h-3 w-3" />}
+            Format: {FORMATS.find((f) => f.id === plan.suggestedFormat)?.label ?? plan.suggestedFormat}
+          </button>
+        )}
+        {isLatest && (
+          <Button
+            type="button"
+            size="sm"
+            className="ml-auto gap-1.5"
+            onClick={onGenerate}
+            disabled={generating}
+            data-testid="plan-generate-btn"
+          >
+            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+            Generate {variantCount} variant{variantCount !== 1 ? "s" : ""}
+          </Button>
+        )}
+      </div>
     </div>
   );
 }
@@ -349,16 +374,16 @@ function GenerationCard({
 export default function CreatePage() {
   const { toast } = useToast();
   const [sessionId, setSessionId] = useState<number | undefined>(undefined);
-  const [prompt, setPrompt] = useState("");
+  const [draft, setDraft] = useState("");
   const [format, setFormat] = useState<GenerationFormatId>("1:1");
   const [variantCount, setVariantCount] = useState(2);
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Collaborate mode (#167 §3–4): plan first — the assistant proposes library
-  // candidates + questions — then generate. Off = straight to the image model.
-  const [collabMode, setCollabMode] = useState(true);
-  const [activePlan, setActivePlan] = useState<GenerationPlan | null>(null);
+  // The current exchange's transcript (user messages + assistant plans). When a
+  // generation lands, the exchange is captured by the generation's prompt +
+  // variants from the server, and the local transcript resets for the next one.
+  const [chatLog, setChatLog] = useState<ChatTurn[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
@@ -369,10 +394,23 @@ export default function CreatePage() {
   const { uploadFile, isUploading } = useUpload();
 
   const generations = session.data?.generations ?? [];
+  const latestPlanId = [...chatLog].reverse().find((t) => t.type === "plan")?.id ?? null;
+  // The full request so far: every user message this exchange, in order.
+  const conversationText = (extra?: string) =>
+    [...chatLog.filter((t): t is Extract<ChatTurn, { type: "user" }> => t.type === "user").map((t) => t.text), ...(extra ? [extra] : [])]
+      .join("\n")
+      .trim();
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [generations.length, generate.isPending, activePlan, planner.isPending]);
+  }, [generations.length, chatLog.length, generate.isPending, planner.isPending]);
+
+  function resetExchange() {
+    setChatLog([]);
+    setDraft("");
+    setAttached([]);
+    setReviseTarget(null);
+  }
 
   function candidateAttached(c: PlanCandidate): boolean {
     return attached.some((a) => a.kind === c.kind && a.refId === c.refId);
@@ -387,27 +425,6 @@ export default function CreatePage() {
         { localId: crypto.randomUUID(), kind: c.kind, refId: c.refId, role: c.role, name: c.name, previewUrl: c.previewUrl },
       ];
     });
-  }
-
-  function handlePlan() {
-    const trimmed = prompt.trim();
-    if (!trimmed || planner.isPending) return;
-    planner.mutate(
-      { prompt: trimmed, attachedNames: attached.map((a) => a.name ?? "attachment") },
-      {
-        onSuccess: (plan) => {
-          setActivePlan(plan);
-          if (plan.suggestedFormat) setFormat(plan.suggestedFormat);
-        },
-        onError: (err) => {
-          toast({
-            title: "Planning failed",
-            description: err instanceof Error ? err.message : undefined,
-            variant: "destructive",
-          });
-        },
-      },
-    );
   }
 
   async function handleUploadReference(file: File) {
@@ -429,34 +446,56 @@ export default function CreatePage() {
     ]);
   }
 
-  // Primary action: in collaborate mode the first submit plans; once a plan is
-  // showing (or collab is off / revising), submit generates.
-  function handleSubmit() {
-    if (collabMode && !reviseTarget && !activePlan) handlePlan();
-    else handleGenerate();
+  // Send = one chat message. Revising → generate the revision directly;
+  // otherwise the assistant replies with a (re-)plan built from the whole
+  // conversation so far.
+  function handleSend() {
+    const text = draft.trim();
+    if (!text || planner.isPending || generate.isPending) return;
+
+    if (reviseTarget) {
+      runGenerate(text, reviseTarget.id);
+      return;
+    }
+
+    setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "user", text }]);
+    setDraft("");
+    planner.mutate(
+      { prompt: conversationText(text), attachedNames: attached.map((a) => a.name ?? "attachment") },
+      {
+        onSuccess: (plan) => {
+          setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
+          if (plan.suggestedFormat) setFormat(plan.suggestedFormat);
+        },
+        onError: (err) => {
+          toast({
+            title: "Planning failed",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          });
+        },
+      },
+    );
   }
 
-  function handleGenerate() {
-    const trimmed = prompt.trim();
-    if (!trimmed || generate.isPending) return;
+  function runGenerate(prompt: string, parentGenerationId?: number) {
+    if (!prompt || generate.isPending) return;
     generate.mutate(
       {
-        prompt: trimmed,
+        prompt,
         format,
-        variantCount: reviseTarget ? 1 : variantCount,
+        variantCount: parentGenerationId != null ? 1 : variantCount,
         sessionId,
-        parentGenerationId: reviseTarget?.id,
-        inputs: reviseTarget
-          ? []
-          : attached.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name })),
+        parentGenerationId,
+        inputs:
+          parentGenerationId != null
+            ? []
+            : attached.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name })),
       },
       {
         onSuccess: (result) => {
           setSessionId(result.sessionId);
-          setPrompt("");
-          setAttached([]);
-          setReviseTarget(null);
-          setActivePlan(null);
+          resetExchange();
           const failed = result.generations.filter((g) => g.status === "failed").length;
           if (failed > 0) {
             toast({
@@ -477,8 +516,15 @@ export default function CreatePage() {
     );
   }
 
-  // Group the flat generation list into prompt turns (batchier display): a new
-  // group starts whenever the prompt or parent differs from the previous row.
+  // Generate from the plan card: includes any unsent draft text as a final
+  // detail so an answer typed-but-not-sent still counts.
+  function handleGenerateFromPlan() {
+    const prompt = conversationText(draft.trim() || undefined);
+    if (!prompt) return;
+    runGenerate(prompt);
+  }
+
+  // Group the server's flat generation list into prompt turns.
   const groups: { prompt: string; items: ImageGenerationResult[] }[] = [];
   for (const g of generations) {
     const last = groups[groups.length - 1];
@@ -503,53 +549,51 @@ export default function CreatePage() {
               <Sparkles className="h-6 w-6 text-primary" /> Create
             </h1>
             <p className="text-sm text-muted-foreground">
-              Generate marketing graphics with your photos, logos and references.
+              Chat with the assistant to plan and generate marketing graphics from your library.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Select
-              value={sessionId != null ? String(sessionId) : "__new__"}
-              onValueChange={(v) => {
-                setReviseTarget(null);
-                setSessionId(v === "__new__" ? undefined : parseInt(v, 10));
-              }}
-            >
-              <SelectTrigger className="h-8 w-52 text-xs" data-testid="session-picker">
-                <SelectValue placeholder="New session" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__new__">
-                  <span className="flex items-center gap-1">
-                    <Plus className="h-3 w-3" /> New session
-                  </span>
+          <Select
+            value={sessionId != null ? String(sessionId) : "__new__"}
+            onValueChange={(v) => {
+              resetExchange();
+              setSessionId(v === "__new__" ? undefined : parseInt(v, 10));
+            }}
+          >
+            <SelectTrigger className="h-8 w-52 text-xs" data-testid="session-picker">
+              <SelectValue placeholder="New session" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__new__">
+                <span className="flex items-center gap-1">
+                  <Plus className="h-3 w-3" /> New session
+                </span>
+              </SelectItem>
+              {(sessions.data ?? []).map((s) => (
+                <SelectItem key={s.id} value={String(s.id)}>
+                  {s.title.slice(0, 40) || `Session ${s.id}`}
                 </SelectItem>
-                {(sessions.data ?? []).map((s) => (
-                  <SelectItem key={s.id} value={String(s.id)}>
-                    {s.title.slice(0, 40) || `Session ${s.id}`}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
-        {/* Conversation */}
-        <div className="flex-1 space-y-5 overflow-y-auto rounded-lg border border-border bg-background/40 p-4">
-          {groups.length === 0 && !generate.isPending && (
+        {/* Chat transcript: past generations, then the current exchange. */}
+        <div className="flex-1 space-y-4 overflow-y-auto rounded-lg border border-border bg-background/40 p-4">
+          {groups.length === 0 && chatLog.length === 0 && !planner.isPending && !generate.isPending && (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center text-muted-foreground">
               <Wand2 className="h-8 w-8" />
               <p className="max-w-sm text-sm">
-                Describe the graphic you want — attach a style reference, pick a hero photo from your library, and add
-                your logo so it appears in the result.
+                Describe the graphic you want. The assistant will suggest photos and logos from your library, ask
+                what it needs to know, and generate when you're ready.
               </p>
               <p className="text-xs text-muted-foreground/70">
-                Uses your organization's OpenAI key. Configure it in Admin → AI settings if generation fails.
+                Uses your organization's OpenAI key — configure it in Admin → AI settings.
               </p>
             </div>
           )}
           {groups.map((group, gi) => (
             <div key={gi} className="space-y-2">
-              <div className="ml-auto w-fit max-w-[85%] rounded-lg bg-primary/10 px-3 py-2 text-sm text-foreground">
+              <div className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary/10 px-3 py-2 text-sm text-foreground">
                 {group.prompt}
               </div>
               <div
@@ -562,29 +606,41 @@ export default function CreatePage() {
                   <GenerationCard
                     key={g.id}
                     generation={g}
-                    onRevise={(target) => {
-                      setReviseTarget((prev) => (prev?.id === target.id ? null : target));
-                    }}
+                    onRevise={(target) => setReviseTarget((prev) => (prev?.id === target.id ? null : target))}
                     revising={reviseTarget?.id === g.id}
                   />
                 ))}
               </div>
             </div>
           ))}
+          {chatLog.map((turn) =>
+            turn.type === "user" ? (
+              <div
+                key={turn.id}
+                className="ml-auto w-fit max-w-[85%] whitespace-pre-wrap rounded-lg bg-primary/10 px-3 py-2 text-sm text-foreground"
+              >
+                {turn.text}
+              </div>
+            ) : (
+              <PlanCard
+                key={turn.id}
+                plan={turn.plan}
+                isLatest={turn.id === latestPlanId}
+                isAttached={candidateAttached}
+                onToggleCandidate={toggleCandidate}
+                onApplyFormat={setFormat}
+                formatApplied={turn.plan.suggestedFormat != null && format === turn.plan.suggestedFormat}
+                onGenerate={handleGenerateFromPlan}
+                generating={generate.isPending}
+                variantCount={variantCount}
+              />
+            ),
+          )}
           {planner.isPending && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="plan-pending">
               <Loader2 className="h-4 w-4 animate-spin" />
               Thinking about what this graphic needs…
             </div>
-          )}
-          {activePlan && !generate.isPending && (
-            <PlanCard
-              plan={activePlan}
-              isAttached={candidateAttached}
-              onToggleCandidate={toggleCandidate}
-              onApplyFormat={setFormat}
-              formatApplied={activePlan.suggestedFormat != null && format === activePlan.suggestedFormat}
-            />
           )}
           {generate.isPending && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="generation-pending">
@@ -601,7 +657,7 @@ export default function CreatePage() {
           {reviseTarget && (
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <Wand2 className="h-3.5 w-3.5 text-primary" />
-              Revising a selected result — describe the change (attachments are kept from the original).
+              Revising a selected result — describe the change and send.
               <button type="button" onClick={() => setReviseTarget(null)} aria-label="Cancel revision">
                 <X className="h-3.5 w-3.5" />
               </button>
@@ -648,20 +704,42 @@ export default function CreatePage() {
               ))}
             </div>
           )}
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) handleSubmit();
-            }}
-            placeholder={
-              reviseTarget
-                ? 'e.g. "Make the headline larger and use more red"'
-                : 'e.g. "A 4:5 social graphic announcing our spring tournament, bold headline, use the hero photo"'
-            }
-            className="min-h-[64px] resize-none text-sm"
-            data-testid="prompt-input"
-          />
+          <div className="flex items-end gap-2">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder={
+                reviseTarget
+                  ? 'e.g. "Make the headline larger and use more red"'
+                  : chatLog.length > 0
+                    ? "Reply — answer questions or refine the direction…"
+                    : 'e.g. "A social graphic announcing our spring tournament"'
+              }
+              className="min-h-[52px] flex-1 resize-none text-sm"
+              data-testid="prompt-input"
+            />
+            <Button
+              type="button"
+              size="sm"
+              className="mb-0.5 gap-1.5"
+              onClick={handleSend}
+              disabled={!draft.trim() || generate.isPending || planner.isPending}
+              data-testid="send-btn"
+              aria-label="Send"
+            >
+              {planner.isPending || (generate.isPending && reviseTarget) ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <SendHorizonal className="h-4 w-4" />
+              )}
+            </Button>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             {!reviseTarget && (
               <>
@@ -722,53 +800,12 @@ export default function CreatePage() {
                     ))}
                   </SelectContent>
                 </Select>
+                <span className="ml-auto text-[11px] text-muted-foreground/70">
+                  Enter to send · Shift+Enter for a new line
+                </span>
               </>
             )}
-            {!reviseTarget && (
-              <Button
-                type="button"
-                size="sm"
-                variant={collabMode ? "secondary" : "ghost"}
-                className="gap-1.5"
-                onClick={() => {
-                  setCollabMode((v) => !v);
-                  setActivePlan(null);
-                }}
-                title={collabMode ? "Collaborate: the assistant plans, proposes library images and asks questions first" : "Direct: straight to the image model"}
-                data-testid="collab-toggle"
-              >
-                <MessageCircleQuestion className="h-3.5 w-3.5" />
-                {collabMode ? "Collaborate" : "Direct"}
-              </Button>
-            )}
-            <Button
-              type="button"
-              size="sm"
-              className="ml-auto gap-1.5"
-              onClick={handleSubmit}
-              disabled={!prompt.trim() || generate.isPending || planner.isPending}
-              data-testid="generate-btn"
-            >
-              {generate.isPending || planner.isPending ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Sparkles className="h-3.5 w-3.5" />
-              )}
-              {reviseTarget
-                ? "Revise"
-                : collabMode && !activePlan
-                  ? "Plan"
-                  : "Generate"}
-            </Button>
           </div>
-          {attached.length === 0 && !reviseTarget && (
-            <p className="text-[11px] text-muted-foreground/70">
-              Tip: attach inputs and set each one's role —{" "}
-              <Badge variant="outline" className="text-[9px]">Style ref</Badge> shapes the look,{" "}
-              <Badge variant="outline" className="text-[9px]">Hero photo</Badge> is preserved photography,{" "}
-              <Badge variant="outline" className="text-[9px]">Exact asset</Badge> is a logo that must not change.
-            </p>
-          )}
         </div>
       </div>
 
