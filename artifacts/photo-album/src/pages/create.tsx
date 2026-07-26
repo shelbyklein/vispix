@@ -6,8 +6,8 @@ import {
   useGenerationSession,
   usePlanGeneration,
   generationDownloadUrl,
-  useSearchPhotos,
-  getSearchPhotosQueryKey,
+  useSemanticSearchPhotos,
+  getSemanticSearchPhotosQueryKey,
   useListAssets,
   getListAssetsQueryKey,
   type GenerationRequestInput,
@@ -101,9 +101,10 @@ function VispixPickerDialog({
 }) {
   const [photoQuery, setPhotoQuery] = useState("");
   const [submittedQuery, setSubmittedQuery] = useState("");
-  const photoParams = { q: submittedQuery, limit: 24, offset: 0 };
-  const photos = useSearchPhotos(photoParams, {
-    query: { enabled: open && !!submittedQuery, queryKey: getSearchPhotosQueryKey(photoParams) },
+  // Semantic search: "archer celebrating" finds the moment, not the filename.
+  const photoParams = { q: submittedQuery, topK: 24 };
+  const photos = useSemanticSearchPhotos(photoParams, {
+    query: { enabled: open && !!submittedQuery, queryKey: getSemanticSearchPhotosQueryKey(photoParams) },
   });
   const assets = useListAssets(undefined, {
     query: { enabled: open, queryKey: getListAssetsQueryKey() },
@@ -144,7 +145,7 @@ function VispixPickerDialog({
               </div>
             ) : (
               <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
-                {(photos.data?.photos ?? []).map((p) => {
+                {(photos.data ?? []).map((p) => {
                   const thumb = p.thumbnailKey ? `/api/storage${p.thumbnailKey}` : p.url;
                   return (
                     <button
@@ -167,7 +168,7 @@ function VispixPickerDialog({
                     </button>
                   );
                 })}
-                {submittedQuery && !photos.isFetching && (photos.data?.photos ?? []).length === 0 && (
+                {submittedQuery && !photos.isFetching && (photos.data ?? []).length === 0 && (
                   <p className="col-span-full py-4 text-sm text-muted-foreground">No photos matched.</p>
                 )}
               </div>
