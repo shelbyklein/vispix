@@ -225,6 +225,13 @@
       "when": 1784982651246,
       "tag": "0031_curved_lady_ursula",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1785030723534,
+      "tag": "0032_modern_brother_voodoo",
+      "breakpoints": true
     }
   ]
 }
