@@ -267,3 +267,25 @@ export async function getActiveProvider(organizationId: number): Promise<{
   }
   return { provider: null, settings, reason: "No Gemini key configured" };
 }
+
+/**
+ * Decrypted OpenAI API key for an org, regardless of which provider is active
+ * for photo analysis — image generation (#167) is OpenAI-only, billed to the
+ * org's own key. Falls back to the instance-wide env key when the org hasn't
+ * stored one. Null → the Create workspace is unavailable for this org.
+ */
+export async function getOpenAIKeyForOrg(
+  organizationId: number,
+): Promise<{ apiKey: string; baseURL: string | null } | null> {
+  const settings = await loadOrgSettings(organizationId);
+  if (!settings.aiEnabled) return null;
+  const stored = getStoredKey(settings, "openai");
+  if (stored) return { apiKey: stored, baseURL: null };
+  if (envKeyFallbackFor("openai")) {
+    return {
+      apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY!,
+      baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL ?? null,
+    };
+  }
+  return null;
+}

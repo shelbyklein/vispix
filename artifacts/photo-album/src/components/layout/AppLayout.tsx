@@ -16,7 +16,7 @@ import {
   getGetPhotoQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check } from "lucide-react";
+import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check, Wand2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -72,6 +72,7 @@ const navItems = [
   { href: "/smart-collections", label: "Smart", icon: Sparkles },
   { href: "/people", label: "People", icon: Users },
   { href: "/assets", label: "Assets", icon: Palette },
+  { href: "/create", label: "Create", icon: Wand2 },
 ];
 
 // Drag type for reordering the top-level nav; distinct from PHOTO_DND_MIME so
