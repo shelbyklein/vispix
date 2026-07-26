@@ -2,11 +2,19 @@ import { db, organizationsTable, organizationSettingsTable } from "@workspace/db
 import { eq } from "drizzle-orm";
 import { loadOrgSettings } from "./aiProviders";
 import { backfillAiAnalysis, countPhotosNeedingAiAnalysis } from "./aiAnalysisBackfill";
+import { listPhotoIdsNeedingEmbedding } from "./embeddingBackfill";
+import { generateAndStorePhotoEmbedding } from "./aiEmbedding";
 import { logger } from "./logger";
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
 
 let isRunning = false;
+
+// Photos whose embedding attempt failed this process lifetime — skipped on
+// later ticks so a batch of unembeddable photos (missing bytes, Vertex errors)
+// can't wedge the sweep retrying forever. In-memory on purpose (single-instance
+// droplet): a restart retries them once more.
+const embedFailedIds = new Set<number>();
 
 // Per-org (#113): each org opts into automatic AI backfill independently, and a
 // tick only processes that org's own photos with that org's provider/key.
@@ -19,16 +27,40 @@ async function tick(): Promise<void> {
       const settings = await loadOrgSettings(org.id);
       if (!settings.aiAutoBackfillEnabled) continue;
 
-      const missingCount = await countPhotosNeedingAiAnalysis(org.id);
-      if (missingCount === 0) continue;
-
       const batchSize = settings.aiAutoBackfillBatchSize;
-      logger.info(
-        { orgId: org.id, missingCount, batchSize },
-        "Automatic AI analysis backfill: starting batch",
-      );
-      const result = await backfillAiAnalysis(batchSize, "automatic", org.id);
-      logger.info({ orgId: org.id, ...result }, "Automatic AI analysis backfill: batch complete");
+
+      const missingCount = await countPhotosNeedingAiAnalysis(org.id);
+      if (missingCount > 0) {
+        logger.info(
+          { orgId: org.id, missingCount, batchSize },
+          "Automatic AI analysis backfill: starting batch",
+        );
+        const result = await backfillAiAnalysis(batchSize, "automatic", org.id);
+        logger.info({ orgId: org.id, ...result }, "Automatic AI analysis backfill: batch complete");
+      }
+
+      // Embedding sweep (same opt-in): covers photos the analysis pass can't
+      // reach — analysis-capped photos, and described photos whose vector is
+      // still image-only (the description-blend upgrade). Cheap: embedding
+      // calls only, no LLM. Successful analyses above already re-embedded
+      // their own photos, so this typically has little left to do.
+      if (settings.embeddingEnabled) {
+        // Over-fetch so already-failed ids don't shrink the effective batch.
+        const ids = (await listPhotoIdsNeedingEmbedding(batchSize + embedFailedIds.size, org.id))
+          .filter((id) => !embedFailedIds.has(id))
+          .slice(0, batchSize);
+        if (ids.length > 0) {
+          let succeeded = 0;
+          for (const id of ids) {
+            if (await generateAndStorePhotoEmbedding(id)) succeeded++;
+            else embedFailedIds.add(id);
+          }
+          logger.info(
+            { orgId: org.id, attempted: ids.length, succeeded },
+            "Automatic embedding backfill: batch complete",
+          );
+        }
+      }
     }
   } catch (err) {
     logger.error({ err }, "Automatic AI analysis backfill: unexpected error");

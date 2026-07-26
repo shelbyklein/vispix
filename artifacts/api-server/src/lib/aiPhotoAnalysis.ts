@@ -334,6 +334,13 @@ async function runAndRecordPhotoAnalysisUnbounded(
       return row;
     });
 
+    // The description influences the stored vector (blended embedding), so
+    // re-embed now that it's written. Fire-and-forget; dynamic import because
+    // aiEmbedding statically imports resolveImageForAI from this module.
+    void import("./aiEmbedding")
+      .then(({ generateAndStorePhotoEmbedding }) => generateAndStorePhotoEmbedding(photo.id))
+      .catch((err) => logger.warn({ err, photoId: photo.id }, "Post-analysis re-embed failed"));
+
     return ev;
   } catch (err) {
     logger.error({ err, photoId }, "AI analysis failed");
