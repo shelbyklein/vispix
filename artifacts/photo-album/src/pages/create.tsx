@@ -223,6 +223,7 @@ function PlanCard({
   onGenerate,
   generating,
   variantCount,
+  currentFormatLabel,
 }: {
   plan: GenerationPlan;
   isLatest: boolean;
@@ -233,6 +234,7 @@ function PlanCard({
   onGenerate: () => void;
   generating: boolean;
   variantCount: number;
+  currentFormatLabel: string;
 }) {
   return (
     <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
@@ -315,7 +317,7 @@ function PlanCard({
             data-testid="plan-generate-btn"
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
-            Generate {variantCount} variant{variantCount !== 1 ? "s" : ""}
+            Generate {variantCount} variant{variantCount !== 1 ? "s" : ""} · {currentFormatLabel}
           </Button>
         )}
       </div>
@@ -620,8 +622,9 @@ export default function CreatePage() {
       { prompt: conversationText(text), attachedNames: attached.map((a) => a.name ?? "attachment") },
       {
         onSuccess: (plan) => {
+          // The suggested format is offered as a chip on the plan card only —
+          // never auto-applied, so it can't stomp an explicit user choice.
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
-          if (plan.suggestedFormat) setFormat(plan.suggestedFormat);
         },
         onError: (err) => {
           toast({
@@ -790,6 +793,7 @@ export default function CreatePage() {
                 onGenerate={handleGenerateFromPlan}
                 generating={generate.isPending}
                 variantCount={variantCount}
+                currentFormatLabel={FORMATS.find((f) => f.id === format)?.label ?? format}
               />
             ),
           )}
