@@ -63,7 +63,12 @@ vi.mock("@workspace/db", () => {
   });
 
   const makeSetResult = () => ({ where: () => makeWhereResult() });
-  const db = { update: () => ({ set: makeSetResult }) };
+  const db = {
+    update: () => ({ set: makeSetResult }),
+    // generateAndStoreThumbnail looks up the photo's org to key the thumbnail
+    // under orgs/<id>/ (storage ACL). One org is plenty for these tests.
+    select: () => ({ from: () => ({ where: () => Promise.resolve([{ organizationId: 1 }]) }) }),
+  };
 
   return { db, photosTable };
 });
