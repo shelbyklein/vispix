@@ -35,6 +35,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Sparkles,
   Upload,
@@ -50,6 +51,7 @@ import {
   Check,
   Lightbulb,
   SendHorizonal,
+  Settings2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -344,10 +346,11 @@ function GenerationCard({
       {generation.imageUrl && (
         <img src={generation.imageUrl} alt={generation.prompt} className="w-full object-contain" loading="lazy" />
       )}
-      <div className="absolute inset-x-0 bottom-0 flex items-center justify-between gap-1 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100">
+      {/* Always-visible actions (hover overlays don't exist on touch screens). */}
+      <div className="flex items-center justify-between gap-1 border-t border-border/60 bg-background/60 px-1.5 py-1">
         <Button
           size="sm"
-          variant="secondary"
+          variant="ghost"
           className="h-7 gap-1 text-xs"
           onClick={() => onRevise(generation)}
           data-testid={`revise-${generation.id}`}
@@ -355,13 +358,13 @@ function GenerationCard({
           <Wand2 className="h-3 w-3" /> {revising ? "Revising" : "Revise"}
         </Button>
         <div className="flex gap-1">
-          <a href={generationDownloadUrl(generation.id, "png")} download>
-            <Button size="sm" variant="secondary" className="h-7 gap-1 text-xs">
+          <a href={generationDownloadUrl(generation.id, "png")} download data-testid={`download-png-${generation.id}`}>
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs">
               <Download className="h-3 w-3" /> PNG
             </Button>
           </a>
-          <a href={generationDownloadUrl(generation.id, "jpg")} download>
-            <Button size="sm" variant="secondary" className="h-7 gap-1 text-xs">
+          <a href={generationDownloadUrl(generation.id, "jpg")} download data-testid={`download-jpg-${generation.id}`}>
+            <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs">
               <Download className="h-3 w-3" /> JPG
             </Button>
           </a>
@@ -376,7 +379,7 @@ export default function CreatePage() {
   const [sessionId, setSessionId] = useState<number | undefined>(undefined);
   const [draft, setDraft] = useState("");
   const [format, setFormat] = useState<GenerationFormatId>("1:1");
-  const [variantCount, setVariantCount] = useState(2);
+  const [variantCount, setVariantCount] = useState(1);
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -754,18 +757,64 @@ export default function CreatePage() {
                     e.target.value = "";
                   }}
                 />
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
-                  data-testid="upload-reference-btn"
-                >
-                  {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-                  Reference
-                </Button>
+                {/* Mobile: secondary controls live behind a settings popover. */}
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5 sm:hidden"
+                      aria-label="Generation settings"
+                      data-testid="mobile-settings-btn"
+                    >
+                      <Settings2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-60 space-y-3">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-start gap-1.5"
+                      disabled={isUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                      Upload reference
+                    </Button>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-muted-foreground">Format</p>
+                      <Select value={format} onValueChange={(v) => setFormat(v as GenerationFormatId)}>
+                        <SelectTrigger className="h-8 w-full text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {FORMATS.map((f) => (
+                            <SelectItem key={f.id} value={f.id}>
+                              {f.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <p className="text-[11px] font-medium text-muted-foreground">Variants</p>
+                      <Select value={String(variantCount)} onValueChange={(v) => setVariantCount(parseInt(v, 10))}>
+                        <SelectTrigger className="h-8 w-full text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {[1, 2, 3].map((n) => (
+                            <SelectItem key={n} value={String(n)}>
+                              {n} variant{n !== 1 ? "s" : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </PopoverContent>
+                </Popover>
                 <Button
                   type="button"
                   size="sm"
@@ -776,31 +825,46 @@ export default function CreatePage() {
                 >
                   <Images className="h-3.5 w-3.5" /> Add from Vispix
                 </Button>
-                <Select value={format} onValueChange={(v) => setFormat(v as GenerationFormatId)}>
-                  <SelectTrigger className="h-8 w-32 text-xs" data-testid="format-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {FORMATS.map((f) => (
-                      <SelectItem key={f.id} value={f.id}>
-                        {f.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={String(variantCount)} onValueChange={(v) => setVariantCount(parseInt(v, 10))}>
-                  <SelectTrigger className="h-8 w-28 text-xs" data-testid="variant-select">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {[1, 2, 3].map((n) => (
-                      <SelectItem key={n} value={String(n)}>
-                        {n} variant{n !== 1 ? "s" : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <span className="ml-auto text-[11px] text-muted-foreground/70">
+                {/* Desktop: the same controls inline. */}
+                <div className="hidden items-center gap-2 sm:flex">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={isUploading}
+                    onClick={() => fileInputRef.current?.click()}
+                    data-testid="upload-reference-btn"
+                  >
+                    {isUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                    Reference
+                  </Button>
+                  <Select value={format} onValueChange={(v) => setFormat(v as GenerationFormatId)}>
+                    <SelectTrigger className="h-8 w-32 text-xs" data-testid="format-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {FORMATS.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={String(variantCount)} onValueChange={(v) => setVariantCount(parseInt(v, 10))}>
+                    <SelectTrigger className="h-8 w-28 text-xs" data-testid="variant-select">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[1, 2, 3].map((n) => (
+                        <SelectItem key={n} value={String(n)}>
+                          {n} variant{n !== 1 ? "s" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <span className="ml-auto hidden text-[11px] text-muted-foreground/70 sm:inline">
                   Enter to send · Shift+Enter for a new line
                 </span>
               </>
