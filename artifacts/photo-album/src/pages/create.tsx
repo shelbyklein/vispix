@@ -777,6 +777,16 @@ export default function CreatePage() {
                       size="sm"
                       variant="outline"
                       className="w-full justify-start gap-1.5"
+                      onClick={() => setPickerOpen(true)}
+                      data-testid="mobile-add-from-vispix-btn"
+                    >
+                      <Images className="h-3.5 w-3.5" /> Add from Vispix
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="w-full justify-start gap-1.5"
                       disabled={isUploading}
                       onClick={() => fileInputRef.current?.click()}
                     >
