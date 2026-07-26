@@ -13,6 +13,7 @@ export * from "./projects";
 export * from "./photoEmbeddings";
 export * from "./photoAiEvaluations";
 export * from "./imageGeneration";
+export * from "./organizationAlerts";
 export * from "./appSettings";
 export * from "./aiAnalysisEvents";
 export * from "./aiBackfillRuns";

@@ -15,6 +15,7 @@ import { ObjectStorageService } from "./objectStorage";
 import { getActiveProvider } from "./aiProviders";
 import type { ProviderId } from "./aiProviders";
 import { normalizeEvaluation, type PhotoEvaluationScores } from "./aiEvaluation";
+import { notifyAiQuotaIncident, isQuotaError } from "./orgIncidentAlerts";
 import { createLimiter } from "./concurrencyLimit";
 
 const storageService = new ObjectStorageService();
@@ -245,6 +246,12 @@ async function runAndRecordPhotoAnalysisUnbounded(
           errorMessage: outcome.error.slice(0, 1000),
         })
         .returning();
+      // Provider quota exhausted → alert the org's admins (cooldown-guarded,
+      // fire-and-forget). Covers uploads and every backfill path, since they
+      // all run analysis through here.
+      if (isQuotaError(outcome.error)) {
+        void notifyAiQuotaIncident(photo.organizationId);
+      }
       return ev;
     }
 

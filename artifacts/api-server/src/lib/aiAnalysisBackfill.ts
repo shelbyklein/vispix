@@ -1,6 +1,7 @@
 import { and, desc, eq, isNull, notExists, notInArray, or, sql } from "drizzle-orm";
 import { db, photosTable, aiBackfillRunsTable, aiAnalysisEventsTable, photoAiEvaluationsTable, type AiBackfillRun } from "@workspace/db";
 import { runAndRecordPhotoAnalysis } from "./aiPhotoAnalysis";
+import { isQuotaError } from "./orgIncidentAlerts";
 import { logger } from "./logger";
 
 export type BackfillTrigger = "manual" | "automatic";
@@ -99,8 +100,7 @@ export async function backfillAiAnalysis(
       logger.warn({ photoId: photo.id }, "AI analysis backfill failed for photo");
       // Quota / rate-limit failure: every remaining photo in this batch will
       // fail the same way — stop burning calls and try again next cycle.
-      const msg = event?.errorMessage?.toLowerCase() ?? "";
-      if (msg.includes("quota") || msg.includes("429") || msg.includes("rate limit")) {
+      if (isQuotaError(event?.errorMessage)) {
         logger.warn({ photoId: photo.id }, "AI analysis backfill: provider quota exhausted — aborting batch");
         break;
       }
