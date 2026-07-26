@@ -26,6 +26,7 @@ export const GENERATION_FORMATS = {
   "1:1": { size: "1024x1024" as ImageSize, label: "Square 1:1" },
   "4:5": { size: "1024x1536" as ImageSize, label: "Social portrait 4:5" },
   "9:16": { size: "1024x1536" as ImageSize, label: "Story 9:16" },
+  "16:9": { size: "1536x1024" as ImageSize, label: "Wide 16:9" },
   letter: { size: "1024x1536" as ImageSize, label: "US Letter 8.5×11" },
 } as const;
 
@@ -196,7 +197,9 @@ export interface RunGenerationArgs {
   sessionId?: number;
   prompt: string;
   inputs: RequestedInput[];
-  format: GenerationFormat;
+  /** Omitted on a revision → inherit the parent's format; a value re-renders
+   * the design on a different canvas ("turn this into a story"). */
+  format?: GenerationFormat;
   variantCount: number;
   /** Revise this earlier output (multi-turn) instead of generating fresh. */
   parentGenerationId?: number;
@@ -257,17 +260,24 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
     sessionId = session.id;
   }
 
+  // Format: fresh generations use the requested format; revisions inherit the
+  // parent's unless the caller explicitly asks for a different canvas.
+  const parentFormat = parent ? (parent.settings as { format?: GenerationFormat }).format : undefined;
+  const format: GenerationFormat = args.format ?? parentFormat ?? "1:1";
+  const formatChanged = parent != null && args.format != null && args.format !== parentFormat;
+
   const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs);
   const brief = parent
-    ? `Revise the current image: ${args.prompt}\nKeep everything else unchanged.`
-    : buildBrief(args.prompt, resolved, args.format);
+    ? formatChanged
+      ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design, content, text and style, recomposing the layout to suit the new aspect ratio. ${args.prompt}`
+      : `Revise the current image: ${args.prompt}\nKeep everything else unchanged.`
+    : buildBrief(args.prompt, resolved, format);
   const usageNotesSnapshot = parent
     ? ((parent.usageNotesSnapshot as string[] | null) ?? [])
     : resolved.flatMap((i) => i.usageNotes);
   const storedInputs: GenerationInput[] = parent
     ? ((parent.inputs as GenerationInput[] | null) ?? [])
     : resolved.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name }));
-  const format = parent ? ((parent.settings as { format?: GenerationFormat }).format ?? args.format) : args.format;
   const size = GENERATION_FORMATS[format]?.size ?? "1024x1024";
   const variantCount = parent ? 1 : Math.min(Math.max(args.variantCount, 1), 3);
 

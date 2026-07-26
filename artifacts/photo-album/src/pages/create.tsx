@@ -37,6 +37,12 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Sparkles,
   Upload,
   Images,
@@ -70,6 +76,7 @@ const FORMATS: { id: GenerationFormatId; label: string }[] = [
   { id: "1:1", label: "Square 1:1" },
   { id: "4:5", label: "Social 4:5" },
   { id: "9:16", label: "Story 9:16" },
+  { id: "16:9", label: "Wide 16:9" },
   { id: "letter", label: "US Letter" },
 ];
 
@@ -325,150 +332,19 @@ function PlanCard({
   );
 }
 
-// Maximal rectangle of aspect `rw:rh` that fits inside the original image —
-// "render the biggest possible crop at this ratio", no upscaling.
-function maxDimsForRatio(width: number, height: number, rw: number, rh: number): { w: number; h: number } {
-  const r = rw / rh;
-  if (width / height > r) return { w: Math.round(height * r), h: height };
-  return { w: width, h: Math.round(width / r) };
-}
-
-const RESIZE_RATIOS: { label: string; rw: number; rh: number }[] = [
-  { label: "1:1", rw: 1, rh: 1 },
-  { label: "4:5", rw: 4, rh: 5 },
-  { label: "9:16", rw: 9, rh: 16 },
-  { label: "16:9", rw: 16, rh: 9 },
-  { label: "Letter", rw: 8.5, rh: 11 },
-];
-
-// Deterministic export dialog: exact pixel dimensions (center-cropped when the
-// aspect differs; upscaling allowed) or one-click max-size-at-ratio presets.
-// This is server-side sharp, not the image model — instant and free.
-function ResizeDialog({
-  generation,
-  onOpenChange,
-}: {
-  generation: ImageGenerationResult | null;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const [w, setW] = useState("");
-  const [h, setH] = useState("");
-
-  useEffect(() => {
-    if (generation) {
-      setW(generation.width != null ? String(generation.width) : "");
-      setH(generation.height != null ? String(generation.height) : "");
-    }
-  }, [generation]);
-
-  if (!generation) return null;
-  const wNum = parseInt(w, 10);
-  const hNum = parseInt(h, 10);
-  const valid = Number.isInteger(wNum) && wNum >= 16 && wNum <= 4096 && Number.isInteger(hNum) && hNum >= 16 && hNum <= 4096;
-  const upscaled =
-    valid && generation.width != null && generation.height != null && (wNum > generation.width || hNum > generation.height);
-
-  return (
-    <Dialog open={!!generation} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Resize & download</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-3">
-          {generation.width != null && generation.height != null && (
-            <p className="text-xs text-muted-foreground">
-              Original: {generation.width}×{generation.height}px. A different aspect ratio is center-cropped.
-            </p>
-          )}
-          <div className="flex items-center gap-2">
-            <div className="flex-1 space-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground">Width (px)</p>
-              <Input
-                type="number"
-                min={16}
-                max={4096}
-                value={w}
-                onChange={(e) => setW(e.target.value)}
-                data-testid="resize-width"
-              />
-            </div>
-            <span className="mt-4 text-muted-foreground">×</span>
-            <div className="flex-1 space-y-1">
-              <p className="text-[11px] font-medium text-muted-foreground">Height (px)</p>
-              <Input
-                type="number"
-                min={16}
-                max={4096}
-                value={h}
-                onChange={(e) => setH(e.target.value)}
-                data-testid="resize-height"
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="text-[11px] font-medium text-muted-foreground">Max size at ratio</p>
-            <div className="flex flex-wrap gap-1.5">
-              {RESIZE_RATIOS.map((ratio) => (
-                <Button
-                  key={ratio.label}
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  className="h-7 text-xs"
-                  disabled={generation.width == null || generation.height == null}
-                  onClick={() => {
-                    const dims = maxDimsForRatio(generation.width!, generation.height!, ratio.rw, ratio.rh);
-                    setW(String(dims.w));
-                    setH(String(dims.h));
-                  }}
-                  data-testid={`resize-ratio-${ratio.label}`}
-                >
-                  {ratio.label}
-                </Button>
-              ))}
-            </div>
-          </div>
-          {upscaled && (
-            <p className="text-[11px] text-amber-700 dark:text-amber-400">
-              Larger than the original — the export will be upscaled and may look soft.
-            </p>
-          )}
-          <div className="flex justify-end gap-2 pt-1">
-            <a
-              href={valid ? generationDownloadUrl(generation.id, "png", { w: wNum, h: hNum }) : undefined}
-              download
-              aria-disabled={!valid}
-            >
-              <Button size="sm" variant="outline" disabled={!valid} className="gap-1.5" data-testid="resize-download-png">
-                <Download className="h-3.5 w-3.5" /> PNG
-              </Button>
-            </a>
-            <a
-              href={valid ? generationDownloadUrl(generation.id, "jpg", { w: wNum, h: hNum }) : undefined}
-              download
-              aria-disabled={!valid}
-            >
-              <Button size="sm" disabled={!valid} className="gap-1.5" data-testid="resize-download-jpg">
-                <Download className="h-3.5 w-3.5" /> JPG
-              </Button>
-            </a>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
 function GenerationCard({
   generation,
   onRevise,
   revising,
-  onResize,
+  onRegenerateSize,
+  regenerating,
 }: {
   generation: ImageGenerationResult;
   onRevise: (g: ImageGenerationResult) => void;
   revising: boolean;
-  onResize: (g: ImageGenerationResult) => void;
+  /** Re-render the same design on a different canvas via a model revision. */
+  onRegenerateSize: (g: ImageGenerationResult, format: GenerationFormatId) => void;
+  regenerating: boolean;
 }) {
   if (generation.status === "failed") {
     return (
@@ -501,15 +377,30 @@ function GenerationCard({
           <Wand2 className="h-3 w-3" /> {revising ? "Revising" : "Revise"}
         </Button>
         <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="h-7 gap-1 text-xs"
-            onClick={() => onResize(generation)}
-            data-testid={`resize-${generation.id}`}
-          >
-            <Maximize2 className="h-3 w-3" /> Resize
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 gap-1 text-xs"
+                disabled={regenerating}
+                data-testid={`resize-${generation.id}`}
+              >
+                <Maximize2 className="h-3 w-3" /> Size
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {FORMATS.filter((f) => f.id !== generation.settings.format).map((f) => (
+                <DropdownMenuItem
+                  key={f.id}
+                  onClick={() => onRegenerateSize(generation, f.id)}
+                  data-testid={`regen-size-${generation.id}-${f.id}`}
+                >
+                  Re-render as {f.label}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <a href={generationDownloadUrl(generation.id, "png")} download data-testid={`download-png-${generation.id}`}>
             <Button size="sm" variant="ghost" className="h-7 gap-1 text-xs">
               <Download className="h-3 w-3" /> PNG
@@ -534,7 +425,6 @@ export default function CreatePage() {
   const [variantCount, setVariantCount] = useState(1);
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
-  const [resizeTarget, setResizeTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   // The current exchange's transcript (user messages + assistant plans). When a
   // generation lands, the exchange is captured by the generation's prompt +
@@ -637,12 +527,14 @@ export default function CreatePage() {
     );
   }
 
-  function runGenerate(prompt: string, parentGenerationId?: number) {
+  function runGenerate(prompt: string, parentGenerationId?: number, formatOverride?: GenerationFormatId) {
     if (!prompt || generate.isPending) return;
     generate.mutate(
       {
         prompt,
-        format,
+        // Revisions inherit the parent's format unless explicitly re-rendering
+        // to another canvas via the Size menu.
+        format: parentGenerationId != null ? formatOverride : format,
         variantCount: parentGenerationId != null ? 1 : variantCount,
         sessionId,
         parentGenerationId,
@@ -681,6 +573,13 @@ export default function CreatePage() {
     const prompt = conversationText(draft.trim() || undefined);
     if (!prompt) return;
     runGenerate(prompt);
+  }
+
+  // Re-render an existing result on a different canvas (model revision keeps
+  // the design; the backend brief asks it to recompose for the new aspect).
+  function handleRegenerateSize(g: ImageGenerationResult, target: GenerationFormatId) {
+    const label = FORMATS.find((f) => f.id === target)?.label ?? target;
+    runGenerate(`Adapt to ${label}.`, g.id, target);
   }
 
   // Group the server's flat generation list into prompt turns.
@@ -767,7 +666,8 @@ export default function CreatePage() {
                     generation={g}
                     onRevise={(target) => setReviseTarget((prev) => (prev?.id === target.id ? null : target))}
                     revising={reviseTarget?.id === g.id}
-                    onResize={setResizeTarget}
+                    onRegenerateSize={handleRegenerateSize}
+                    regenerating={generate.isPending}
                   />
                 ))}
               </div>
@@ -1047,7 +947,6 @@ export default function CreatePage() {
         onPick={(input) => setAttached((prev) => [...prev, { ...input, localId: crypto.randomUUID() }])}
         orgName={activeOrg?.name ?? "your library"}
       />
-      <ResizeDialog generation={resizeTarget} onOpenChange={(open) => !open && setResizeTarget(null)} />
     </AppLayout>
   );
 }

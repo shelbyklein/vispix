@@ -6,7 +6,7 @@ import { customFetch } from "./custom-fetch";
 
 export type GenerationInputKind = "upload" | "photo" | "asset";
 export type GenerationInputRole = "style" | "hero_photo" | "exact_asset";
-export type GenerationFormatId = "1:1" | "4:5" | "9:16" | "letter";
+export type GenerationFormatId = "1:1" | "4:5" | "9:16" | "16:9" | "letter";
 
 export interface GenerationRequestInput {
   kind: GenerationInputKind;
@@ -49,7 +49,9 @@ export interface GenerateImagesBody {
   sessionId?: number;
   parentGenerationId?: number;
   prompt: string;
-  format: GenerationFormatId;
+  /** Omit on a revision to inherit the parent's format; set to re-render the
+   * design on a different canvas. */
+  format?: GenerationFormatId;
   variantCount: number;
   inputs: GenerationRequestInput[];
 }
@@ -90,15 +92,8 @@ export function useGenerateImages() {
   });
 }
 
-export function generationDownloadUrl(
-  id: number,
-  format: "png" | "jpg",
-  dims?: { w?: number; h?: number },
-): string {
-  const p = new URLSearchParams({ format });
-  if (dims?.w) p.set("w", String(Math.round(dims.w)));
-  if (dims?.h) p.set("h", String(Math.round(dims.h)));
-  return `/api/image-generation/${id}/download?${p.toString()}`;
+export function generationDownloadUrl(id: number, format: "png" | "jpg"): string {
+  return `/api/image-generation/${id}/download?format=${format}`;
 }
 
 // Collaborative planning (#167 §3–4): the assistant analyzes the prompt,

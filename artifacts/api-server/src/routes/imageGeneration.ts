@@ -18,8 +18,10 @@ const GenerateBody = z.object({
   sessionId: z.number().int().positive().optional(),
   parentGenerationId: z.number().int().positive().optional(),
   prompt: z.string().trim().min(1).max(4000),
-  format: z.enum(Object.keys(GENERATION_FORMATS) as [GenerationFormat, ...GenerationFormat[]]).default("1:1"),
-  variantCount: z.number().int().min(1).max(3).default(2),
+  // Optional so revisions can inherit the parent's format; passing one on a
+  // revision re-renders the design on that canvas.
+  format: z.enum(Object.keys(GENERATION_FORMATS) as [GenerationFormat, ...GenerationFormat[]]).optional(),
+  variantCount: z.number().int().min(1).max(3).default(1),
   inputs: z
     .array(
       z.object({
@@ -157,19 +159,7 @@ router.get("/image-generation/sessions/:id", requireOrgAuth, async (req: Request
   });
 });
 
-// Parse an optional pixel dimension query param (clamped 16–4096).
-function parseDim(raw: unknown): number | undefined {
-  if (typeof raw !== "string" || raw.trim() === "") return undefined;
-  const n = parseInt(raw, 10);
-  if (!Number.isInteger(n)) return undefined;
-  return Math.min(4096, Math.max(16, n));
-}
-
 // Download a generated image as PNG (stored format) or JPG (converted).
-// Optional ?w= / ?h= resize deterministically with sharp — the image model can
-// only render fixed canvas sizes, so exact pixel dimensions are a server-side
-// export concern: both dims → exact size (center cover-crop when the aspect
-// differs, upscaling allowed); one dim → proportional scale.
 router.get("/image-generation/:id/download", requireOrgAuth, async (req: Request, res: Response) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id)) {
@@ -177,8 +167,6 @@ router.get("/image-generation/:id/download", requireOrgAuth, async (req: Request
     return;
   }
   const format = req.query.format === "jpg" ? "jpg" : "png";
-  const w = parseDim(req.query.w);
-  const h = parseDim(req.query.h);
   const [gen] = await db
     .select()
     .from(imageGenerationsTable)
@@ -190,16 +178,9 @@ router.get("/image-generation/:id/download", requireOrgAuth, async (req: Request
   try {
     const file = await storageService.getObjectEntityFile(gen.storageKey);
     const [buffer] = await file.download();
-    let output = buffer as Buffer;
-    if (w || h || format === "jpg") {
-      let pipeline = sharp(buffer as Buffer);
-      if (w && h) pipeline = pipeline.resize(w, h, { fit: "cover", position: "centre" });
-      else if (w || h) pipeline = pipeline.resize({ width: w, height: h });
-      output = format === "jpg" ? await pipeline.jpeg({ quality: 92 }).toBuffer() : await pipeline.png().toBuffer();
-    }
-    const dims = w || h ? `-${w ?? "auto"}x${h ?? "auto"}` : "";
+    const output = format === "jpg" ? await sharp(buffer as Buffer).jpeg({ quality: 92 }).toBuffer() : (buffer as Buffer);
     res.setHeader("Content-Type", format === "jpg" ? "image/jpeg" : "image/png");
-    res.setHeader("Content-Disposition", `attachment; filename="vispix-generation-${gen.id}${dims}.${format}"`);
+    res.setHeader("Content-Disposition", `attachment; filename="vispix-generation-${gen.id}.${format}"`);
     res.send(output);
   } catch (error) {
     if (error instanceof ObjectNotFoundError) {
