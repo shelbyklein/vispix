@@ -13,11 +13,21 @@ export type BackfillTrigger = "manual" | "automatic";
 export const MAX_AUTO_ANALYSIS_ATTEMPTS = 3;
 
 // Photo ids that have hit the failed-attempt cap, to exclude from bulk analysis.
+// Quota / rate-limit failures (429s) don't count: they're a billing problem,
+// not a broken image — once the provider account is topped up the photo should
+// rejoin the queue automatically instead of staying capped forever.
 async function cappedPhotoIds(): Promise<number[]> {
   const rows = await db
     .select({ photoId: aiAnalysisEventsTable.photoId })
     .from(aiAnalysisEventsTable)
-    .where(eq(aiAnalysisEventsTable.status, "failed"))
+    .where(
+      and(
+        eq(aiAnalysisEventsTable.status, "failed"),
+        sql`coalesce(${aiAnalysisEventsTable.errorMessage}, '') NOT ILIKE '%quota%'`,
+        sql`coalesce(${aiAnalysisEventsTable.errorMessage}, '') NOT ILIKE '%429%'`,
+        sql`coalesce(${aiAnalysisEventsTable.errorMessage}, '') NOT ILIKE '%rate limit%'`,
+      ),
+    )
     .groupBy(aiAnalysisEventsTable.photoId)
     .having(sql`count(*) >= ${MAX_AUTO_ANALYSIS_ATTEMPTS}`);
   return rows.map((r) => r.photoId).filter((id): id is number => id != null);
@@ -87,6 +97,13 @@ export async function backfillAiAnalysis(
     if (!event || event.status === "failed") {
       failed++;
       logger.warn({ photoId: photo.id }, "AI analysis backfill failed for photo");
+      // Quota / rate-limit failure: every remaining photo in this batch will
+      // fail the same way — stop burning calls and try again next cycle.
+      const msg = event?.errorMessage?.toLowerCase() ?? "";
+      if (msg.includes("quota") || msg.includes("429") || msg.includes("rate limit")) {
+        logger.warn({ photoId: photo.id }, "AI analysis backfill: provider quota exhausted — aborting batch");
+        break;
+      }
     } else if (event.status === "skipped") {
       skipped++;
     } else {
