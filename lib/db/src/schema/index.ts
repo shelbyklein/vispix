@@ -14,6 +14,7 @@ export * from "./photoEmbeddings";
 export * from "./photoAiEvaluations";
 export * from "./imageGeneration";
 export * from "./organizationAlerts";
+export * from "./campaigns";
 export * from "./appSettings";
 export * from "./aiAnalysisEvents";
 export * from "./aiBackfillRuns";
