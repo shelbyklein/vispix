@@ -427,7 +427,10 @@ function GenerationCard({
   );
 }
 
-export default function CreatePage() {
+// The full Create workspace, reusable in two homes: the /create page (mobile +
+// deep links) and the desktop slide-out panel (compact — the panel supplies
+// its own header, so the page title row is hidden).
+export function CreateWorkspace({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { toast } = useToast();
   const [sessionId, setSessionId] = useState<number | undefined>(undefined);
   const [draft, setDraft] = useState("");
@@ -607,17 +610,19 @@ export default function CreatePage() {
   }
 
   return (
-    <AppLayout>
-      <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-4xl flex-col gap-4" data-testid="create-page">
+    <>
+      <div className={cn("flex flex-col gap-4", className)} data-testid="create-page">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-              <Sparkles className="h-6 w-6 text-primary" /> Create
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Chat with the assistant to plan and generate marketing graphics from your library.
-            </p>
-          </div>
+          {!compact && (
+            <div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+                <Sparkles className="h-6 w-6 text-primary" /> Create
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Chat with the assistant to plan and generate marketing graphics from your library.
+              </p>
+            </div>
+          )}
           <Select
             value={sessionId != null ? String(sessionId) : "__new__"}
             onValueChange={(v) => {
@@ -954,6 +959,14 @@ export default function CreatePage() {
         onPick={(input) => setAttached((prev) => [...prev, { ...input, localId: crypto.randomUUID() }])}
         orgName={activeOrg?.name ?? "your library"}
       />
+    </>
+  );
+}
+
+export default function CreatePage() {
+  return (
+    <AppLayout>
+      <CreateWorkspace className="mx-auto h-[calc(100vh-8rem)] w-full max-w-4xl" />
     </AppLayout>
   );
 }

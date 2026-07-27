@@ -59,6 +59,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { DevEnvironmentBadge } from "@/components/DevEnvironmentBadge";
 import { usePhotoUploadOptional } from "@/contexts/PhotoUploadContext";
 import { PhotoUploadBanner } from "@/components/PhotoUploadBanner";
+import { CreatePanel } from "@/components/CreatePanel";
+import { createPanel, useCreatePanelOpen } from "@/lib/create-panel";
 
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -649,6 +651,7 @@ function AppSidebar({
   const firstName = user?.name?.split(" ")[0];
   const { data: me } = useGetMe();
   const isMobile = useIsMobile();
+  const createPanelOpen = useCreatePanelOpen();
   const qc = useQueryClient();
   const { mutate: saveNavOrder } = useUpdateNavOrder();
 
@@ -730,6 +733,24 @@ function AppSidebar({
               }
               if (item.href === "/projects") {
                 return <ProjectsNav key={item.href} location={location} dragProps={dragProps} />;
+              }
+              // Create (#167 UX): on desktop the nav item toggles the right
+              // slide-out panel so the app stays visible; mobile keeps the page.
+              if (item.href === "/create" && !isMobile) {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.href} {...dragProps}>
+                    <SidebarMenuButton
+                      isActive={createPanelOpen}
+                      tooltip={item.label}
+                      onClick={() => createPanel.toggle()}
+                      data-testid="nav-create"
+                    >
+                      <Icon className={item.iconClass} />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
               }
               const Icon = item.icon;
               const active = location === item.href || location.startsWith(item.href + "/");
@@ -891,6 +912,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <BulkUploadBanner />
       <PhotoUploadBanner />
+      {/* Desktop Create slide-out — global so it survives page navigation. */}
+      <CreatePanel />
     </SidebarProvider>
   );
 }
