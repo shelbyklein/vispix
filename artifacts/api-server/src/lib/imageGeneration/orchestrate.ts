@@ -156,7 +156,7 @@ function buildBrief(prompt: string, inputs: ResolvedInput[], format: GenerationF
     "",
     `User request: ${prompt}`,
     "",
-    `Output: ${GENERATION_FORMATS[format].label}. Fill the full canvas; keep any text legible and correctly spelled.`,
+    `Output: ${GENERATION_FORMATS[format].label}. Fill the entire canvas edge to edge — never letterbox or add bands/borders around the design. Keep any text legible and correctly spelled.`,
   ];
   if (inputs.length > 0) {
     lines.push("", "Attached images, in order, and how each must be treated:");
@@ -267,7 +267,7 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
   const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs);
   const brief = parent
     ? formatChanged
-      ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design, content, text and style, recomposing the layout to suit the new aspect ratio. ${args.prompt}`
+      ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design elements, content, text and style, but RECOMPOSE the layout so it fills the entire new canvas edge to edge. Never letterbox, pillarbox, or place the old design inside bands or borders — rearrange, rescale and re-crop the elements to genuinely inhabit the new aspect ratio. ${args.prompt}`
       : `Revise the current image: ${args.prompt}\nKeep everything else unchanged.`
     : buildBrief(args.prompt, resolved, format);
   const usageNotesSnapshot = parent
