@@ -94,6 +94,7 @@ import {
   CopyCheck,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useOrg } from "@/contexts/OrgContext";
 
 type SortOption = "newest" | "oldest" | "top-rated";
 
@@ -289,6 +290,13 @@ export default function AlbumDetail() {
 
   const { mutate: setCover } = useSetAlbumCover();
   const { data: me } = useGetMe();
+  const { activeOrg } = useOrg();
+  // Mirrors the server rule: album creator, org owner/admin, or platform admin.
+  const canManageAlbum =
+    me?.role === "admin" ||
+    activeOrg?.role === "owner" ||
+    activeOrg?.role === "admin" ||
+    (album != null && album.ownerId === me?.id);
   const { mutate: deleteAlbum, isPending: deletingAlbum } = useDeleteAlbum();
   const { mutate: acceptSuggestion } = useAcceptPhotoSuggestion();
   const { mutate: dismissSuggestion } = useDismissPhotoSuggestion();
@@ -524,8 +532,8 @@ export default function AlbumDetail() {
                 >
                   {album.title}
                 </h1>
-                {/* PATCH /albums/:id allows the owner or a platform admin. */}
-                {(me?.role === "admin" || album.ownerId === me?.id) && (
+                {/* Mirrors PATCH /albums/:id: creator, org owner/admin, or platform admin. */}
+                {canManageAlbum && (
                   <EditAlbumDialog
                     albumId={albumId}
                     title={album.title}
@@ -645,7 +653,7 @@ export default function AlbumDetail() {
               <TooltipContent>Upload to this album</TooltipContent>
             </Tooltip>
 
-            {me?.role === "admin" && (
+            {canManageAlbum && (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
                   <Button

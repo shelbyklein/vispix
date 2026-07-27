@@ -1,4 +1,4 @@
-import { Router, type IRouter } from "express";
+import { Router, type IRouter, type Request } from "express";
 import { eq, and, count, sql, desc, avg } from "drizzle-orm";
 import { db, albumsTable, photosTable, usersTable, ratingsTable, nearDuplicatePairsTable, nearDuplicateIgnoresTable } from "@workspace/db";
 import {
@@ -23,6 +23,19 @@ import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse, deletePhotoStorageObjects } from "../lib/photoHelpers";
 
 const router: IRouter = Router();
+
+// Album management (rename/delete/cover) is allowed for the album's creator,
+// the active org's owners/admins, or a platform admin. Org owners manage their
+// own org's albums — the old creator-or-platform-admin rule left org owners
+// unable to delete albums in their own organization (#191 surfaced this).
+function canManageAlbum(req: Request, ownerId: number): boolean {
+  return (
+    ownerId === req.dbUser!.id ||
+    req.dbUser!.role === "admin" ||
+    req.orgRole === "owner" ||
+    req.orgRole === "admin"
+  );
+}
 
 // Tenant scope (#113): buildAlbumResponse is only ever called with an album the
 // caller has already confirmed is in their org, but it re-asserts the org here
@@ -249,7 +262,7 @@ router.patch("/albums/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (existing.ownerId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageAlbum(req, existing.ownerId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -273,7 +286,7 @@ router.delete("/albums/:id", requireOrgAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (existing.ownerId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageAlbum(req, existing.ownerId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -308,7 +321,7 @@ router.patch("/albums/:id/cover", requireOrgAuth, async (req, res): Promise<void
     return;
   }
 
-  if (existing.ownerId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageAlbum(req, existing.ownerId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

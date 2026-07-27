@@ -19,8 +19,12 @@ export function CreatePanel() {
   if (isMobile || !open) return null;
 
   return (
+    // Docked, not overlaid: the panel is a flex sibling of the main content
+    // inside the sidebar layout's flex row, so opening it squeezes the body
+    // instead of covering it. Sticky + h-svh keeps it viewport-height while
+    // the page scrolls.
     <aside
-      className="fixed inset-y-0 right-0 z-40 flex w-full max-w-[560px] flex-col border-l border-border bg-background shadow-2xl"
+      className="sticky top-0 flex h-svh w-[480px] shrink-0 flex-col border-l border-border bg-background xl:w-[560px]"
       data-testid="create-panel"
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
