@@ -882,7 +882,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider defaultOpen={getInitialSidebarOpen()} data-testid="app-layout">
       <AppSidebar location={location} isAdmin={isAdmin} isPlatformAdmin={isPlatformAdmin} />
 
-      <SidebarInset className="min-h-svh">
+      {/* min-w-0 lets the main column actually shrink when the Create panel
+          docks on the right — without it, flexbox's min-width:auto keeps the
+          content at intrinsic width and the row overflows instead of squeezing. */}
+      <SidebarInset className="min-h-svh min-w-0">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-3 border-b border-border bg-background/95 px-4 backdrop-blur-sm">
           <SidebarTrigger className="-ml-1" data-testid="sidebar-toggle" />
           <Link href={isPlatformAdmin ? "/superadmin" : "/dashboard"} className="flex items-center gap-2 shrink-0 md:hidden" aria-label="Vispix">
