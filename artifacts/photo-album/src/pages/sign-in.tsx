@@ -35,6 +35,14 @@ export default function SignInPage() {
       setError(signInError.message ?? "Sign in failed");
       return;
     }
+    // The signed-in account may differ from the previous one (Add account,
+    // #191) — drop the sticky client org so the server picks this account's
+    // own last-active/earliest org.
+    try {
+      localStorage.removeItem("tv.activeOrgId");
+    } catch {
+      /* ignore */
+    }
     // Full-page navigation so the session cookie is picked up fresh —
     // a client-side route change can race the useSession store update.
     window.location.assign(`${basePath}/`);
