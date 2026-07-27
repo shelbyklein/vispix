@@ -98,7 +98,7 @@ async function callPlanner(
 }
 
 /** Semantic photo candidates, falling back to keyword when embeddings are off. */
-async function findPhotoCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
+export async function findPhotoCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
   let ids: number[] = [];
   const vec = await embedText(query);
   if (vec) {
@@ -146,7 +146,7 @@ async function findPhotoCandidates(organizationId: number, query: string): Promi
     }));
 }
 
-async function findAssetCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
+export async function findAssetCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
   const pattern = `%${query.trim()}%`;
   const rows = await db
     .select({ id: assetsTable.id, name: assetsTable.name, storageKey: assetsTable.storageKey, kind: assetsTable.kind, contentType: assetsTable.contentType })

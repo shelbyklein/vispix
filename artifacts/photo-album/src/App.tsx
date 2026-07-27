@@ -310,6 +310,30 @@ function AppRoutes() {
             </>
           )}
         </Route>
+        <Route path="/campaigns/:id">
+          {() => (
+            <>
+              <AuthGate when="signed-in">
+                <LazyPage load={() => import("@/pages/campaign-detail")} />
+              </AuthGate>
+              <AuthGate when="signed-out">
+                <Redirect to="/sign-in" />
+              </AuthGate>
+            </>
+          )}
+        </Route>
+        <Route path="/campaigns">
+          {() => (
+            <>
+              <AuthGate when="signed-in">
+                <LazyPage load={() => import("@/pages/campaigns")} />
+              </AuthGate>
+              <AuthGate when="signed-out">
+                <Redirect to="/sign-in" />
+              </AuthGate>
+            </>
+          )}
+        </Route>
         <Route path="/smart-collections">
           {() => (
             <>

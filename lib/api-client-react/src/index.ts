@@ -23,3 +23,4 @@ export * from "./adminOrganizations";
 export * from "./onboarding";
 export * from "./analytics";
 export * from "./create";
+export * from "./campaigns";
