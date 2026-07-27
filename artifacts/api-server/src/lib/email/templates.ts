@@ -107,3 +107,19 @@ export function adminNewOrgEmail(orgName: string, creatorEmail: string): EmailCo
     text: `New Vispix organization "${orgName}" created by ${creatorEmail}.`,
   };
 }
+
+// Automated org-admin incident alert: the org's AI provider account is out of
+// quota / rate-limited, so photo processing is paused for that org.
+export function aiQuotaIncidentEmail(orgName: string, aiSettingsUrl: string): EmailContent {
+  return {
+    subject: `[Vispix] Action needed: AI processing paused for ${orgName}`,
+    html: layout(
+      `<p style="margin:0 0 16px;"><strong>AI photo processing is paused for ${esc(orgName)}.</strong></p>
+       <p style="margin:0 0 16px;">Your organization's AI provider account returned a quota or rate-limit error (for example, an out-of-credit OpenAI account). Until it's resolved, new photo descriptions, quality evaluations, and collection suggestions can't be generated. Photo storage, browsing, and search are unaffected — no data is lost.</p>
+       <p style="margin:0 0 16px;"><strong>What to do:</strong> check your provider account's billing/quota (for OpenAI: platform.openai.com &rarr; Billing), or review the key configured in AI settings.</p>
+       <p style="margin:0 0 24px;">${button(aiSettingsUrl, "Open AI settings")}</p>
+       <p style="margin:0;color:#71717a;font-size:13px;">Once the account is restored, processing resumes automatically and affected photos rejoin the queue — no further action needed. You'll receive at most one of these alerts per day.</p>`,
+    ),
+    text: `AI processing paused for ${orgName}\n\nYour organization's AI provider account returned a quota or rate-limit error (for example, an out-of-credit OpenAI account). Until it's resolved, new photo descriptions, quality evaluations, and collection suggestions can't be generated. Photo storage, browsing, and search are unaffected — no data is lost.\n\nWhat to do: check your provider account's billing/quota (for OpenAI: platform.openai.com -> Billing), or review the key configured in AI settings:\n${aiSettingsUrl}\n\nOnce the account is restored, processing resumes automatically and affected photos rejoin the queue. You'll receive at most one of these alerts per day.`,
+  };
+}

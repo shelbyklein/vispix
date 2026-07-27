@@ -10,6 +10,7 @@ import {
 } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { GettingStartedCard } from "@/components/GettingStartedCard";
+import { DashboardStatusBar } from "@/components/DashboardStatusBar";
 import { CrossfadeThumb } from "@/components/CrossfadeThumb";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -612,6 +613,8 @@ export default function Dashboard() {
           </div>
           <CustomizeDialog layout={layout} onChange={setLayout} />
         </div>
+
+        <DashboardStatusBar />
 
         <GettingStartedCard />
 

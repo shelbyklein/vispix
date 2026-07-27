@@ -232,6 +232,13 @@
       "when": 1785030723534,
       "tag": "0032_modern_brother_voodoo",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1785100872877,
+      "tag": "0033_groovy_skullbuster",
+      "breakpoints": true
     }
   ]
 }
