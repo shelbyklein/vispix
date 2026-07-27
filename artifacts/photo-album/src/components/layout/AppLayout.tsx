@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, type DragEvent, type FormEvent } from "react";
 import { Link, useLocation } from "wouter";
-import { useSession, signOut } from "@/lib/auth-client";
+import { useSession, signOut, authClient } from "@/lib/auth-client";
 import {
   useGetMe,
   useListProjects,
@@ -16,7 +16,7 @@ import {
   getGetPhotoQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check, Wand2 } from "lucide-react";
+import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check, Wand2, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -59,9 +59,74 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { DevEnvironmentBadge } from "@/components/DevEnvironmentBadge";
 import { usePhotoUploadOptional } from "@/contexts/PhotoUploadContext";
 import { PhotoUploadBanner } from "@/components/PhotoUploadBanner";
+import { CreatePanel } from "@/components/CreatePanel";
+import { createPanel, useCreatePanelOpen } from "@/lib/create-panel";
 
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
+
+// Account switching (#191): the other sessions signed in on this browser
+// (Better Auth multiSession). Rendered inside the account dropdown — pick one
+// to switch without re-authenticating, or add another account via /sign-in.
+function AccountSwitcherItems({ currentEmail }: { currentEmail: string | null | undefined }) {
+  const [accounts, setAccounts] = useState<{ token: string; email: string; name: string | null }[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    authClient.multiSession
+      .listDeviceSessions()
+      .then((res) => {
+        const list = (res?.data ?? []) as Array<{ session: { token: string }; user: { email: string; name?: string | null } }>;
+        if (!cancelled) {
+          setAccounts(list.map((d) => ({ token: d.session.token, email: d.user.email, name: d.user.name ?? null })));
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const others = accounts.filter((a) => a.email !== currentEmail);
+
+  async function switchTo(token: string) {
+    await authClient.multiSession.setActive({ sessionToken: token });
+    // The new account's org memberships differ — drop the sticky client org and
+    // let the server pick its last-active/earliest org. Full reload so every
+    // query and context resets.
+    try {
+      localStorage.removeItem("tv.activeOrgId");
+    } catch {
+      /* ignore */
+    }
+    window.location.assign("/dashboard");
+  }
+
+  return (
+    <>
+      {others.map((account) => (
+        <DropdownMenuItem
+          key={account.token}
+          className="gap-2 cursor-pointer"
+          onSelect={() => void switchTo(account.token)}
+          data-testid={`switch-account-${account.email}`}
+        >
+          <div className="h-5 w-5 rounded-full bg-primary/20 flex items-center justify-center text-[10px] font-medium text-primary shrink-0">
+            {(account.name?.[0] ?? account.email[0] ?? "?").toUpperCase()}
+          </div>
+          <span className="min-w-0 flex-1 truncate">{account.name ?? account.email}</span>
+        </DropdownMenuItem>
+      ))}
+      <DropdownMenuItem asChild>
+        <Link href="/sign-in" className="flex items-center gap-2 cursor-pointer" data-testid="add-account-link">
+          <UserPlus className="h-4 w-4" />
+          Add account
+        </Link>
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+    </>
+  );
+}
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -586,6 +651,7 @@ function AppSidebar({
   const firstName = user?.name?.split(" ")[0];
   const { data: me } = useGetMe();
   const isMobile = useIsMobile();
+  const createPanelOpen = useCreatePanelOpen();
   const qc = useQueryClient();
   const { mutate: saveNavOrder } = useUpdateNavOrder();
 
@@ -667,6 +733,24 @@ function AppSidebar({
               }
               if (item.href === "/projects") {
                 return <ProjectsNav key={item.href} location={location} dragProps={dragProps} />;
+              }
+              // Create (#167 UX): on desktop the nav item toggles the right
+              // slide-out panel so the app stays visible; mobile keeps the page.
+              if (item.href === "/create" && !isMobile) {
+                const Icon = item.icon;
+                return (
+                  <SidebarMenuItem key={item.href} {...dragProps}>
+                    <SidebarMenuButton
+                      isActive={createPanelOpen}
+                      tooltip={item.label}
+                      onClick={() => createPanel.toggle()}
+                      data-testid="nav-create"
+                    >
+                      <Icon className={item.iconClass} />
+                      <span>{item.label}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
               }
               const Icon = item.icon;
               const active = location === item.href || location.startsWith(item.href + "/");
@@ -759,6 +843,7 @@ function AppSidebar({
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
+                <AccountSwitcherItems currentEmail={user?.email} />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive gap-2 cursor-pointer"
                   onSelect={async () => {
@@ -797,7 +882,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider defaultOpen={getInitialSidebarOpen()} data-testid="app-layout">
       <AppSidebar location={location} isAdmin={isAdmin} isPlatformAdmin={isPlatformAdmin} />
 
-      <SidebarInset className="min-h-svh">
+      {/* min-w-0 lets the main column actually shrink when the Create panel
+          docks on the right — without it, flexbox's min-width:auto keeps the
+          content at intrinsic width and the row overflows instead of squeezing. */}
+      <SidebarInset className="min-h-svh min-w-0">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-3 border-b border-border bg-background/95 px-4 backdrop-blur-sm">
           <SidebarTrigger className="-ml-1" data-testid="sidebar-toggle" />
           <Link href={isPlatformAdmin ? "/superadmin" : "/dashboard"} className="flex items-center gap-2 shrink-0 md:hidden" aria-label="Vispix">
@@ -827,6 +915,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <BulkUploadBanner />
       <PhotoUploadBanner />
+      {/* Desktop Create slide-out — global so it survives page navigation. */}
+      <CreatePanel />
     </SidebarProvider>
   );
 }

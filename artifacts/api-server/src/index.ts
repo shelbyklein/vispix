@@ -4,6 +4,7 @@ import { generateAndStoreThumbnail } from "./lib/thumbnailGeneration";
 import { backfillContentHashes } from "./lib/contentHash";
 import { startAiAutoBackfillScheduler } from "./lib/aiAutoBackfillScheduler";
 import { startBillingReconcileScheduler } from "./lib/billing/reconcileScheduler";
+import { failOrphanedGenerations } from "./lib/imageGeneration/orchestrate";
 import { db, photosTable } from "@workspace/db";
 import { isNull, isNotNull, and, eq } from "drizzle-orm";
 
@@ -87,6 +88,7 @@ app.listen(port, (err) => {
 
   void backfillMissingThumbnails();
   void backfillMissingContentHashes();
+  void failOrphanedGenerations();
   startAiAutoBackfillScheduler();
   startBillingReconcileScheduler(); // no-op unless Stripe is configured
 });

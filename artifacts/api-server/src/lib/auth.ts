@@ -1,4 +1,5 @@
 import { betterAuth } from "better-auth";
+import { multiSession } from "better-auth/plugins";
 import { APIError } from "better-auth/api";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { eq } from "drizzle-orm";
@@ -16,6 +17,9 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   basePath: "/api/auth",
+  // Account switching (#191): keep up to 5 signed-in sessions per browser and
+  // switch between them without re-authenticating (Google-style).
+  plugins: [multiSession({ maximumSessions: 5 })],
   emailAndPassword: {
     enabled: true,
     // New signups must confirm their email before they can sign in. Existing

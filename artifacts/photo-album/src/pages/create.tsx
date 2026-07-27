@@ -345,6 +345,17 @@ function GenerationCard({
   onRegenerateSize: (g: ImageGenerationResult, format: GenerationFormatId) => void;
   regenerating: boolean;
 }) {
+  if (generation.status === "pending") {
+    return (
+      <div
+        className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-border bg-muted/30 p-3 text-center"
+        data-testid={`generation-pending-${generation.id}`}
+      >
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+        <p className="text-xs text-muted-foreground">Generating… up to a minute</p>
+      </div>
+    );
+  }
   if (generation.status === "failed") {
     return (
       <div className="flex aspect-square flex-col items-center justify-center gap-2 rounded-lg border border-destructive/40 bg-destructive/5 p-3 text-center">
@@ -416,7 +427,10 @@ function GenerationCard({
   );
 }
 
-export default function CreatePage() {
+// The full Create workspace, reusable in two homes: the /create page (mobile +
+// deep links) and the desktop slide-out panel (compact — the panel supplies
+// its own header, so the page title row is hidden).
+export function CreateWorkspace({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { toast } = useToast();
   const [sessionId, setSessionId] = useState<number | undefined>(undefined);
   const [draft, setDraft] = useState("");
@@ -441,6 +455,10 @@ export default function CreatePage() {
   const searchLabel = `Search ${activeOrg?.name ?? "library"}`;
 
   const generations = session.data?.generations ?? [];
+  // Generation is async: pending rows are being filled in by the server while
+  // the session polls. Hold new submissions until the batch settles.
+  const anyPending = generations.some((g) => g.status === "pending");
+  const busy = generate.isPending || anyPending;
   const latestPlanId = [...chatLog].reverse().find((t) => t.type === "plan")?.id ?? null;
   // The full request so far: every user message this exchange, in order.
   const conversationText = (extra?: string) =>
@@ -498,7 +516,7 @@ export default function CreatePage() {
   // conversation so far.
   function handleSend() {
     const text = draft.trim();
-    if (!text || planner.isPending || generate.isPending) return;
+    if (!text || planner.isPending || busy) return;
 
     if (reviseTarget) {
       runGenerate(text, reviseTarget.id);
@@ -527,7 +545,7 @@ export default function CreatePage() {
   }
 
   function runGenerate(prompt: string, parentGenerationId?: number, formatOverride?: GenerationFormatId) {
-    if (!prompt || generate.isPending) return;
+    if (!prompt || busy) return;
     generate.mutate(
       {
         prompt,
@@ -544,16 +562,10 @@ export default function CreatePage() {
       },
       {
         onSuccess: (result) => {
+          // Rows come back pending; the session poll renders their progress
+          // and failures surface on the cards themselves.
           setSessionId(result.sessionId);
           resetExchange();
-          const failed = result.generations.filter((g) => g.status === "failed").length;
-          if (failed > 0) {
-            toast({
-              title: failed === result.generations.length ? "Generation failed" : "Some variants failed",
-              description: result.generations.find((g) => g.error)?.error ?? undefined,
-              variant: "destructive",
-            });
-          }
         },
         onError: (err) => {
           toast({
@@ -598,17 +610,19 @@ export default function CreatePage() {
   }
 
   return (
-    <AppLayout>
-      <div className="mx-auto flex h-[calc(100vh-8rem)] max-w-4xl flex-col gap-4" data-testid="create-page">
+    <>
+      <div className={cn("flex flex-col gap-4", className)} data-testid="create-page">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
-              <Sparkles className="h-6 w-6 text-primary" /> Create
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Chat with the assistant to plan and generate marketing graphics from your library.
-            </p>
-          </div>
+          {!compact && (
+            <div>
+              <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
+                <Sparkles className="h-6 w-6 text-primary" /> Create
+              </h1>
+              <p className="text-sm text-muted-foreground">
+                Chat with the assistant to plan and generate marketing graphics from your library.
+              </p>
+            </div>
+          )}
           <Select
             value={sessionId != null ? String(sessionId) : "__new__"}
             onValueChange={(v) => {
@@ -666,7 +680,7 @@ export default function CreatePage() {
                     onRevise={(target) => setReviseTarget((prev) => (prev?.id === target.id ? null : target))}
                     revising={reviseTarget?.id === g.id}
                     onRegenerateSize={handleRegenerateSize}
-                    regenerating={generate.isPending}
+                    regenerating={busy}
                   />
                 ))}
               </div>
@@ -690,7 +704,7 @@ export default function CreatePage() {
                 onApplyFormat={setFormat}
                 formatApplied={turn.plan.suggestedFormat != null && format === turn.plan.suggestedFormat}
                 onGenerate={handleGenerateFromPlan}
-                generating={generate.isPending}
+                generating={busy}
                 variantCount={variantCount}
                 currentFormatLabel={FORMATS.find((f) => f.id === format)?.label ?? format}
               />
@@ -705,8 +719,7 @@ export default function CreatePage() {
           {generate.isPending && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="generation-pending">
               <Loader2 className="h-4 w-4 animate-spin" />
-              Generating {reviseTarget ? "revision" : `${variantCount} variant${variantCount !== 1 ? "s" : ""}`}… this
-              can take up to a minute.
+              Starting generation…
             </div>
           )}
           <div ref={bottomRef} />
@@ -789,7 +802,7 @@ export default function CreatePage() {
               size="sm"
               className="mb-0.5 gap-1.5"
               onClick={handleSend}
-              disabled={!draft.trim() || generate.isPending || planner.isPending}
+              disabled={!draft.trim() || busy || planner.isPending}
               data-testid="send-btn"
               aria-label="Send"
             >
@@ -946,6 +959,14 @@ export default function CreatePage() {
         onPick={(input) => setAttached((prev) => [...prev, { ...input, localId: crypto.randomUUID() }])}
         orgName={activeOrg?.name ?? "your library"}
       />
+    </>
+  );
+}
+
+export default function CreatePage() {
+  return (
+    <AppLayout>
+      <CreateWorkspace className="mx-auto h-[calc(100vh-8rem)] w-full max-w-4xl" />
     </AppLayout>
   );
 }

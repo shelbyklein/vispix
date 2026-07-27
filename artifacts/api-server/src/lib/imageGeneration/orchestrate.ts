@@ -16,6 +16,7 @@ import { getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectSt
 import { resolveImageForAI } from "../aiPhotoAnalysis";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { generateImage, type ImageSize } from "./openaiImage";
+import { createLimiter } from "../concurrencyLimit";
 import { logger } from "../logger";
 
 // Output formats offered by the Create workspace — exactly the image model's
@@ -279,67 +280,28 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
   const size = GENERATION_FORMATS[format]?.size ?? "1024x1024";
   const variantCount = parent ? 1 : Math.min(Math.max(args.variantCount, 1), 3);
 
-  // Variants run as independent calls (each gets its own response id, so any of
-  // them can be revised later). Sequential — image calls are heavy and the org
-  // key may have tight rate limits.
+  // Async flow (#189): insert PENDING rows and return immediately — the model
+  // calls take 15–60s+ per variant, far beyond proxy timeouts, so the client
+  // polls the session while a background chain fills the rows in. Each variant
+  // is an independent call (own response id → independently revisable),
+  // processed sequentially: image calls are heavy and org keys have tight
+  // rate limits.
   const generations: ImageGeneration[] = [];
   for (let variant = 0; variant < variantCount; variant++) {
-    const settings = {
-      format,
-      size,
-      variantIndex: variant,
-      variantCount,
-      imageModel: "",
-    };
-    try {
-      const image = await generateImage({
-        apiKey: key.apiKey,
-        baseURL: key.baseURL,
-        brief,
-        inputImages: parent ? undefined : resolved.map((i) => i.dataUrl),
-        size,
-        previousResponseId: parent?.openaiResponseId ?? null,
-      });
-      settings.imageModel = image.imageModel;
-      const stored = await storeGeneratedPng(args.organizationId, image.buffer);
-      const [row] = await db
-        .insert(imageGenerationsTable)
-        .values({
-          organizationId: args.organizationId,
-          sessionId,
-          parentGenerationId: parent?.id ?? null,
-          prompt: args.prompt,
-          openaiResponseId: image.responseId,
-          settings,
-          inputs: storedInputs,
-          usageNotesSnapshot,
-          storageKey: stored.storageKey,
-          contentType: "image/png",
-          width: stored.width,
-          height: stored.height,
-          status: "succeeded",
-        })
-        .returning();
-      generations.push(row);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      logger.error({ err, sessionId, variant }, "Image generation failed");
-      const [row] = await db
-        .insert(imageGenerationsTable)
-        .values({
-          organizationId: args.organizationId,
-          sessionId,
-          parentGenerationId: parent?.id ?? null,
-          prompt: args.prompt,
-          settings,
-          inputs: storedInputs,
-          usageNotesSnapshot,
-          status: "failed",
-          error: message.slice(0, 1000),
-        })
-        .returning();
-      generations.push(row);
-    }
+    const [row] = await db
+      .insert(imageGenerationsTable)
+      .values({
+        organizationId: args.organizationId,
+        sessionId,
+        parentGenerationId: parent?.id ?? null,
+        prompt: args.prompt,
+        settings: { format, size, variantIndex: variant, variantCount, imageModel: "" },
+        inputs: storedInputs,
+        usageNotesSnapshot,
+        status: "pending",
+      })
+      .returning();
+    generations.push(row);
   }
 
   await db
@@ -347,5 +309,86 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
     .set({ updatedAt: new Date() })
     .where(eq(imageGenerationSessionsTable.id, sessionId));
 
+  const inputImages = parent ? undefined : resolved.map((i) => i.dataUrl);
+  const previousResponseId = parent?.openaiResponseId ?? null;
+  void (async () => {
+    for (const row of generations) {
+      await generationLimiter(() =>
+        processGenerationRow(row, {
+          apiKey: key.apiKey,
+          baseURL: key.baseURL,
+          brief,
+          inputImages,
+          size,
+          previousResponseId,
+        }),
+      );
+    }
+  })().catch((err) => logger.error({ err, sessionId }, "Generation background chain crashed"));
+
   return { sessionId, generations };
+}
+
+// Bound concurrent model calls across all in-flight requests — protects the
+// org's provider rate limits and the droplet's memory.
+const generationLimiter = createLimiter(2);
+
+async function processGenerationRow(
+  row: ImageGeneration,
+  ctx: {
+    apiKey: string;
+    baseURL: string | null;
+    brief: string;
+    inputImages: string[] | undefined;
+    size: ImageSize;
+    previousResponseId: string | null;
+  },
+): Promise<void> {
+  try {
+    const image = await generateImage({
+      apiKey: ctx.apiKey,
+      baseURL: ctx.baseURL,
+      brief: ctx.brief,
+      inputImages: ctx.inputImages,
+      size: ctx.size,
+      previousResponseId: ctx.previousResponseId,
+    });
+    const stored = await storeGeneratedPng(row.organizationId, image.buffer);
+    await db
+      .update(imageGenerationsTable)
+      .set({
+        openaiResponseId: image.responseId,
+        settings: { ...(row.settings as Record<string, unknown>), imageModel: image.imageModel },
+        storageKey: stored.storageKey,
+        contentType: "image/png",
+        width: stored.width,
+        height: stored.height,
+        status: "succeeded",
+      })
+      .where(eq(imageGenerationsTable.id, row.id));
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error({ err, generationId: row.id }, "Image generation failed");
+    await db
+      .update(imageGenerationsTable)
+      .set({ status: "failed", error: message.slice(0, 1000) })
+      .where(eq(imageGenerationsTable.id, row.id))
+      .catch(() => {});
+  }
+}
+
+/**
+ * Boot sweep: pending rows can only be in-flight in THIS process (the work is
+ * an in-memory background chain), so any row still pending at startup was
+ * orphaned by a restart/deploy — fail it so the client's polling settles.
+ */
+export async function failOrphanedGenerations(): Promise<void> {
+  const rows = await db
+    .update(imageGenerationsTable)
+    .set({ status: "failed", error: "Interrupted by a server restart — try again." })
+    .where(eq(imageGenerationsTable.status, "pending"))
+    .returning({ id: imageGenerationsTable.id });
+  if (rows.length > 0) {
+    logger.warn({ count: rows.length }, "Failed orphaned pending generations from a previous process");
+  }
 }

@@ -75,6 +75,10 @@ export function useGenerationSession(id: number | undefined) {
     queryKey: getGenerationSessionQueryKey(id),
     queryFn: () => customFetch<GenerationSessionDetail>(`/api/image-generation/sessions/${id}`),
     enabled: id != null,
+    // Generation is async (#189): the generate call returns pending rows and a
+    // background worker fills them in — poll while any are still pending.
+    refetchInterval: (query) =>
+      query.state.data?.generations.some((g) => g.status === "pending") ? 2500 : false,
   });
 }
 

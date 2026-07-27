@@ -33,7 +33,8 @@ export interface GeneratedImage {
 }
 
 export async function generateImage(args: GenerateImageArgs): Promise<GeneratedImage> {
-  const client = new OpenAI({ apiKey: args.apiKey, baseURL: args.baseURL ?? undefined });
+  // Hard cap per call so a hung request can't strand a pending generation.
+  const client = new OpenAI({ apiKey: args.apiKey, baseURL: args.baseURL ?? undefined, timeout: 240_000 });
 
   const content: Array<Record<string, unknown>> = [{ type: "input_text", text: args.brief }];
   for (const dataUrl of args.inputImages ?? []) {
