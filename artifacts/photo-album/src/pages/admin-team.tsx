@@ -5,9 +5,12 @@ import {
   useGetMe,
   useAdminOrganizations,
   useAdminSetOrgMemberRole,
+  useDeleteUser,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { AdminSectionShell } from "@/components/admin/AdminSectionShell";
+import { DangerConfirmDialog } from "@/components/admin/DangerConfirmDialog";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Select,
@@ -16,7 +19,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Users } from "lucide-react";
+import { Users, Trash2, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 // Platform Users (issue #120): every registered account across all customer
@@ -45,6 +48,33 @@ export default function AdminTeamPage() {
 
   const { mutate: updateRole } = useUpdateUserRole();
   const { mutate: setOrgRole } = useAdminSetOrgMemberRole();
+  const { mutate: deleteUser, isPending: deleting } = useDeleteUser();
+
+  function handleDelete(userId: number, name: string, confirm: string) {
+    deleteUser(
+      { userId, confirm },
+      {
+        onSuccess: (result) =>
+          toast({
+            title: `Deleted ${name}`,
+            description:
+              result.reassignedTo.length > 0
+                ? `Their content in ${result.reassignedTo
+                    .map((r) => `${r.organizationName} → ${r.name}`)
+                    .join(", ")}.`
+                : undefined,
+          }),
+        onError: (err) =>
+          toast({
+            title: "Couldn't delete the user",
+            // The server's refusals (sole member of an org, last platform
+            // admin) explain what to do next, so surface them verbatim.
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          }),
+      },
+    );
+  }
 
   function handleOrgRoleChange(organizationId: number, orgName: string, userId: number, role: "owner" | "admin" | "member") {
     setOrgRole(
@@ -155,8 +185,51 @@ export default function AdminTeamPage() {
                         <SelectItem value="admin">Platform admin</SelectItem>
                       </SelectContent>
                     </Select>
-                    {user.id === me?.id && (
+                    {user.id === me?.id ? (
                       <span className="text-xs text-muted-foreground">(you)</span>
+                    ) : (
+                      <DangerConfirmDialog
+                        testId={`delete-user-${user.id}`}
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 shrink-0"
+                            disabled={deleting}
+                            aria-label={`Delete ${user.name}`}
+                          >
+                            {deleting ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            )}
+                          </Button>
+                        }
+                        title={`Delete ${user.name}?`}
+                        phrase={user.email}
+                        phraseLabel="Type the user's email address to confirm"
+                        confirmLabel="Delete user"
+                        pending={deleting}
+                        onConfirm={(confirm) => handleDelete(user.id, user.name, confirm)}
+                        description={
+                          <>
+                            <p>
+                              Their account, sessions and sign-in credentials are removed
+                              permanently.
+                            </p>
+                            {memberships.length > 0 ? (
+                              <p>
+                                Photos, albums, collections, projects and campaigns they created in{" "}
+                                {memberships.map((m) => m.orgName).join(", ")} are kept and handed to
+                                another member of each organization — nothing in those libraries is
+                                deleted.
+                              </p>
+                            ) : (
+                              <p>They don't belong to any organization.</p>
+                            )}
+                          </>
+                        }
+                      />
                     )}
                   </div>
                 </div>

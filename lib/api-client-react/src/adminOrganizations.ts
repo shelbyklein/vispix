@@ -63,6 +63,63 @@ export function useAdminSetOrgMemberRole() {
   });
 }
 
+// Permanent org deletion (issue #196). `confirm` must equal the org's slug —
+// the server re-checks it, so a mistyped confirmation fails with a 400 rather
+// than deleting the wrong tenant.
+export type DeleteOrganizationResult = {
+  organizationId: number;
+  name: string;
+  slug: string;
+  photosDeleted: number;
+  membersRemoved: number;
+  objectsDeleted: number;
+  subscriptionCancelled: boolean;
+};
+
+export function useDeleteOrganization() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { organizationId: number; confirm: string }) =>
+      customFetch<DeleteOrganizationResult>(`/api/admin/organizations/${input.organizationId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: input.confirm }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ADMIN_ORGS_KEY });
+      // The caller may have just deleted an org they belonged to, so the
+      // switcher's list and the platform user list both go stale.
+      queryClient.invalidateQueries({ queryKey: ["organizations", "mine"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+    },
+  });
+}
+
+// Permanent account deletion (issue #196). `confirm` must equal the user's
+// email. Content they created is reassigned to a surviving member of each of
+// their orgs, reported back in `reassignedTo`.
+export type DeleteUserResult = {
+  userId: number;
+  email: string;
+  organizationsAffected: number;
+  reassignedTo: { organizationId: number; organizationName: string; userId: number; name: string }[];
+};
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (input: { userId: number; confirm: string }) =>
+      customFetch<DeleteUserResult>(`/api/users/${input.userId}`, {
+        method: "DELETE",
+        body: JSON.stringify({ confirm: input.confirm }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/users"] });
+      // Rosters and member counts in the org overview shift with the deletion.
+      queryClient.invalidateQueries({ queryKey: ADMIN_ORGS_KEY });
+    },
+  });
+}
+
 // Platform-admin plan override (billing #118's set-plan route).
 export function useSetOrgPlan() {
   const queryClient = useQueryClient();

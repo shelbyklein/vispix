@@ -9,8 +9,11 @@ import {
   UpdateUserRoleParams,
   UpdateUserRoleBody,
   UpdateUserRoleResponse,
+  DeleteUserBody,
+  DeleteUserResponse,
 } from "@workspace/api-zod";
 import { requireAuth, requireAdmin } from "../middlewares/requireAuth";
+import { DeletionBlockedError, deleteUserAccount } from "../lib/platformDeletion";
 
 const router: IRouter = Router();
 
@@ -82,6 +85,47 @@ router.patch("/users/:id/role", requireAdmin, async (req, res): Promise<void> =>
   }
 
   res.json(UpdateUserRoleResponse.parse(user));
+});
+
+// DELETE /users/:id — permanently remove an account (issue #196). The content
+// they created in each org is handed to a surviving member first (see
+// platformDeletion), so this removes the person, not the org's library. The
+// body must echo their email; the guards (self, last platform admin, sole
+// member of an org) live in the lib and come back as 400/409.
+router.delete("/users/:id", requireAdmin, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const userId = Number.parseInt(raw, 10);
+  if (!Number.isInteger(userId)) {
+    res.status(400).json({ error: "Invalid user id" });
+    return;
+  }
+
+  const body = DeleteUserBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [existing] = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+  if (!existing) {
+    res.status(404).json({ error: "User not found" });
+    return;
+  }
+  if (body.data.confirm !== existing.email) {
+    res.status(400).json({ error: "Type the user's email address to confirm" });
+    return;
+  }
+
+  try {
+    const summary = await deleteUserAccount(userId, { actingUserId: req.dbUser!.id });
+    res.json(DeleteUserResponse.parse(summary));
+  } catch (err) {
+    if (err instanceof DeletionBlockedError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;
