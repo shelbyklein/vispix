@@ -1,1 +1,1 @@
-export { useUpload } from "./use-upload";
+export { useUpload, isAllowedUploadType } from "./use-upload";

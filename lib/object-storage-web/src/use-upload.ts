@@ -20,6 +20,20 @@ interface UseUploadOptions {
   onError?: (error: Error) => void;
 }
 
+// Mirrors the presign route's gate (routes/storage.ts): images plus fonts for
+// the asset library (#162). Photos stay image-only via the register route's
+// magic-byte check. Some browsers send fonts as octet-stream, so fall back to
+// the extension.
+export function isAllowedUploadType(name: string, contentType: string): boolean {
+  const ct = contentType.toLowerCase();
+  return (
+    ct.startsWith("image/") ||
+    ct.startsWith("font/") ||
+    /(woff|ttf|otf|sfnt|fontobject|opentype|truetype)/.test(ct) ||
+    /\.(ttf|otf|woff2?|eot)$/i.test(name)
+  );
+}
+
 /**
  * React hook for handling file uploads with presigned URLs.
  *
@@ -157,8 +171,8 @@ export function useUpload(options: UseUploadOptions = {}) {
   const uploadFile = useCallback(
     async (file: File, onProgress?: (percent: number) => void, signal?: AbortSignal): Promise<UploadResponse | null> => {
       const contentType = file.type || "application/octet-stream";
-      if (!contentType.startsWith("image/")) {
-        const typeError = new Error("Only image file types are allowed");
+      if (!isAllowedUploadType(file.name, contentType)) {
+        const typeError = new Error("Only image and font files are allowed");
         setError(typeError);
         options.onError?.(typeError);
         return null;
@@ -203,8 +217,8 @@ export function useUpload(options: UseUploadOptions = {}) {
       headers?: Record<string, string>;
     }> => {
       const contentType = file.type || "application/octet-stream";
-      if (!contentType.startsWith("image/")) {
-        throw new Error("Only image file types are allowed");
+      if (!isAllowedUploadType(file.name ?? "", contentType)) {
+        throw new Error("Only image and font files are allowed");
       }
 
       const response = await fetch(`${basePath}/uploads/request-url`, {
