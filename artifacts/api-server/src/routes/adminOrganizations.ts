@@ -10,6 +10,8 @@ import {
 } from "@workspace/db";
 import {
   AdminOrganizationsResponse,
+  DeleteOrganizationBody,
+  DeleteOrganizationResponse,
   JoinOrganizationResponse,
   ServiceStatusResponse,
   UpdateOrgMemberRoleBody,
@@ -17,6 +19,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAuth";
 import { buildServiceStatus } from "../lib/serviceStatus";
+import { DeletionBlockedError, deleteOrganizationCascade } from "../lib/platformDeletion";
 
 // Platform superadmin routes (issue #120): the operator's cross-org view.
 // requireAdmin only — these deliberately do NOT go through requireOrg, because
@@ -184,6 +187,45 @@ router.patch("/admin/organizations/:id/members/:userId", requireAdmin, async (re
       sql`${organizationMembersTable.organizationId} = ${orgId} and ${organizationMembersTable.userId} = ${userId}`,
     );
   res.sendStatus(204);
+});
+
+// DELETE /admin/organizations/:id — permanently remove an organization and
+// everything in it (issue #196). Irreversible: the body must echo the org's
+// slug, so deleting takes knowing which org you're deleting, not just its id.
+router.delete("/admin/organizations/:id", requireAdmin, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const orgId = Number.parseInt(raw, 10);
+  if (!Number.isInteger(orgId)) {
+    res.status(400).json({ error: "Invalid organization id" });
+    return;
+  }
+
+  const body = DeleteOrganizationBody.safeParse(req.body);
+  if (!body.success) {
+    res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  const [org] = await db.select().from(organizationsTable).where(eq(organizationsTable.id, orgId));
+  if (!org) {
+    res.status(404).json({ error: "Organization not found" });
+    return;
+  }
+  if (body.data.confirm !== org.slug) {
+    res.status(400).json({ error: `Type the organization's slug ("${org.slug}") to confirm` });
+    return;
+  }
+
+  try {
+    const summary = await deleteOrganizationCascade(orgId);
+    res.json(DeleteOrganizationResponse.parse(summary));
+  } catch (err) {
+    if (err instanceof DeletionBlockedError) {
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    throw err;
+  }
 });
 
 export default router;

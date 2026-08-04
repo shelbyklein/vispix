@@ -395,6 +395,37 @@ export const JoinOrganizationResponse = z.object({
   alreadyMember: z.boolean(),
 });
 
+// Platform deletion (issue #196). Both deletes are irreversible, so the body
+// carries a typed confirmation the server checks against the record itself —
+// the org's slug / the user's email. The UI asks for the same string, but the
+// check lives server-side so an API caller can't delete an org by id alone.
+export const DeleteOrganizationBody = z.object({ confirm: z.string() });
+export const DeleteOrganizationResponse = z.object({
+  organizationId: z.number(),
+  name: z.string(),
+  slug: z.string(),
+  photosDeleted: z.number(),
+  membersRemoved: z.number(),
+  objectsDeleted: z.number(),
+  subscriptionCancelled: z.boolean(),
+});
+
+export const DeleteUserBody = z.object({ confirm: z.string() });
+export const DeleteUserResponse = z.object({
+  userId: z.number(),
+  email: z.string(),
+  organizationsAffected: z.number(),
+  // Who inherited the deleted user's content, per organization.
+  reassignedTo: z.array(
+    z.object({
+      organizationId: z.number(),
+      organizationName: z.string(),
+      userId: z.number(),
+      name: z.string(),
+    }),
+  ),
+});
+
 // Platform service readiness (issue #122): per-service status + an overall
 // ready flag. Optional services (e.g. billing) don't count against readiness.
 export const ServiceStatusResponse = z.object({

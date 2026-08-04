@@ -1,10 +1,12 @@
 import {
   useAdminOrganizations,
+  useDeleteOrganization,
   useJoinOrganization,
   useSetOrgPlan,
   type AdminOrganization,
 } from "@workspace/api-client-react";
 import { AdminSectionShell } from "@/components/admin/AdminSectionShell";
+import { DangerConfirmDialog } from "@/components/admin/DangerConfirmDialog";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -13,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, Loader2, UserPlus, BadgeCheck } from "lucide-react";
+import { Building2, Loader2, UserPlus, BadgeCheck, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { formatDate } from "@/lib/format-date";
 
@@ -28,6 +30,7 @@ function OrgRow({ org }: { org: AdminOrganization }) {
   const { toast } = useToast();
   const { mutate: setPlan, isPending: planPending } = useSetOrgPlan();
   const { mutate: join, isPending: joining } = useJoinOrganization();
+  const { mutate: deleteOrg, isPending: deleting } = useDeleteOrganization();
 
   function handlePlanChange(plan: "free" | "pro" | "enterprise") {
     if (plan === org.plan) return;
@@ -49,6 +52,25 @@ function OrgRow({ org }: { org: AdminOrganization }) {
         }),
       onError: () => toast({ title: "Couldn't join the organization", variant: "destructive" }),
     });
+  }
+
+  function handleDelete(confirm: string) {
+    deleteOrg(
+      { organizationId: org.id, confirm },
+      {
+        onSuccess: (result) =>
+          toast({
+            title: `Deleted ${result.name}`,
+            description: `${result.photosDeleted.toLocaleString()} photo${result.photosDeleted !== 1 ? "s" : ""} and ${result.objectsDeleted.toLocaleString()} stored file${result.objectsDeleted !== 1 ? "s" : ""} removed${result.subscriptionCancelled ? "; Stripe subscription cancelled" : ""}.`,
+          }),
+        onError: (err) =>
+          toast({
+            title: "Couldn't delete the organization",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          }),
+      },
+    );
   }
 
   const overCap = org.capBytes != null && org.usageBytes >= org.capBytes;
@@ -108,6 +130,46 @@ function OrgRow({ org }: { org: AdminOrganization }) {
           Join
         </Button>
       )}
+
+      <DangerConfirmDialog
+        testId={`delete-org-${org.slug}`}
+        trigger={
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 shrink-0"
+            disabled={deleting}
+            aria-label={`Delete ${org.name}`}
+          >
+            {deleting ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="h-4 w-4 text-destructive" />
+            )}
+          </Button>
+        }
+        title={`Delete "${org.name}"?`}
+        phrase={org.slug}
+        phraseLabel={`Type the org's slug (${org.slug}) to confirm`}
+        confirmLabel="Delete organization"
+        pending={deleting}
+        onConfirm={handleDelete}
+        description={
+          <>
+            <p>
+              This permanently removes {org.memberCount} member
+              {org.memberCount !== 1 ? "s" : ""}, {org.photoCount.toLocaleString()} photo
+              {org.photoCount !== 1 ? "s" : ""} ({formatBytes(org.usageBytes)}) and every album,
+              collection, project, campaign and asset in this organization — including the
+              underlying files in storage.
+            </p>
+            <p>
+              Any active subscription is cancelled. This cannot be undone and there is no backup to
+              restore from.
+            </p>
+          </>
+        }
+      />
     </div>
   );
 }
