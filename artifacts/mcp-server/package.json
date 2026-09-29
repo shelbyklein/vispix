@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --env-file-if-exists=../../.env --import tsx src/index.ts",
     "start:http": "node --env-file-if-exists=../../.env --import tsx src/http.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.21.0",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.6"
   }
 }
