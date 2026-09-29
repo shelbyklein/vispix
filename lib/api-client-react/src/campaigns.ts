@@ -95,6 +95,8 @@ export interface GenerateCampaignSuggestionsResult {
   briefRevision: number;
   /** True when this requestId was already accepted; nothing new was started. */
   duplicate?: boolean;
+  /** Things to tell the user about the inputs, e.g. no primary logo (#206). */
+  notices?: string[];
 }
 
 /**

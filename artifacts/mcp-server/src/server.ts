@@ -246,6 +246,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
   function describeAsset(a: AssetSummary, index?: number): string {
     const bits = [
       `${index != null ? `${index + 1}. ` : ""}asset #${a.id}`,
+      a.isPrimary && "PRIMARY LOGO (designated)",
       `kind: ${a.kind}`,
       `name: ${a.name}`,
       a.variant && `variant: ${a.variant}`,

@@ -171,6 +171,7 @@ export default function CampaignDetailPage() {
           unansweredRequest.current = null;
           setBase({ id: campaignId, brief: result.brief, revision: result.briefRevision });
           if (result.duplicate) toast({ title: "Already generating these suggestions" });
+          for (const notice of result.notices ?? []) toast({ title: "Heads up", description: notice });
         },
         onError: (err) => {
           unansweredRequest.current = isCampaignRequestUnanswered(err) ? request : null;

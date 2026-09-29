@@ -6,6 +6,7 @@ import {
   useDeleteAsset,
   useListProjects,
   getListAssetsQueryKey,
+  useGetMe,
   type Asset,
   type AssetKind,
 } from "@workspace/api-client-react";
@@ -43,7 +44,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Palette, Download, Pencil, Trash2, Upload, FileImage, Folder, FolderPlus, Loader2, Check, X } from "lucide-react";
+import { Plus, Palette, Download, Pencil, Trash2, Upload, FileImage, Folder, FolderPlus, Loader2, Check, X, Star } from "lucide-react";
+import { useOrg } from "@/contexts/OrgContext";
 import { useLocation, useSearch } from "wouter";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
@@ -674,8 +676,34 @@ function EditAssetDialog({ asset, onSaved }: { asset: Asset; onSaved: () => void
 
 function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () => void; onMove: (asset: Asset) => void }) {
   const { mutate: deleteAsset, isPending: deleting } = useDeleteAsset();
+  const { mutate: updateAsset, isPending: settingPrimary } = useUpdateAsset();
   const { toast } = useToast();
+  const { activeOrg } = useOrg();
+  const { data: me } = useGetMe();
   const fileUrl = `/api/storage${asset.storageKey}`;
+  // The primary logo (#206) is an org decision: owners/admins, brand images only.
+  const canSetPrimary =
+    asset.kind === "brand" &&
+    asset.contentType.startsWith("image/") &&
+    (activeOrg?.role === "owner" || activeOrg?.role === "admin" || me?.role === "admin");
+
+  function togglePrimary() {
+    updateAsset(
+      { id: asset.id, data: { isPrimary: !asset.isPrimary } },
+      {
+        onSuccess: () => {
+          toast({
+            title: asset.isPrimary ? "No longer the primary logo" : "Set as the primary logo",
+            description: asset.isPrimary
+              ? undefined
+              : `${asset.projectName ? `Project “${asset.projectName}”` : "Create and Campaigns"} will use “${asset.name}” when a logo is needed.`,
+          });
+          onChanged();
+        },
+        onError: () => toast({ title: "Couldn't change the primary logo", variant: "destructive" }),
+      },
+    );
+  }
 
   function handleDelete() {
     deleteAsset(
@@ -705,7 +733,12 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
       <div className="p-3">
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="font-medium text-foreground text-sm truncate">{asset.name}</p>
+            <p className="flex items-center gap-1 font-medium text-foreground text-sm">
+              {asset.isPrimary && (
+                <Star className="h-3.5 w-3.5 shrink-0 fill-amber-400 text-amber-400" aria-label="Primary logo" data-testid={`asset-primary-badge-${asset.id}`} />
+              )}
+              <span className="truncate">{asset.name}</span>
+            </p>
             <p className="text-xs text-muted-foreground truncate mt-0.5">
               {asset.projectName ?? "Global"}
               {asset.variant ? ` · ${asset.variant}` : ""}
@@ -735,6 +768,21 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
           >
             <Folder className="h-3.5 w-3.5" />
           </Button>
+          {canSetPrimary && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-8 w-8"
+              title={asset.isPrimary ? "Unmark as primary logo" : "Mark as primary logo"}
+              aria-label={asset.isPrimary ? `Unmark "${asset.name}" as the primary logo` : `Mark "${asset.name}" as the primary logo`}
+              aria-pressed={asset.isPrimary ?? false}
+              disabled={settingPrimary}
+              data-testid={`toggle-primary-${asset.id}`}
+              onClick={togglePrimary}
+            >
+              <Star className={cn("h-3.5 w-3.5", asset.isPrimary && "fill-amber-400 text-amber-400")} />
+            </Button>
+          )}
           <Button size="icon" variant="ghost" className="h-8 w-8" asChild>
             <a href={fileUrl} download={asset.filename ?? asset.name} aria-label={`Download ${asset.name}`} data-testid={`download-asset-${asset.id}`}>
               <Download className="h-3.5 w-3.5" />

@@ -219,6 +219,68 @@ function VispixPickerDialog({
   );
 }
 
+// Asset candidates (#206): named cards with variant, primary badge and why each
+// was suggested, so a logo is chosen knowingly rather than by position.
+function AssetCandidateList({
+  items,
+  isAttached,
+  onToggle,
+}: {
+  items: PlanCandidate[];
+  isAttached: (c: PlanCandidate) => boolean;
+  onToggle: (c: PlanCandidate) => void;
+}) {
+  const confident = items.some((c) => c.confidence === "high");
+  return (
+    <div className="space-y-1.5">
+      {!confident && (
+        <p className="text-xs text-amber-700 dark:text-amber-400" data-testid="plan-asset-low-confidence">
+          No clear match — pick the right one, or mark your primary logo in Assets.
+        </p>
+      )}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {items.map((c) => {
+          const attached = isAttached(c);
+          return (
+            <button
+              key={`${c.kind}-${c.refId}`}
+              type="button"
+              onClick={() => onToggle(c)}
+              title={[c.name, c.variant, ...(c.reasons ?? []), c.notes].filter(Boolean).join("\n")}
+              className={cn(
+                "flex flex-col overflow-hidden rounded-md border text-left",
+                attached ? "border-primary ring-2 ring-primary" : "border-border hover:ring-2 hover:ring-primary/50",
+              )}
+              data-testid={`plan-candidate-${c.kind}-${c.refId}`}
+            >
+              <div className="relative flex aspect-[4/3] items-center justify-center bg-muted [background-image:repeating-conic-gradient(hsl(var(--border))_0%_25%,transparent_0%_50%)] [background-size:12px_12px]">
+                <img src={c.previewUrl} alt={c.name} className="max-h-full max-w-full object-contain p-2" loading="lazy" />
+                {attached && (
+                  <span className="absolute right-1 top-1 rounded-full bg-primary p-0.5">
+                    <Check className="h-3 w-3 text-primary-foreground" />
+                  </span>
+                )}
+              </div>
+              <div className="space-y-0.5 p-1.5">
+                <p className="flex items-center gap-1 text-xs font-medium text-foreground">
+                  {c.isPrimary && <span className="shrink-0 rounded bg-amber-400/20 px-1 text-[10px] font-semibold text-amber-700 dark:text-amber-300">Primary</span>}
+                  <span className="truncate">{c.name}</span>
+                </p>
+                {c.variant && <p className="truncate text-[11px] text-muted-foreground">{c.variant}</p>}
+                {c.reasons?.[0] && (
+                  <p className="line-clamp-2 text-[11px] text-muted-foreground/80" data-testid={`plan-candidate-reason-${c.refId}`}>
+                    {c.reasons[0]}
+                  </p>
+                )}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function PlanCard({
   plan,
   isLatest,
@@ -267,6 +329,8 @@ function PlanCard({
           </p>
           {slot.items.length === 0 ? (
             <p className="text-xs italic text-muted-foreground/70">No matches in your library.</p>
+          ) : slot.items[0].kind === "asset" ? (
+            <AssetCandidateList items={slot.items} isAttached={isAttached} onToggle={onToggleCandidate} />
           ) : (
             <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
               {slot.items.map((c) => {

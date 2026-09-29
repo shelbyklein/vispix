@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { isOrgUploadKey } from "../lib/storageKeys";
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, assetsTable, projectsTable } from "@workspace/db";
 import {
   ListAssetsQueryParams,
@@ -119,9 +119,25 @@ router.patch("/assets/:id", requireOrgAuth, async (req, res): Promise<void> => {
     res.status(404).json({ error: "Asset not found" });
     return;
   }
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  const { isPrimary, ...fields } = body.data;
+  const isPlatformAdmin = req.dbUser!.role === "admin";
+  // Editing an asset: its creator or a platform admin (unchanged).
+  if (Object.keys(fields).length > 0 && existing.createdById !== req.dbUser!.id && !isPlatformAdmin) {
     res.status(403).json({ error: "Forbidden" });
     return;
+  }
+  // Designating the primary logo is an organization decision (#206): owners
+  // and admins (or a platform admin), whoever uploaded the asset.
+  if (isPrimary !== undefined) {
+    if (!isPlatformAdmin && req.orgRole !== "owner" && req.orgRole !== "admin") {
+      res.status(403).json({ error: "Only organization owners and admins can set the primary logo" });
+      return;
+    }
+    const kind = fields.kind ?? existing.kind;
+    if (isPrimary && (kind !== "brand" || !existing.contentType.startsWith("image/"))) {
+      res.status(400).json({ error: "Only brand image assets can be the primary logo" });
+      return;
+    }
   }
 
   if (body.data.projectId != null) {
@@ -135,10 +151,33 @@ router.patch("/assets/:id", requireOrgAuth, async (req, res): Promise<void> => {
     }
   }
 
-  await db
-    .update(assetsTable)
-    .set({ ...body.data, updatedAt: new Date() })
-    .where(eq(assetsTable.id, params.data.id));
+  const projectId = fields.projectId !== undefined ? fields.projectId : existing.projectId;
+  const movesScope = fields.projectId !== undefined && fields.projectId !== existing.projectId;
+  await db.transaction(async (tx) => {
+    // One primary per scope (org-wide, or one project): replace the previous.
+    if (isPrimary === true) {
+      await tx
+        .update(assetsTable)
+        .set({ isPrimary: false, updatedAt: new Date() })
+        .where(
+          and(
+            eq(assetsTable.organizationId, req.org!.id),
+            eq(assetsTable.isPrimary, true),
+            projectId == null ? isNull(assetsTable.projectId) : eq(assetsTable.projectId, projectId),
+          ),
+        );
+    }
+    await tx
+      .update(assetsTable)
+      .set({
+        ...fields,
+        // Moving a primary to another scope drops the designation unless it's
+        // re-asserted in the same request.
+        ...(isPrimary !== undefined ? { isPrimary } : movesScope && existing.isPrimary ? { isPrimary: false } : {}),
+        updatedAt: new Date(),
+      })
+      .where(eq(assetsTable.id, params.data.id));
+  });
 
   const full = await buildAssetResponse(params.data.id, req.org!.id);
   res.json(UpdateAssetResponse.parse(full));

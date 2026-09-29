@@ -18,6 +18,8 @@ export interface AssetSummary {
   contentType: string;
   filename: string | null;
   fileSize: number | null;
+  /** The designated primary logo for its scope (#206). */
+  isPrimary: boolean;
 }
 
 function toSummary(row: { asset: typeof assetsTable.$inferSelect; projectName: string | null }): AssetSummary {
@@ -32,6 +34,7 @@ function toSummary(row: { asset: typeof assetsTable.$inferSelect; projectName: s
     contentType: row.asset.contentType,
     filename: row.asset.filename,
     fileSize: row.asset.fileSize,
+    isPrimary: row.asset.isPrimary,
   };
 }
 

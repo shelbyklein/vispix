@@ -451,6 +451,8 @@ export interface Asset {
   id: number;
   kind: AssetKind;
   name: string;
+  /** The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206). */
+  isPrimary?: boolean;
   /** @nullable */
   variant?: string | null;
   /** @nullable */
@@ -516,6 +518,8 @@ export interface AssetUpdate {
   folder?: string | null;
   /** @nullable */
   projectId?: number | null;
+  /** Mark (true) or unmark (false) as the primary logo for the asset's scope; replaces any previous primary in that scope. Organization owners/admins only; brand image assets only. */
+  isPrimary?: boolean;
 }
 
 export interface AttributionTagInput {

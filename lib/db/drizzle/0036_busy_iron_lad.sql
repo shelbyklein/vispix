@@ -1,0 +1,2 @@
+ALTER TABLE "assets" ADD COLUMN "is_primary" boolean DEFAULT false NOT NULL;--> statement-breakpoint
+CREATE UNIQUE INDEX "assets_primary_scope_idx" ON "assets" USING btree ("organization_id",coalesce("project_id", 0)) WHERE "assets"."is_primary";
