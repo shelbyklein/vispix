@@ -584,6 +584,77 @@ paths:
         "404":
           description: Not found
 
+  /photos/{id}/neighbors:
+    get:
+      operationId: getPhotoNeighbors
+      tags: [photos]
+      summary: Previous/next photo within an album view (#210)
+      description: >-
+        Resolves the photos shown before and after this one in an album's order
+        (created_at DESC, id DESC) under the album page's filters, without
+        loading the album. Without albumId the photo's own album is used (the
+        direct-link fallback).
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: albumId
+          in: query
+          required: false
+          description: Album the user is browsing; defaults to the photo's own album.
+          schema:
+            type: integer
+        - name: includeHidden
+          in: query
+          required: false
+          description: Admins only; include hidden photos in the sequence.
+          schema:
+            type: boolean
+        - name: inCollection
+          in: query
+          required: false
+          description: Album filter — only photos in (true) / not in (false) a collection.
+          schema:
+            type: boolean
+        - name: hasRating
+          in: query
+          required: false
+          description: Album filter — only rated (true) / unrated (false) photos.
+          schema:
+            type: boolean
+        - name: aiStatus
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [has_description, failed, not_analysed]
+        - name: attributionTagId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: hasAttribution
+          in: query
+          required: false
+          description: Album filter — photos with (true) / without (false) any attribution tag.
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Neighbours of the photo within the album view
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoNeighbors"
+        "400":
+          description: Invalid photo or album id
+        "401":
+          description: Unauthorized
+        "404":
+          description: Photo not found
+
   /photos:
     get:
       operationId: listPhotos
@@ -2444,6 +2515,30 @@ paths:
 
 components:
   schemas:
+    PhotoNeighbors:
+      type: object
+      required: [albumId, inContext, previousId, nextId, position, total]
+      properties:
+        albumId:
+          type: integer
+        inContext:
+          type: boolean
+          description: Whether the photo is part of this album view at all.
+        previousId:
+          type: integer
+          nullable: true
+          description: Photo shown before it (newer), or null at the start / when not in context.
+        nextId:
+          type: integer
+          nullable: true
+          description: Photo shown after it (older), or null at the end / when not in context.
+        position:
+          type: integer
+          nullable: true
+          description: 1-based position in the view, or null when not in context.
+        total:
+          type: integer
+          description: Number of photos in the view.
     HealthStatus:
       type: object
       properties:

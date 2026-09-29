@@ -1129,6 +1129,67 @@ export const ListSimilarPhotosResponse = zod.array(
 );
 
 /**
+ * Resolves the photos shown before and after this one in an album's order (created_at DESC, id DESC) under the album page's filters, without loading the album. Without albumId the photo's own album is used (the direct-link fallback).
+ * @summary Previous/next photo within an album view (#210)
+ */
+export const GetPhotoNeighborsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPhotoNeighborsQueryParams = zod.object({
+  albumId: zod.coerce
+    .number()
+    .optional()
+    .describe("Album the user is browsing; defaults to the photo's own album."),
+  includeHidden: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Admins only; include hidden photos in the sequence."),
+  inCollection: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "Album filter — only photos in (true) \/ not in (false) a collection.",
+    ),
+  hasRating: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Album filter — only rated (true) \/ unrated (false) photos."),
+  aiStatus: zod.enum(["has_description", "failed", "not_analysed"]).optional(),
+  attributionTagId: zod.coerce.number().optional(),
+  hasAttribution: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "Album filter — photos with (true) \/ without (false) any attribution tag.",
+    ),
+});
+
+export const GetPhotoNeighborsResponse = zod.object({
+  albumId: zod.number(),
+  inContext: zod
+    .boolean()
+    .describe("Whether the photo is part of this album view at all."),
+  previousId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Photo shown before it (newer), or null at the start \/ when not in context.",
+    ),
+  nextId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Photo shown after it (older), or null at the end \/ when not in context.",
+    ),
+  position: zod
+    .number()
+    .nullable()
+    .describe("1-based position in the view, or null when not in context."),
+  total: zod.number().describe("Number of photos in the view."),
+});
+
+/**
  * @summary List all photos with optional filters
  */
 export const ListPhotosQueryParams = zod.object({

@@ -191,6 +191,17 @@ export default function AlbumDetail() {
       : {}),
     ...(filterAttribution === "none" ? { hasAttribution: false } : {}),
   };
+  // The same view as a details-page context (#210): Previous/Next on the
+  // details page then walk this album with these filters.
+  const detailsQuery = new URLSearchParams({
+    albumId: String(albumId),
+    ...(showHiddenLocal ? { includeHidden: "true" } : {}),
+    ...(filterInCollection != null ? { inCollection: String(filterInCollection) } : {}),
+    ...(filterHasRating != null ? { hasRating: String(filterHasRating) } : {}),
+    ...(filterAiStatus != null ? { aiStatus: filterAiStatus } : {}),
+    ...(filterAttribution !== "all" && filterAttribution !== "none" ? { attributionTagId: filterAttribution } : {}),
+    ...(filterAttribution === "none" ? { hasAttribution: "false" } : {}),
+  }).toString();
   const { data: photosPage, isLoading: photosPageLoading, isFetching: photosFetching } = useListAlbumPhotos(albumId, photosParams, {
     query: {
       enabled: !!albumId,
@@ -1178,6 +1189,7 @@ export default function AlbumDetail() {
         isLoadingNext={pendingLightboxAdvance}
         albumId={albumId}
         coverPhotoId={album?.coverPhotoId}
+        detailsQuery={detailsQuery}
         onDeleted={(deletedId) => {
           setSelectedPhoto(null);
           setPendingLightboxAdvance(false);

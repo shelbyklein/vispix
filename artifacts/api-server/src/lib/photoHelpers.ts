@@ -1,5 +1,5 @@
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
-import { eq, and, avg, count, desc, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { eq, and, asc, avg, count, desc, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
 
@@ -39,16 +39,15 @@ export interface AlbumPhotoPageOptions {
   offset: number;
 }
 
+/** An album view's filters (the album page's filter bar) without paging. */
+export type AlbumPhotoViewOptions = Omit<AlbumPhotoPageOptions, "limit" | "offset">;
+
 /**
- * Fetch one page of an album's photo IDs, applying all filters and pagination
- * in SQL (no in-memory Set intersection or slice). Returns the page's IDs in
- * created_at DESC order plus whether more rows exist after this page. `hasMore`
- * is computed by fetching one extra row rather than a separate COUNT.
+ * The SQL conditions selecting the photos of one album view: album, tenant,
+ * hidden visibility and every album-page filter. Shared by the album page and
+ * the details page's Previous/Next lookup (#210) so both see the same set.
  */
-export async function fetchAlbumPhotoPage(
-  albumId: number,
-  opts: AlbumPhotoPageOptions,
-): Promise<{ ids: number[]; hasMore: boolean }> {
+export function albumPhotoConditions(albumId: number, opts: AlbumPhotoViewOptions): SQL[] {
   const conditions: SQL[] = [
     eq(photosTable.albumId, albumId),
     eq(photosTable.organizationId, opts.organizationId),
@@ -86,17 +85,71 @@ export async function fetchAlbumPhotoPage(
   } else if (opts.hasAttribution === false) {
     conditions.push(sql`NOT EXISTS (SELECT 1 FROM photo_attribution_tags pat WHERE pat.photo_id = ${photosTable.id})`);
   }
+  return conditions;
+}
 
+/**
+ * Fetch one page of an album's photo IDs, applying all filters and pagination
+ * in SQL (no in-memory Set intersection or slice). Returns the page's IDs in
+ * album order — created_at DESC, then id DESC so photos uploaded in the same
+ * instant have a stable place (#210) — plus whether more rows exist after this
+ * page. `hasMore` is computed by fetching one extra row rather than a COUNT.
+ */
+export async function fetchAlbumPhotoPage(
+  albumId: number,
+  opts: AlbumPhotoPageOptions,
+): Promise<{ ids: number[]; hasMore: boolean }> {
   const rows = await db
     .select({ id: photosTable.id })
     .from(photosTable)
-    .where(and(...conditions))
-    .orderBy(desc(photosTable.createdAt))
+    .where(and(...albumPhotoConditions(albumId, opts)))
+    .orderBy(desc(photosTable.createdAt), desc(photosTable.id))
     .limit(opts.limit + 1)
     .offset(opts.offset);
 
   const hasMore = rows.length > opts.limit;
   return { ids: rows.slice(0, opts.limit).map((r) => r.id), hasMore };
+}
+
+export interface AlbumPhotoNeighbors {
+  /** Whether the photo is part of this album view at all. */
+  inContext: boolean;
+  /** The photo shown before it (newer) in album order, or null at the start. */
+  previousId: number | null;
+  /** The photo shown after it (older) in album order, or null at the end. */
+  nextId: number | null;
+  /** 1-based position in the view, or null when not in context. */
+  position: number | null;
+  total: number;
+}
+
+/**
+ * Previous/next of one photo within an album view (#210), without loading the
+ * album: keyset comparisons on (created_at, id) against the current row, all
+ * in SQL (the current row's key is read in-database, so timestamp precision
+ * is exact). Five bounded queries on one album's rows.
+ */
+export async function fetchAlbumPhotoNeighbors(
+  albumId: number,
+  photoId: number,
+  opts: AlbumPhotoViewOptions,
+): Promise<AlbumPhotoNeighbors> {
+  const view = and(...albumPhotoConditions(albumId, opts));
+  const [{ total }] = await db.select({ total: count() }).from(photosTable).where(view);
+  const [current] = await db.select({ id: photosTable.id }).from(photosTable).where(and(view, eq(photosTable.id, photoId)));
+  if (!current) return { inContext: false, previousId: null, nextId: null, position: null, total };
+
+  const key = sql`(SELECT cur.created_at, cur.id FROM photos cur WHERE cur.id = ${photoId})`;
+  const before = sql`(${photosTable.createdAt}, ${photosTable.id}) > ${key}`;
+  const after = sql`(${photosTable.createdAt}, ${photosTable.id}) < ${key}`;
+  const [[prev], [next], [{ ahead }]] = await Promise.all([
+    db.select({ id: photosTable.id }).from(photosTable).where(and(view, before))
+      .orderBy(asc(photosTable.createdAt), asc(photosTable.id)).limit(1),
+    db.select({ id: photosTable.id }).from(photosTable).where(and(view, after))
+      .orderBy(desc(photosTable.createdAt), desc(photosTable.id)).limit(1),
+    db.select({ ahead: count() }).from(photosTable).where(and(view, before)),
+  ]);
+  return { inContext: true, previousId: prev?.id ?? null, nextId: next?.id ?? null, position: ahead + 1, total };
 }
 
 /**

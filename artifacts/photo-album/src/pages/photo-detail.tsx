@@ -1,8 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, Link } from "wouter";
 import {
   useGetPhoto,
-  useListAlbumPhotos,
+  useGetPhotoNeighbors,
+  getGetPhotoNeighborsQueryKey,
+  type GetPhotoNeighborsParams,
+  type GetPhotoNeighborsAiStatus,
   useDeletePhoto,
   useListCollections,
   useAddPhotoToCollection,
@@ -34,7 +37,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
 import { CalendarDays, EyeOff } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, useSearch } from "wouter";
 import { PhotoDetailHeader } from "@/components/photo-detail/PhotoDetailHeader";
 import { AiDescriptionPanel } from "@/components/photo-detail/AiDescriptionPanel";
 import { AiEvaluationPanel } from "@/components/photo-detail/AiEvaluationPanel";
@@ -87,16 +90,43 @@ export default function PhotoDetail() {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [confirmNewCollection, setConfirmNewCollection] = useState<ConfirmNewCollectionState>(null);
 
-  const { data: albumPhotos } = useListAlbumPhotos(
-    photo?.albumId ?? 0,
-    undefined,
-    { query: { enabled: !!photo?.albumId, queryKey: getListAlbumPhotosQueryKey(photo?.albumId ?? 0, undefined) } },
-  );
-
-  const albumPhotosList = albumPhotos?.photos ?? [];
-  const currentIndex = albumPhotosList.length > 0 ? albumPhotosList.findIndex((p) => p.id === photoId) : -1;
-  const prevPhotoId = currentIndex > 0 ? albumPhotosList[currentIndex - 1].id : null;
-  const nextPhotoId = currentIndex >= 0 && currentIndex < albumPhotosList.length - 1 ? albumPhotosList[currentIndex + 1].id : null;
+  // Previous/Next (#210): resolved server-side within the view the photo was
+  // opened from — the album + filters carried in this URL's query string by
+  // the album page — or, for a direct link, the photo's own album. Stepping
+  // keeps the query string, so the whole walk stays in that view.
+  const search = useSearch();
+  const neighborParams = useMemo<GetPhotoNeighborsParams>(() => {
+    const p = new URLSearchParams(search);
+    const int = (k: string) => {
+      const n = parseInt(p.get(k) ?? "", 10);
+      return Number.isInteger(n) ? n : undefined;
+    };
+    const bool = (k: string) => (p.get(k) === "true" ? true : p.get(k) === "false" ? false : undefined);
+    const aiStatus = p.get("aiStatus");
+    const out: GetPhotoNeighborsParams = {
+      albumId: int("albumId"),
+      includeHidden: bool("includeHidden"),
+      inCollection: bool("inCollection"),
+      hasRating: bool("hasRating"),
+      aiStatus: aiStatus === "has_description" || aiStatus === "failed" || aiStatus === "not_analysed" ? (aiStatus as GetPhotoNeighborsAiStatus) : undefined,
+      attributionTagId: int("attributionTagId"),
+      hasAttribution: bool("hasAttribution"),
+    };
+    return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as GetPhotoNeighborsParams;
+  }, [search]);
+  const photoHref = (id: number) => `/photos/${id}${search ? `?${search}` : ""}`;
+  const neighbors = useGetPhotoNeighbors(photoId, neighborParams, {
+    query: { enabled: !!photo, queryKey: getGetPhotoNeighborsQueryKey(photoId, neighborParams), retry: 1 },
+  });
+  const prevPhotoId = neighbors.data?.previousId ?? null;
+  const nextPhotoId = neighbors.data?.nextId ?? null;
+  const navState = neighbors.isError
+    ? "error"
+    : !neighbors.data
+      ? "loading"
+      : neighbors.data.inContext
+        ? "ready"
+        : "outside";
 
   useEffect(() => {
     setEditingDescription(false);
@@ -114,18 +144,19 @@ export default function PhotoDetail() {
       if (target.closest('[role="listbox"], [role="menu"], [role="dialog"], [role="combobox"]')) return;
       if (e.key === "ArrowLeft" && prevPhotoId != null) {
         e.preventDefault();
-        navigate(`/photos/${prevPhotoId}`);
+        navigate(photoHref(prevPhotoId));
       } else if (e.key === "ArrowRight" && nextPhotoId != null) {
         e.preventDefault();
-        navigate(`/photos/${nextPhotoId}`);
+        navigate(photoHref(nextPhotoId));
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [prevPhotoId, nextPhotoId, navigate]);
+  }, [prevPhotoId, nextPhotoId, navigate, search]);
 
   function invalidate() {
     qc.invalidateQueries({ queryKey: getGetPhotoQueryKey(photoId) });
+    qc.invalidateQueries({ queryKey: getGetPhotoNeighborsQueryKey(photoId, neighborParams) });
     if (photo?.albumId) {
       qc.invalidateQueries({ queryKey: getListAlbumPhotosQueryKey(photo.albumId) });
     }
@@ -335,10 +366,12 @@ export default function PhotoDetail() {
           albumTitle={photo.albumTitle}
           prevPhotoId={prevPhotoId}
           nextPhotoId={nextPhotoId}
-          hasAlbumPhotos={!!albumPhotos}
-          currentIndex={currentIndex}
-          totalPhotos={albumPhotosList.length}
-          onNavigate={(pid) => navigate(`/photos/${pid}`)}
+          navState={navState}
+          position={neighbors.data?.position ?? null}
+          totalPhotos={neighbors.data?.total ?? 0}
+          onNavigate={(pid) => navigate(photoHref(pid))}
+          onRetry={() => void neighbors.refetch()}
+          fallbackHref={search ? `/photos/${photoId}` : null}
         />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-8">

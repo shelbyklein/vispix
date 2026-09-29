@@ -36,11 +36,15 @@ interface PhotoLightboxProps {
   // Whether submitting a rating moves to the next photo (keyboard digits and
   // star clicks). Album review flows want this; search/smart-collection don't.
   advanceOnRate?: boolean;
+  /** Query string for the "view details" link, describing the view the photo
+   * was opened from (e.g. the album and its filters, #210), so the details
+   * page's Previous/Next follow the same sequence. */
+  detailsQuery?: string;
 }
 
 const SWIPE_THRESHOLD = 50;
 
-export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext, isLoadingNext, albumId, coverPhotoId, onDeleted, onMarkNotApplicable, advanceOnRate = true }: PhotoLightboxProps) {
+export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext, isLoadingNext, albumId, coverPhotoId, onDeleted, onMarkNotApplicable, advanceOnRate = true, detailsQuery }: PhotoLightboxProps) {
   const imgSrc = photo?.url ?? undefined;
   const touchStartX = useRef<number | null>(null);
   const qc = useQueryClient();
@@ -224,7 +228,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
                   topActions={
                     <>
                       <Link
-                        href={`/photos/${photo.id}`}
+                        href={`/photos/${photo.id}${detailsQuery ? `?${detailsQuery}` : ""}`}
                         onClick={onClose}
                         className="flex items-center justify-center h-9 w-9 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white transition-colors"
                         data-testid="lightbox-view-details-link"
