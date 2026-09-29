@@ -466,15 +466,20 @@ describe("org isolation — a member of org A cannot reach org B's data", () => 
     expect(
       (await api("/api/organizations/current", { user: userA, orgId: orgA.id, method: "PATCH", body: { logoKey: "../../etc/passwd" } })).status,
     ).toBe(400);
+    // Only this org's uploads (the request-url flow) — not legacy or other orgs' keys.
+    expect(
+      (await api("/api/organizations/current", { user: userA, orgId: orgA.id, method: "PATCH", body: { logoKey: "/objects/uploads/logo-1" } })).status,
+    ).toBe(400);
 
     // Owner sets a logo → logoUrl appears on details and the org-switcher list.
+    const logoKey = `/objects/orgs/${orgA.id}/uploads/0b8a1c2d-3e4f-4a5b-8c6d-7e8f9a0b1c2d`;
     const set = await api("/api/organizations/current", {
-      user: userA, orgId: orgA.id, method: "PATCH", body: { logoKey: "/objects/uploads/logo-1" },
+      user: userA, orgId: orgA.id, method: "PATCH", body: { logoKey },
     });
     expect(set.status).toBe(200);
-    expect(((await set.json()) as { logoUrl: string | null }).logoUrl).toBe("/api/storage/objects/uploads/logo-1");
+    expect(((await set.json()) as { logoUrl: string | null }).logoUrl).toBe(`/api/storage${logoKey}`);
     const mine = (await (await api("/api/organizations", { user: userA })).json()) as { id: number; logoUrl: string | null }[];
-    expect(mine.find((o) => o.id === orgA.id)!.logoUrl).toBe("/api/storage/objects/uploads/logo-1");
+    expect(mine.find((o) => o.id === orgA.id)!.logoUrl).toBe(`/api/storage${logoKey}`);
 
     // Removal nulls it out.
     const removed = await api("/api/organizations/current", {

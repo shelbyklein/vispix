@@ -17,6 +17,7 @@ import {
 } from "@workspace/db";
 import { embedText } from "@workspace/api-server/src/lib/aiEmbedding";
 import { withIterativeVectorScan } from "@workspace/api-server/src/lib/vectorSearch";
+import { keyBelongsToOrg } from "@workspace/api-server/src/lib/storageKeys";
 import {
   objectStorageClient,
   parseObjectPath,
@@ -373,6 +374,8 @@ export async function getOriginalFile(
       ),
     );
   if (!row?.storageKey?.startsWith("/objects/")) return null;
+  // Never serve another org's object through this org's row (defense in depth).
+  if (organizationId != null && !keyBelongsToOrg(row.storageKey, organizationId)) return null;
   try {
     const { file } = resolveObjectFile(row.storageKey);
     const [exists] = await file.exists();
@@ -407,6 +410,7 @@ export async function getThumbnailFile(
       ),
     );
   if (!row?.thumbnailKey?.startsWith("/objects/")) return null;
+  if (organizationId != null && !keyBelongsToOrg(row.thumbnailKey, organizationId)) return null;
   try {
     const { file } = resolveObjectFile(row.thumbnailKey);
     const [exists] = await file.exists();

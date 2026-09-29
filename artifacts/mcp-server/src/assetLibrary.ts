@@ -5,6 +5,7 @@ import { and, asc, eq, ilike, isNull, or } from "drizzle-orm";
 import { db, assetsTable, projectsTable } from "@workspace/db";
 import { signObjectURL } from "@workspace/api-server/src/lib/objectStorage";
 import { resolveObjectFile } from "./photoLibrary.js";
+import { keyBelongsToOrg } from "@workspace/api-server/src/lib/storageKeys";
 
 export interface AssetSummary {
   id: number;
@@ -123,6 +124,8 @@ export async function getAssetFile(
       ),
     );
   if (!row?.storageKey?.startsWith("/objects/")) return null;
+  // Never serve another org's object through this org's row (defense in depth).
+  if (organizationId != null && !keyBelongsToOrg(row.storageKey, organizationId)) return null;
   try {
     const { file } = resolveObjectFile(row.storageKey);
     const [exists] = await file.exists();

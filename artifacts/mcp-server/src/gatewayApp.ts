@@ -3,6 +3,7 @@ import express, { type Express, type Request, type Response, type NextFunction }
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import type { ServerOptions } from "./server.js";
+import { safeObjectHeaders } from "@workspace/api-server/src/lib/storageKeys";
 import {
   createMediaLinkIssuer,
   verifyMediaGrant,
@@ -54,12 +55,18 @@ function sendThumbnail(res: Response, file: MediaFile): void {
   const jpgName = safeName(file.filename.replace(/\.[^./\\]+$/, "")) + ".jpg";
   res.setHeader("Content-Type", "image/jpeg");
   res.setHeader("Content-Disposition", `inline; filename="${jpgName}"`);
+  res.setHeader("Content-Security-Policy", safeObjectHeaders("image/jpeg")["Content-Security-Policy"]);
   res.send(file.buffer);
 }
 
+// Originals carry a stored, partly client-declared type: only raster images
+// are served inline; anything else (SVG, PDF, fonts, mislabelled files) is an
+// attachment, and everything is sandboxed.
 function sendOriginal(res: Response, file: MediaFile): void {
+  const safe = safeObjectHeaders(file.contentType);
   res.setHeader("Content-Type", file.contentType);
-  res.setHeader("Content-Disposition", `inline; filename="${safeName(file.filename)}"`);
+  res.setHeader("Content-Disposition", `${safe["Content-Disposition"] ? "attachment" : "inline"}; filename="${safeName(file.filename)}"`);
+  res.setHeader("Content-Security-Policy", safe["Content-Security-Policy"]);
   res.send(file.buffer);
 }
 
