@@ -4,7 +4,8 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
+import { isAllowedUploadType, safeObjectHeaders } from "../lib/storageKeys";
 import { db, organizationMembersTable, organizationsTable, photosTable } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -29,13 +30,18 @@ async function objectOrgId(wildcardPath: string): Promise<number | null> {
   const m = wildcardPath.match(/^orgs\/(\d+)\//);
   if (m) return Number.parseInt(m[1], 10);
 
-  const key = `/objects/${wildcardPath}`;
-  const [owner] = await db
-    .select({ organizationId: photosTable.organizationId })
-    .from(photosTable)
-    .where(or(eq(photosTable.thumbnailKey, key), eq(photosTable.storageKey, key)))
-    .limit(1);
-  if (owner) return owner.organizationId;
+  // Only server-written legacy thumbnails are resolved through the photo that
+  // references them (thumbnail keys are never client-supplied); any other
+  // unprefixed key is a pre-tenancy object of the default org.
+  if (wildcardPath.startsWith("thumbnails/")) {
+    const key = `/objects/${wildcardPath}`;
+    const [owner] = await db
+      .select({ organizationId: photosTable.organizationId })
+      .from(photosTable)
+      .where(eq(photosTable.thumbnailKey, key))
+      .limit(1);
+    if (owner) return owner.organizationId;
+  }
 
   const [defaultOrg] = await db
     .select({ id: organizationsTable.id })
@@ -75,16 +81,10 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
   try {
     const { name, size, contentType } = parsed.data;
 
-    // Photos are still image-only (the register route magic-byte-checks them);
-    // this coarse gate also allows fonts for the asset library (#162). Some
-    // browsers send fonts as octet-stream, so fall back to the extension.
-    const ct = contentType.toLowerCase();
-    const isImage = ct.startsWith("image/");
-    const isFont =
-      ct.startsWith("font/") ||
-      /(woff|ttf|otf|sfnt|fontobject|opentype|truetype)/.test(ct) ||
-      /\.(ttf|otf|woff2?|eot)$/i.test(name ?? "");
-    if (!isImage && !isFont) {
+    // Images, plus fonts for the asset library (#162); photos stay image-only
+    // via the register route's magic-byte check. Exact types only (see
+    // isAllowedUploadType) — the type is signed into the upload URL below.
+    if (!isAllowedUploadType(name ?? "", contentType)) {
       res.status(400).json({ error: "Only image and font files are allowed" });
       return;
     }
@@ -104,8 +104,9 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
       return;
     }
 
-    // Key the upload under the caller's active org (#113).
-    let uploadURL = await objectStorageService.getObjectEntityUploadURL(req.org!.id);
+    // Key the upload under the caller's active org (#113), and bind the declared
+    // type into the signature so the PUT can't store something else.
+    let uploadURL = await objectStorageService.getObjectEntityUploadURL(req.org!.id, contentType);
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
     // In local dev the browser can't PUT cross-origin to fake-gcs-server, so
@@ -152,6 +153,9 @@ router.get("/storage/public-objects/*filePath", async (req: Request, res: Respon
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
+    for (const [key, value] of Object.entries(safeObjectHeaders(response.headers.get("content-type")))) {
+      res.setHeader(key, value);
+    }
 
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);
@@ -191,10 +195,16 @@ router.get("/storage/objects/*path", requireAuth, async (req: Request, res: Resp
 
     res.status(response.status);
     response.headers.forEach((value, key) => res.setHeader(key, value));
+    // Never let a stored object run as a page on our origin: only raster images
+    // inline, everything else an attachment, always sandboxed.
+    for (const [key, value] of Object.entries(safeObjectHeaders(response.headers.get("content-type")))) {
+      res.setHeader(key, value);
+    }
 
     // Storage keys are content-addressed — once written they never change.
-    // Cache aggressively so browsers never re-download the same thumbnail/photo.
-    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    // Cache aggressively in the browser, but never in shared caches: these
+    // objects are access-controlled.
+    res.setHeader("Cache-Control", "private, max-age=31536000, immutable");
 
     if (response.body) {
       const nodeStream = Readable.fromWeb(response.body as ReadableStream<Uint8Array>);

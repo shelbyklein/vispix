@@ -196,6 +196,9 @@ describe.each(["url", "header"] as const)("%s-authenticated connector", (auth) =
     const res = await fetch(asset[0].uri!);
     expect(res.status).toBe(200);
     expect(res.headers.get("content-type")).toBe("image/svg+xml");
+    // Non-raster originals are downloads, never pages on the gateway origin.
+    expect(res.headers.get("content-disposition")).toBe('attachment; filename="logo.svg"');
+    expect(res.headers.get("content-security-policy")).toContain("sandbox");
     expect(await res.text()).toBe("<svg/>");
   });
 });

@@ -20,18 +20,22 @@ interface UseUploadOptions {
   onError?: (error: Error) => void;
 }
 
-// Mirrors the presign route's gate (routes/storage.ts): images plus fonts for
-// the asset library (#162). Photos stay image-only via the register route's
-// magic-byte check. Some browsers send fonts as octet-stream, so fall back to
-// the extension.
+// Mirrors the presign route's gate (api-server lib/storageKeys.ts): a bare
+// image/* type, a known font type, or octet-stream for a font file name (some
+// browsers send fonts that way). Photos stay image-only via the register
+// route's magic-byte check. The type is signed into the upload URL, so the PUT
+// below must send exactly the type used in the request.
+const FONT_TYPES = new Set([
+  "font/ttf", "font/otf", "font/woff", "font/woff2", "font/sfnt", "font/collection",
+  "application/font-woff", "application/font-woff2", "application/font-sfnt",
+  "application/x-font-ttf", "application/x-font-otf", "application/x-font-opentype",
+  "application/x-font-truetype", "application/vnd.ms-fontobject",
+]);
 export function isAllowedUploadType(name: string, contentType: string): boolean {
-  const ct = contentType.toLowerCase();
-  return (
-    ct.startsWith("image/") ||
-    ct.startsWith("font/") ||
-    /(woff|ttf|otf|sfnt|fontobject|opentype|truetype)/.test(ct) ||
-    /\.(ttf|otf|woff2?|eot)$/i.test(name)
-  );
+  const ct = contentType.trim().toLowerCase();
+  if (/^image\/[a-z0-9.+-]+$/.test(ct)) return true;
+  if (FONT_TYPES.has(ct)) return true;
+  return ct === "application/octet-stream" && /\.(ttf|otf|woff2?|eot)$/i.test(name);
 }
 
 /**

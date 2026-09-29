@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isOrgUploadKey } from "../lib/storageKeys";
 import { and, asc, eq, ne } from "drizzle-orm";
 import {
   db,
@@ -206,8 +207,8 @@ router.patch("/organizations/current", ...requireOrgAdmin, async (req, res): Pro
   }
   // Only accept logo keys minted by our own upload flow, never arbitrary paths
   // (mirrors the assets route).
-  if (body.data.logoKey != null && !body.data.logoKey.startsWith("/objects/")) {
-    res.status(400).json({ error: "logoKey must be an /objects/ path from the upload flow" });
+  if (body.data.logoKey != null && !isOrgUploadKey(body.data.logoKey, req.org!.id)) {
+    res.status(400).json({ error: "logoKey must be an upload of this organization" });
     return;
   }
   const updates: { name?: string; description?: string | null; logoKey?: string | null } = {};

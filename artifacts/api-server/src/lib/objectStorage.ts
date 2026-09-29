@@ -113,7 +113,9 @@ export class ObjectStorageService {
   // object path itself carries its tenant, letting the download route enforce
   // membership. Retrieval is transparent — getObjectEntityFile keeps the whole
   // suffix after /objects/ as the entity id.
-  async getObjectEntityUploadURL(organizationId: number): Promise<string> {
+  // contentType, when given, is signed into the URL: the PUT must send exactly
+  // that Content-Type or storage rejects it.
+  async getObjectEntityUploadURL(organizationId: number, contentType?: string): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -132,6 +134,7 @@ export class ObjectStorageService {
       objectName,
       method: "PUT",
       ttlSec: 900,
+      contentType,
     });
   }
 
@@ -234,11 +237,14 @@ export async function signObjectURL({
   objectName,
   method,
   ttlSec,
+  contentType,
 }: {
   bucketName: string;
   objectName: string;
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
+  /** PUT only: sign the Content-Type header into the URL. */
+  contentType?: string;
 }): Promise<string> {
   const [url] = await objectStorageClient
     .bucket(bucketName)
@@ -247,6 +253,7 @@ export async function signObjectURL({
       version: "v4",
       action: method === "GET" || method === "HEAD" ? "read" : method === "PUT" ? "write" : "delete",
       expires: Date.now() + ttlSec * 1000,
+      ...(method === "PUT" && contentType ? { contentType } : {}),
     });
   return url;
 }

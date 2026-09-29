@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { isOrgUploadKey } from "../lib/storageKeys";
 import { and, asc, eq } from "drizzle-orm";
 import { db, assetsTable, projectsTable } from "@workspace/db";
 import {
@@ -73,9 +74,10 @@ router.post("/assets", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  // Only accept keys minted by our own upload flow, never arbitrary paths.
-  if (!body.data.storageKey.startsWith("/objects/")) {
-    res.status(400).json({ error: "storageKey must be an /objects/ path from the upload flow" });
+  // Only accept uploads issued to this org by our upload flow — never another
+  // org's object or an arbitrary path.
+  if (!isOrgUploadKey(body.data.storageKey, req.org!.id)) {
+    res.status(400).json({ error: "storageKey must be an upload of this organization" });
     return;
   }
 

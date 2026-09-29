@@ -10,6 +10,7 @@ import { computeAndStorePerceptualHash } from "../lib/perceptualHash";
 import { optimizeOriginalImage } from "../lib/imageOptimization";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { readMagicBytes, detectImageMimeType } from "../lib/magicBytes";
+import { isOrgUploadKey } from "../lib/storageKeys";
 import { logger } from "../lib/logger";
 import {
   ListAlbumPhotosParams,
@@ -67,6 +68,13 @@ router.post("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void
   const body = UploadPhotoBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
+    return;
+  }
+
+  // Only an upload issued to this org (request-url) may be registered: a row
+  // pointing at another org's object would expose, rewrite or delete it.
+  if (body.data.storageKey != null && !isOrgUploadKey(body.data.storageKey, req.org!.id)) {
+    res.status(400).json({ error: "storageKey must be an upload of this organization" });
     return;
   }
 
