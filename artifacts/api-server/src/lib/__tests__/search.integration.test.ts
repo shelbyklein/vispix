@@ -26,7 +26,7 @@ function unit(parts: Record<number, number>): number[] {
 vi.mock("../aiEmbedding", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../aiEmbedding")>()),
   // Every query points along axis 0; exclusion concepts along axis 2.
-  embedText: async (q: string) => (/crowd/.test(q) ? unit({ 2: 1 }) : unit({ 0: 1 })),
+  embedQuery: async (q: string) => ({ ok: true, vec: /crowd/.test(q) ? unit({ 2: 1 }) : unit({ 0: 1 }) }),
 }));
 
 import type { Server } from "node:http";

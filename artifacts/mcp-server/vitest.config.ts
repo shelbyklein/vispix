@@ -9,7 +9,11 @@ const TEST_DATABASE_URL =
 
 export default defineConfig({
   test: {
-    env: { DATABASE_URL: TEST_DATABASE_URL },
+    env: {
+      DATABASE_URL: TEST_DATABASE_URL,
+      AI_KEY_ENCRYPTION_SECRET:
+        process.env.AI_KEY_ENCRYPTION_SECRET ?? "test-ai-key-encryption-secret-0000000000000000",
+    },
     // Integration tests TRUNCATE a shared database between tests.
     sequence: { concurrent: false },
     fileParallelism: false,

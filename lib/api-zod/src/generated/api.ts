@@ -624,6 +624,18 @@ export const SearchPhotosQueryParams = zod.object({
     .describe(
       "Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.",
     ),
+  rightsTagId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos carrying this usage-rights tag (the organization's own tags).",
+    ),
+  personId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos in this person collection (the organization's own people).",
+    ),
 });
 
 export const SearchPhotosResponse = zod.object({
@@ -821,6 +833,18 @@ export const SemanticSearchPhotosQueryParams = zod.object({
     .describe(
       "Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.",
     ),
+  rightsTagId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos carrying this usage-rights tag (the organization's own tags).",
+    ),
+  personId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos in this person collection (the organization's own people).",
+    ),
 });
 
 export const SemanticSearchPhotosResponseItem = zod.object({
@@ -969,6 +993,287 @@ export const SemanticSearchPhotosResponseItem = zod.object({
 export const SemanticSearchPhotosResponse = zod.array(
   SemanticSearchPhotosResponseItem,
 );
+
+/**
+ * @summary Shared photo retrieval (docs/PHOTO_RETRIEVAL.md) — keyword or concept search with continuation, explicit states and ranking metadata
+ */
+export const RetrievePhotosQueryParams = zod.object({
+  q: zod.coerce.string(),
+  mode: zod
+    .enum(["concept", "keyword"])
+    .optional()
+    .describe("concept (semantic, default) or keyword."),
+  limit: zod.coerce
+    .number()
+    .optional()
+    .describe("Page size, 1-200 (default 30)."),
+  cursor: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "page.nextCursor from the previous page. Bound to the request; a changed request returns 400 cursor_mismatch.",
+    ),
+  includeHidden: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Honoured for admins only."),
+  exclude: zod
+    .array(zod.coerce.string())
+    .optional()
+    .describe(
+      "keyword — photos whose AI description matches any term are removed; concept — the query is steered away (a ranking preference, not guaranteed absence).",
+    ),
+  ratingMin: zod.coerce
+    .number()
+    .optional()
+    .describe("Minimum average user rating (0-5; unrated counts as 0)."),
+  ratingMax: zod.coerce
+    .number()
+    .optional()
+    .describe("Maximum average user rating (0-5; unrated counts as 0)."),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Inclusive capture date (YYYY-MM-DD). Must not be before dateFrom.",
+    ),
+  uploaderId: zod.coerce.number().optional(),
+  minQuality: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.",
+    ),
+  rightsTagId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos carrying this usage-rights tag (the organization's own tags).",
+    ),
+  personId: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Only photos in this person collection (the organization's own people).",
+    ),
+});
+
+export const RetrievePhotosResponse = zod.object({
+  status: zod.enum(["ok", "unavailable"]),
+  items: zod.array(
+    zod.object({
+      photo: zod.object({
+        id: zod.number(),
+        albumId: zod.number(),
+        albumTitle: zod.string().nullish(),
+        uploaderId: zod.number(),
+        storageKey: zod.string().nullish(),
+        thumbnailKey: zod.string().nullish(),
+        url: zod.string(),
+        filename: zod.string().nullish(),
+        filesize: zod.number().nullish(),
+        width: zod
+          .number()
+          .nullish()
+          .describe(
+            "Display width in pixels (EXIF-orientation corrected). Null until captured on upload or backfilled.",
+          ),
+        height: zod
+          .number()
+          .nullish()
+          .describe(
+            "Display height in pixels (EXIF-orientation corrected). Null until captured on upload or backfilled.",
+          ),
+        contentHash: zod
+          .string()
+          .nullish()
+          .describe(
+            "SHA-256 hex digest of the original image bytes, used for exact duplicate detection. Null until computed.",
+          ),
+        takenAt: zod.string().nullish(),
+        createdAt: zod.coerce.date(),
+        isHidden: zod.boolean(),
+        averageRating: zod.number().nullish(),
+        ratingCount: zod.number(),
+        myRating: zod.number().nullish(),
+        photoCollections: zod
+          .array(
+            zod.object({
+              id: zod.number(),
+              title: zod.string(),
+              description: zod.string().nullish(),
+              createdById: zod.number(),
+              photoCount: zod.number(),
+              coverPhotoId: zod.number().nullish(),
+              coverPhotoUrl: zod.string().nullish(),
+              coverPhotoThumbnailKey: zod.string().nullish(),
+              sampleThumbnailUrls: zod
+                .array(zod.string())
+                .optional()
+                .describe(
+                  "Up to 5 random member photo thumbnails (display URLs), re-sampled per request. Feeds crossfading card thumbnails.",
+                ),
+              tags: zod.array(zod.string()).optional(),
+              kind: zod
+                .enum(["collection", "person"])
+                .optional()
+                .describe("People are collections with kind 'person'."),
+              createdAt: zod.coerce.date(),
+            }),
+          )
+          .optional(),
+        photoProjects: zod
+          .array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          )
+          .optional()
+          .describe(
+            "Projects this photo currently belongs to (membership only).",
+          ),
+        attributionTags: zod
+          .array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          )
+          .optional()
+          .describe(
+            "Attribution \/ usage-rights tags this photo is cleared for.",
+          ),
+        aiDescription: zod.string().nullish(),
+        latestAiStatus: zod
+          .union([
+            zod.literal("success"),
+            zod.literal("skipped"),
+            zod.literal("failed"),
+            zod.literal(null),
+          ])
+          .nullish()
+          .describe(
+            "Status of the most recent AI analysis event for this photo",
+          ),
+        aiEvaluation: zod
+          .union([
+            zod
+              .object({
+                technicalQuality: zod.number(),
+                composition: zod.number(),
+                subjectClarity: zod.number(),
+                emotionalImpact: zod.number(),
+                marketingUsability: zod.number(),
+                overallScore: zod.number(),
+                flaws: zod
+                  .array(zod.string())
+                  .describe(
+                    "Detected flaws (short phrases); empty when clean.",
+                  ),
+                orientationSuitability: zod
+                  .string()
+                  .nullish()
+                  .describe("Which crops\/uses the framing suits."),
+                evaluatedAt: zod.string().optional(),
+              })
+              .describe(
+                "AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).",
+              ),
+            zod.null(),
+          ])
+          .optional()
+          .describe(
+            "AI criteria evaluation of the photo (quality\/composition scores), or null if not yet evaluated.",
+          ),
+        suggestedCollections: zod
+          .array(
+            zod.object({
+              id: zod.number(),
+              title: zod.string(),
+            }),
+          )
+          .optional(),
+        suggestedNewCollections: zod
+          .array(
+            zod.object({
+              id: zod.number(),
+              suggestedName: zod.string(),
+            }),
+          )
+          .optional(),
+        ratings: zod
+          .array(
+            zod.object({
+              userId: zod.number(),
+              userName: zod.string().nullish(),
+              score: zod.number(),
+              createdAt: zod.coerce.date(),
+            }),
+          )
+          .optional(),
+      }),
+      match: zod
+        .object({
+          type: zod.enum(["keyword", "concept"]),
+          fields: zod
+            .array(zod.enum(["album_title", "uploader", "description"]))
+            .optional(),
+          similarity: zod.number().optional(),
+          qualityScore: zod.number().nullish(),
+          score: zod.number().optional(),
+        })
+        .describe(
+          "Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).",
+        ),
+    }),
+  ),
+  page: zod.object({
+    nextCursor: zod.string().nullable(),
+    exhausted: zod.boolean().describe("No further qualifying photos exist."),
+    limited: zod
+      .boolean()
+      .describe("More exist, but concept paging stopped at its depth limit."),
+  }),
+  total: zod
+    .number()
+    .nullable()
+    .describe(
+      "Qualifying results — keyword matches, or ranked (embedded) photos for concept. Null when unavailable.",
+    ),
+  coverage: zod
+    .object({
+      notEmbedded: zod
+        .number()
+        .describe(
+          "Qualifying photos without an embedding, which concept search can't find.",
+        ),
+    })
+    .nullable(),
+  degraded: zod
+    .object({
+      reason: zod.enum([
+        "not_configured",
+        "timeout",
+        "cancelled",
+        "provider_error",
+      ]),
+      affects: zod.enum(["query", "exclusions"]),
+    })
+    .nullable(),
+  retrieval: zod.object({
+    version: zod.string(),
+    mode: zod.enum(["concept", "keyword"]),
+    embeddingModel: zod.string().nullable(),
+    ranking: zod.string(),
+  }),
+});
 
 /**
  * @summary Photos most visually similar to the given photo (by image embedding)

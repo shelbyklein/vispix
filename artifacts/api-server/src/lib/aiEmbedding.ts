@@ -81,16 +81,28 @@ interface VertexPrediction {
   textVec: number[] | null;
 }
 
-// Low-level call to the Vertex :predict endpoint. Returns null (never throws) on
-// any config/auth/HTTP/shape error, so callers degrade gracefully.
-async function callVertexPredict(instance: EmbedInstance): Promise<VertexPrediction | null> {
+/** Why an embedding couldn't be produced — search reports this instead of an empty result (#213). */
+export type EmbedFailure = "not_configured" | "timeout" | "cancelled" | "provider_error";
+type PredictResult = { ok: true; pred: VertexPrediction } | { ok: false; reason: EmbedFailure };
+
+// Low-level call to the Vertex :predict endpoint. Never throws: every
+// config/auth/HTTP/shape error becomes a failure reason, so callers degrade
+// gracefully. `timeoutMs` and `signal` bound the HTTP call.
+async function vertexPredict(
+  instance: EmbedInstance,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<PredictResult> {
   const { project, location } = vertexConfig();
   if (!project) {
     logger.warn("VERTEX_PROJECT is not set — skipping embedding");
-    return null;
+    return { ok: false, reason: "not_configured" };
   }
   const token = await getAccessToken();
-  if (!token) return null;
+  if (!token) return { ok: false, reason: "not_configured" };
+  if (opts.signal?.aborted) return { ok: false, reason: "cancelled" };
+  const timeout = opts.timeoutMs != null ? AbortSignal.timeout(opts.timeoutMs) : undefined;
+  const signals = [opts.signal, timeout].filter((s): s is AbortSignal => !!s);
+  const signal = signals.length > 1 ? AbortSignal.any(signals) : signals[0];
 
   const url =
     `https://${location}-aiplatform.googleapis.com/v1/projects/${project}` +
@@ -102,15 +114,21 @@ async function callVertexPredict(instance: EmbedInstance): Promise<VertexPredict
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ instances: [instance] }),
+      signal,
     });
   } catch (err) {
+    if (timeout?.aborted) {
+      logger.warn({ timeoutMs: opts.timeoutMs }, "Vertex embedding request timed out");
+      return { ok: false, reason: "timeout" };
+    }
+    if (opts.signal?.aborted) return { ok: false, reason: "cancelled" };
     logger.error({ err }, "Vertex embedding request failed (network)");
-    return null;
+    return { ok: false, reason: "provider_error" };
   }
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     logger.error({ status: res.status, body: body.slice(0, 500) }, "Vertex embedding request failed");
-    return null;
+    return { ok: false, reason: "provider_error" };
   }
 
   const json = (await res.json().catch(() => null)) as {
@@ -126,18 +144,38 @@ async function callVertexPredict(instance: EmbedInstance): Promise<VertexPredict
       { imageLen: pred?.imageEmbedding?.length, textLen: pred?.textEmbedding?.length, expected: EMBEDDING_DIMENSION },
       "Vertex embedding: unexpected response",
     );
-    return null;
+    return { ok: false, reason: "provider_error" };
   }
-  return { imageVec, textVec };
+  return { ok: true, pred: { imageVec, textVec } };
 }
 
-/** Embed a natural-language query (for semantic search). Not concurrency-bounded
- *  so search stays responsive. Returns null when embeddings can't be produced. */
-export async function embedText(query: string): Promise<number[] | null> {
+async function callVertexPredict(instance: EmbedInstance): Promise<VertexPrediction | null> {
+  const r = await vertexPredict(instance);
+  return r.ok ? r.pred : null;
+}
+
+/** Upper bound on a search-time query embedding (#213). */
+export const QUERY_EMBED_TIMEOUT_MS = 8000;
+
+/**
+ * Embed a natural-language query for search, bounded by a timeout and an
+ * optional caller signal. Not concurrency-bounded so search stays responsive.
+ */
+export async function embedQuery(
+  query: string,
+  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+): Promise<{ ok: true; vec: number[] } | { ok: false; reason: EmbedFailure }> {
   const q = query.trim();
-  if (!q) return null;
-  const pred = await callVertexPredict({ text: q });
-  return pred?.textVec ?? null;
+  if (!q) return { ok: false, reason: "provider_error" };
+  const r = await vertexPredict({ text: q }, { signal: opts.signal, timeoutMs: opts.timeoutMs ?? QUERY_EMBED_TIMEOUT_MS });
+  if (!r.ok) return r;
+  return r.pred.textVec ? { ok: true, vec: r.pred.textVec } : { ok: false, reason: "provider_error" };
+}
+
+/** Embed a query, or null when embeddings can't be produced. */
+export async function embedText(query: string): Promise<number[] | null> {
+  const r = await embedQuery(query);
+  return r.ok ? r.vec : null;
 }
 
 async function isEmbeddingEnabled(organizationId: number): Promise<boolean> {

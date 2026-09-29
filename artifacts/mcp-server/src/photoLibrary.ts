@@ -1,13 +1,13 @@
 // Data access for the MCP tools. Reuses the api-server's own libs (deep
 // workspace imports resolve because api-server declares no `exports` field):
-// Vertex text embedding, the iterative HNSW vector scan, and GCS signing —
-// so ranking behaviour is identical to the app's semantic search.
+// the shared photo retrieval service (#213) — so ranking is identical to the
+// app's semantic search — and GCS signing.
 import { and, avg, count, eq, ilike, inArray, sql } from "drizzle-orm";
 import {
   db,
   photosTable,
-  photoEmbeddingsTable,
   albumsTable,
+  organizationsTable,
   ratingsTable,
   attributionTagsTable,
   photoAttributionTagsTable,
@@ -15,8 +15,8 @@ import {
   photoCollectionsTable,
   photoAiEvaluationsTable,
 } from "@workspace/db";
-import { embedText } from "@workspace/api-server/src/lib/aiEmbedding";
-import { withIterativeVectorScan } from "@workspace/api-server/src/lib/vectorSearch";
+import type { EmbedFailure } from "@workspace/api-server/src/lib/aiEmbedding";
+import { retrievePhotos } from "@workspace/api-server/src/lib/photoRetrieval";
 import { keyBelongsToOrg } from "@workspace/api-server/src/lib/storageKeys";
 import {
   objectStorageClient,
@@ -24,15 +24,6 @@ import {
   getPrivateObjectDir,
   signObjectURL,
 } from "@workspace/api-server/src/lib/objectStorage";
-
-// Matches the app's semantic search: how hard an excluded concept pushes the
-// query vector away from it.
-const NEGATIVE_LAMBDA = 0.75;
-
-function normalizeVec(v: number[]): number[] {
-  const m = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
-  return v.map((x) => x / m);
-}
 
 export function resolveObjectFile(key: string) {
   const privateObjectDir = getPrivateObjectDir();
@@ -143,6 +134,25 @@ export interface SearchOptions {
   organizationId?: number;
 }
 
+/**
+ * The local stdio server has no connector token, so it needs an explicit
+ * organization: VISPIX_MCP_ORGANIZATION_ID, or the only organization when
+ * exactly one exists. Null when it can't tell.
+ */
+async function resolveLocalOrganizationId(): Promise<number | null> {
+  const configured = Number(process.env.VISPIX_MCP_ORGANIZATION_ID);
+  if (Number.isSafeInteger(configured) && configured > 0) return configured;
+  const orgs = await db.select({ id: organizationsTable.id }).from(organizationsTable).limit(2);
+  return orgs.length === 1 ? orgs[0].id : null;
+}
+
+const UNAVAILABLE_NOTES: Record<EmbedFailure, string> = {
+  not_configured: "Semantic search is unavailable (embedding service not configured).",
+  timeout: "Semantic search is unavailable right now (the embedding service timed out). Try again.",
+  cancelled: "The search was cancelled.",
+  provider_error: "Semantic search is unavailable right now (the embedding service failed). Try again.",
+};
+
 export async function searchPhotos({
   query,
   count: wanted,
@@ -151,38 +161,26 @@ export async function searchPhotos({
   minQuality,
   rightsTag,
   person,
-  organizationId,
-}: SearchOptions): Promise<{ results: PhotoSummary[]; note?: string }> {
-  const posVec = await embedText(query);
-  if (!posVec) {
+  organizationId: scopedOrgId,
+  signal,
+}: SearchOptions & { signal?: AbortSignal }): Promise<{ results: PhotoSummary[]; note?: string }> {
+  // Every search is org-scoped (#213): the gateway passes the token's org.
+  const organizationId = scopedOrgId ?? (await resolveLocalOrganizationId());
+  if (organizationId == null) {
     return {
       results: [],
-      note: "Semantic search is unavailable (embedding service not configured or unreachable).",
+      note: "Search needs an organization: set VISPIX_MCP_ORGANIZATION_ID for the local server.",
     };
   }
 
-  let queryVec = posVec;
-  if (exclude?.trim()) {
-    const negVec = await embedText(exclude.trim());
-    if (negVec) {
-      const p = normalizeVec(posVec);
-      const n = normalizeVec(negVec);
-      queryVec = p.map((x, i) => x - NEGATIVE_LAMBDA * n[i]);
-    }
-  }
-
-  // Rights filter: resolve the tag (case-insensitive) to a photo-id set first.
-  let rightsPhotoIds: Set<number> | null = null;
+  // Name filters resolve inside the org; an unknown name is an explicit
+  // answer listing the org's own names, never "no filter".
+  let rightsTagId: number | undefined;
   if (rightsTag?.trim()) {
     const [tag] = await db
       .select({ id: attributionTagsTable.id })
       .from(attributionTagsTable)
-      .where(
-        and(
-          ilike(attributionTagsTable.name, rightsTag.trim()),
-          organizationId != null ? eq(attributionTagsTable.organizationId, organizationId) : undefined,
-        ),
-      );
+      .where(and(ilike(attributionTagsTable.name, rightsTag.trim()), eq(attributionTagsTable.organizationId, organizationId)));
     if (!tag) {
       const tags = await listUsageRights(organizationId);
       return {
@@ -190,18 +188,9 @@ export async function searchPhotos({
         note: `No usage-rights tag named "${rightsTag}". Available: ${tags.map((t) => t.name).join(", ") || "(none)"}.`,
       };
     }
-    const rows = await db
-      .select({ photoId: photoAttributionTagsTable.photoId })
-      .from(photoAttributionTagsTable)
-      .where(eq(photoAttributionTagsTable.tagId, tag.id));
-    rightsPhotoIds = new Set(rows.map((r) => r.photoId));
-    if (rightsPhotoIds.size === 0) {
-      return { results: [], note: `No photos are cleared for "${rightsTag}" yet.` };
-    }
+    rightsTagId = tag.id;
   }
-
-  // Person filter: restrict the ranking to that person's tagged photos.
-  let personPhotoIds: Set<number> | null = null;
+  let personId: number | undefined;
   if (person?.trim()) {
     const [match] = await db
       .select({ id: collectionsTable.id })
@@ -210,7 +199,7 @@ export async function searchPhotos({
         and(
           eq(collectionsTable.kind, "person"),
           ilike(collectionsTable.title, person.trim()),
-          organizationId != null ? eq(collectionsTable.organizationId, organizationId) : undefined,
+          eq(collectionsTable.organizationId, organizationId),
         ),
       );
     if (!match) {
@@ -220,62 +209,42 @@ export async function searchPhotos({
         note: `No person named "${person}". Available: ${people.map((p) => p.name).join(", ") || "(none yet)"}.`,
       };
     }
-    const rows = await db
-      .select({ photoId: photoCollectionsTable.photoId })
-      .from(photoCollectionsTable)
-      .where(eq(photoCollectionsTable.collectionId, match.id));
-    personPhotoIds = new Set(rows.map((r) => r.photoId));
-    if (personPhotoIds.size === 0) {
-      return { results: [], note: `"${person}" has no tagged photos yet.` };
-    }
+    personId = match.id;
   }
 
-  // Intersect the id-restricting filters before handing them to the ranking.
-  let restrictIds: Set<number> | null = null;
-  if (rightsPhotoIds && personPhotoIds) {
-    restrictIds = new Set([...personPhotoIds].filter((id) => rightsPhotoIds.has(id)));
-    if (restrictIds.size === 0) {
-      return { results: [], note: `No photos of "${person}" are cleared for "${rightsTag}".` };
-    }
-  } else {
-    restrictIds = rightsPhotoIds ?? personPhotoIds;
+  // Same ranking as the app's semantic search; every filter applies inside
+  // the ranking query, before the count limit.
+  const result = await retrievePhotos({
+    organizationId,
+    canSeeHidden: false,
+    mode: "concept",
+    text: query,
+    exclude: exclude?.trim() ? [exclude.trim()] : [],
+    filters: { ratingMin: minRating, minQuality, rightsTagId, personId },
+    limit: wanted,
+    signal,
+  });
+  if (result.status === "unavailable") {
+    return { results: [], note: UNAVAILABLE_NOTES[result.degraded?.reason ?? "provider_error"] };
   }
 
-  // Post-ranking filters thin the list, so over-fetch when any are active.
-  const hasPostFilters = minRating != null || minQuality != null || rightsPhotoIds != null;
-  const fetchLimit = hasPostFilters ? Math.min(500, wanted * 10) : wanted;
-
-  const vecLiteral = `[${queryVec.join(",")}]`;
-  const ranked = await withIterativeVectorScan((tx) =>
-    tx
-      .select({ id: photoEmbeddingsTable.photoId })
-      .from(photoEmbeddingsTable)
-      .innerJoin(photosTable, eq(photosTable.id, photoEmbeddingsTable.photoId))
-      .where(
-        and(
-          eq(photosTable.isHidden, false),
-          restrictIds ? inArray(photoEmbeddingsTable.photoId, [...restrictIds]) : undefined,
-          organizationId != null ? eq(photosTable.organizationId, organizationId) : undefined,
-        ),
-      )
-      .orderBy(sql`${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector`)
-      .limit(fetchLimit),
-  );
-
-  let summaries = await buildSummaries(ranked.map((r) => r.id));
-  if (minRating != null) {
-    summaries = summaries.filter((p) => (p.averageRating ?? 0) >= minRating);
+  const results = await buildSummaries(result.items.map((i) => i.photoId));
+  const notes: string[] = [];
+  const filtered = minRating != null || minQuality != null || rightsTagId != null || personId != null;
+  if (result.page.exhausted && results.length < wanted) {
+    notes.push(
+      results.length === 0
+        ? filtered ? "No photos match these filters." : "No photos are indexed for semantic search yet."
+        : `Only ${results.length} photo${results.length === 1 ? "" : "s"} match${results.length === 1 ? "es" : ""} ${filtered ? "these filters" : "at all"}.`,
+    );
   }
-  if (minQuality != null) {
-    // Photos not yet evaluated are dropped when a quality floor is requested.
-    summaries = summaries.filter((p) => p.aiScore != null && p.aiScore >= minQuality);
+  if (result.coverage && result.coverage.notEmbedded > 0) {
+    notes.push(
+      `${result.coverage.notEmbedded} matching photo${result.coverage.notEmbedded === 1 ? " isn't" : "s aren't"} indexed for semantic search yet, so ${result.coverage.notEmbedded === 1 ? "it" : "they"} can't appear here.`,
+    );
   }
-  const results = summaries.slice(0, wanted);
-  const note =
-    hasPostFilters && results.length < wanted
-      ? `Only ${results.length} of the top ${fetchLimit} ranked photos pass the filters.`
-      : undefined;
-  return { results, note };
+  if (result.degraded?.affects === "exclusions") notes.push("The exclusion couldn't be applied (embedding service unavailable).");
+  return { results, note: notes.length ? notes.join(" ") : undefined };
 }
 
 export async function getPhotoDetail(

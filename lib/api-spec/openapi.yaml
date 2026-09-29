@@ -468,6 +468,18 @@ paths:
           description: Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
           schema:
             type: number
+        - name: rightsTagId
+          in: query
+          required: false
+          description: Only photos carrying this usage-rights tag (the organization's own tags).
+          schema:
+            type: integer
+        - name: personId
+          in: query
+          required: false
+          description: Only photos in this person collection (the organization's own people).
+          schema:
+            type: integer
       responses:
         "200":
           description: Search results (one page)
@@ -542,6 +554,18 @@ paths:
           description: Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
           schema:
             type: number
+        - name: rightsTagId
+          in: query
+          required: false
+          description: Only photos carrying this usage-rights tag (the organization's own tags).
+          schema:
+            type: integer
+        - name: personId
+          in: query
+          required: false
+          description: Only photos in this person collection (the organization's own people).
+          schema:
+            type: integer
       responses:
         "200":
           description: Photos ranked by semantic similarity (most similar first)
@@ -553,6 +577,111 @@ paths:
                   $ref: "#/components/schemas/Photo"
         "401":
           description: Unauthorized
+
+  /search/photos:
+    get:
+      operationId: retrievePhotos
+      tags: [photos]
+      summary: Shared photo retrieval (docs/PHOTO_RETRIEVAL.md) — keyword or concept search with continuation, explicit states and ranking metadata
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: mode
+          in: query
+          required: false
+          description: concept (semantic, default) or keyword.
+          schema:
+            type: string
+            enum: [concept, keyword]
+        - name: limit
+          in: query
+          required: false
+          description: Page size, 1-200 (default 30).
+          schema:
+            type: integer
+        - name: cursor
+          in: query
+          required: false
+          description: page.nextCursor from the previous page. Bound to the request; a changed request returns 400 cursor_mismatch.
+          schema:
+            type: string
+        - name: includeHidden
+          in: query
+          required: false
+          description: Honoured for admins only.
+          schema:
+            type: boolean
+        - name: exclude
+          in: query
+          required: false
+          description: keyword — photos whose AI description matches any term are removed; concept — the query is steered away (a ranking preference, not guaranteed absence).
+          schema:
+            type: array
+            items:
+              type: string
+        - name: ratingMin
+          in: query
+          required: false
+          description: Minimum average user rating (0-5; unrated counts as 0).
+          schema:
+            type: number
+        - name: ratingMax
+          in: query
+          required: false
+          description: Maximum average user rating (0-5; unrated counts as 0).
+          schema:
+            type: number
+        - name: dateFrom
+          in: query
+          required: false
+          description: Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          required: false
+          description: Inclusive capture date (YYYY-MM-DD). Must not be before dateFrom.
+          schema:
+            type: string
+        - name: uploaderId
+          in: query
+          required: false
+          schema:
+            type: integer
+        - name: minQuality
+          in: query
+          required: false
+          description: Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+          schema:
+            type: number
+        - name: rightsTagId
+          in: query
+          required: false
+          description: Only photos carrying this usage-rights tag (the organization's own tags).
+          schema:
+            type: integer
+        - name: personId
+          in: query
+          required: false
+          description: Only photos in this person collection (the organization's own people).
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: One page of results with its state. status "unavailable" means the embedding provider couldn't rank anything, which is not an empty result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PhotoRetrievalResponse"
+        "400":
+          description: Invalid filters (invalid_request) or cursor (invalid_cursor, cursor_mismatch)
+        "401":
+          description: Unauthorized
+        "503":
+          description: The search exceeded its time limit (search_timeout)
 
   /photos/{id}/similar:
     get:
@@ -2904,6 +3033,92 @@ components:
             $ref: "#/components/schemas/Photo"
         hasMore:
           type: boolean
+
+    PhotoRetrievalResponse:
+      type: object
+      required: [status, items, page, total, coverage, degraded, retrieval]
+      properties:
+        status:
+          type: string
+          enum: [ok, unavailable]
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PhotoRetrievalItem"
+        page:
+          type: object
+          required: [nextCursor, exhausted, limited]
+          properties:
+            nextCursor:
+              type: ["string", "null"]
+            exhausted:
+              type: boolean
+              description: No further qualifying photos exist.
+            limited:
+              type: boolean
+              description: More exist, but concept paging stopped at its depth limit.
+        total:
+          type: ["integer", "null"]
+          description: Qualifying results — keyword matches, or ranked (embedded) photos for concept. Null when unavailable.
+        coverage:
+          type: ["object", "null"]
+          required: [notEmbedded]
+          properties:
+            notEmbedded:
+              type: integer
+              description: Qualifying photos without an embedding, which concept search can't find.
+        degraded:
+          type: ["object", "null"]
+          required: [reason, affects]
+          properties:
+            reason:
+              type: string
+              enum: [not_configured, timeout, cancelled, provider_error]
+            affects:
+              type: string
+              enum: [query, exclusions]
+        retrieval:
+          type: object
+          required: [version, mode, embeddingModel, ranking]
+          properties:
+            version:
+              type: string
+            mode:
+              type: string
+              enum: [concept, keyword]
+            embeddingModel:
+              type: ["string", "null"]
+            ranking:
+              type: string
+
+    PhotoRetrievalItem:
+      type: object
+      required: [photo, match]
+      properties:
+        photo:
+          $ref: "#/components/schemas/Photo"
+        match:
+          $ref: "#/components/schemas/PhotoRetrievalMatch"
+
+    PhotoRetrievalMatch:
+      type: object
+      required: [type]
+      description: Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
+      properties:
+        type:
+          type: string
+          enum: [keyword, concept]
+        fields:
+          type: array
+          items:
+            type: string
+            enum: [album_title, uploader, description]
+        similarity:
+          type: number
+        qualityScore:
+          type: ["number", "null"]
+        score:
+          type: number
 
     PhotoRating:
       type: object

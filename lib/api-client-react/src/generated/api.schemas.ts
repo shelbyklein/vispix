@@ -329,6 +329,105 @@ export interface SearchPhotosPagedResponse {
   hasMore: boolean;
 }
 
+export type PhotoRetrievalResponseStatus =
+  (typeof PhotoRetrievalResponseStatus)[keyof typeof PhotoRetrievalResponseStatus];
+
+export const PhotoRetrievalResponseStatus = {
+  ok: "ok",
+  unavailable: "unavailable",
+} as const;
+
+export type PhotoRetrievalResponsePage = {
+  /** @nullable */
+  nextCursor: string | null;
+  /** No further qualifying photos exist. */
+  exhausted: boolean;
+  /** More exist, but concept paging stopped at its depth limit. */
+  limited: boolean;
+};
+
+/**
+ * @nullable
+ */
+export type PhotoRetrievalResponseCoverage = {
+  /** Qualifying photos without an embedding, which concept search can't find. */
+  notEmbedded: number;
+} | null | null;
+
+/**
+ * @nullable
+ */
+export type PhotoRetrievalResponseDegraded = {
+  reason: "not_configured" | "timeout" | "cancelled" | "provider_error";
+  affects: "query" | "exclusions";
+} | null;
+
+export type PhotoRetrievalResponseRetrievalMode =
+  (typeof PhotoRetrievalResponseRetrievalMode)[keyof typeof PhotoRetrievalResponseRetrievalMode];
+
+export const PhotoRetrievalResponseRetrievalMode = {
+  concept: "concept",
+  keyword: "keyword",
+} as const;
+
+export type PhotoRetrievalResponseRetrieval = {
+  version: string;
+  mode: PhotoRetrievalResponseRetrievalMode;
+  /** @nullable */
+  embeddingModel: string | null;
+  ranking: string;
+};
+
+export type PhotoRetrievalMatchType =
+  (typeof PhotoRetrievalMatchType)[keyof typeof PhotoRetrievalMatchType];
+
+export const PhotoRetrievalMatchType = {
+  keyword: "keyword",
+  concept: "concept",
+} as const;
+
+export type PhotoRetrievalMatchFieldsItem =
+  (typeof PhotoRetrievalMatchFieldsItem)[keyof typeof PhotoRetrievalMatchFieldsItem];
+
+export const PhotoRetrievalMatchFieldsItem = {
+  album_title: "album_title",
+  uploader: "uploader",
+  description: "description",
+} as const;
+
+/**
+ * Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
+ */
+export interface PhotoRetrievalMatch {
+  type: PhotoRetrievalMatchType;
+  fields?: PhotoRetrievalMatchFieldsItem[];
+  similarity?: number;
+  /** @nullable */
+  qualityScore?: number | null;
+  score?: number;
+}
+
+export interface PhotoRetrievalItem {
+  photo: Photo;
+  match: PhotoRetrievalMatch;
+}
+
+export interface PhotoRetrievalResponse {
+  status: PhotoRetrievalResponseStatus;
+  items: PhotoRetrievalItem[];
+  page: PhotoRetrievalResponsePage;
+  /**
+   * Qualifying results — keyword matches, or ranked (embedded) photos for concept. Null when unavailable.
+   * @nullable
+   */
+  total: number | null;
+  /** @nullable */
+  coverage: PhotoRetrievalResponseCoverage;
+  /** @nullable */
+  degraded: PhotoRetrievalResponseDegraded;
+  retrieval: PhotoRetrievalResponseRetrieval;
+}
+
 /**
  * People are collections with kind 'person' — same machinery, listed on their own pages.
  */
@@ -868,6 +967,14 @@ export type SearchPhotosParams = {
    * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
    */
   minQuality?: number;
+  /**
+   * Only photos carrying this usage-rights tag (the organization's own tags).
+   */
+  rightsTagId?: number;
+  /**
+   * Only photos in this person collection (the organization's own people).
+   */
+  personId?: number;
 };
 
 export type SemanticSearchPhotosParams = {
@@ -899,7 +1006,76 @@ export type SemanticSearchPhotosParams = {
    * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
    */
   minQuality?: number;
+  /**
+   * Only photos carrying this usage-rights tag (the organization's own tags).
+   */
+  rightsTagId?: number;
+  /**
+   * Only photos in this person collection (the organization's own people).
+   */
+  personId?: number;
 };
+
+export type RetrievePhotosParams = {
+  q: string;
+  /**
+   * concept (semantic, default) or keyword.
+   */
+  mode?: RetrievePhotosMode;
+  /**
+   * Page size, 1-200 (default 30).
+   */
+  limit?: number;
+  /**
+   * page.nextCursor from the previous page. Bound to the request; a changed request returns 400 cursor_mismatch.
+   */
+  cursor?: string;
+  /**
+   * Honoured for admins only.
+   */
+  includeHidden?: boolean;
+  /**
+   * keyword — photos whose AI description matches any term are removed; concept — the query is steered away (a ranking preference, not guaranteed absence).
+   */
+  exclude?: string[];
+  /**
+   * Minimum average user rating (0-5; unrated counts as 0).
+   */
+  ratingMin?: number;
+  /**
+   * Maximum average user rating (0-5; unrated counts as 0).
+   */
+  ratingMax?: number;
+  /**
+   * Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+   */
+  dateFrom?: string;
+  /**
+   * Inclusive capture date (YYYY-MM-DD). Must not be before dateFrom.
+   */
+  dateTo?: string;
+  uploaderId?: number;
+  /**
+   * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
+   */
+  minQuality?: number;
+  /**
+   * Only photos carrying this usage-rights tag (the organization's own tags).
+   */
+  rightsTagId?: number;
+  /**
+   * Only photos in this person collection (the organization's own people).
+   */
+  personId?: number;
+};
+
+export type RetrievePhotosMode =
+  (typeof RetrievePhotosMode)[keyof typeof RetrievePhotosMode];
+
+export const RetrievePhotosMode = {
+  concept: "concept",
+  keyword: "keyword",
+} as const;
 
 export type ListSimilarPhotosParams = {
   topK?: number;

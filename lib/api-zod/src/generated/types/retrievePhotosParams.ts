@@ -5,17 +5,32 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+import type { RetrievePhotosMode } from "./retrievePhotosMode";
 
-export type SemanticSearchPhotosParams = {
+export type RetrievePhotosParams = {
   q: string;
-  topK?: number;
+  /**
+   * concept (semantic, default) or keyword.
+   */
+  mode?: RetrievePhotosMode;
+  /**
+   * Page size, 1-200 (default 30).
+   */
+  limit?: number;
+  /**
+   * page.nextCursor from the previous page. Bound to the request; a changed request returns 400 cursor_mismatch.
+   */
+  cursor?: string;
+  /**
+   * Honoured for admins only.
+   */
   includeHidden?: boolean;
   /**
-   * Concepts to steer away from — the query vector is pushed away from their embedding. A ranking preference, not guaranteed absence.
+   * keyword — photos whose AI description matches any term are removed; concept — the query is steered away (a ranking preference, not guaranteed absence).
    */
   exclude?: string[];
   /**
-   * Minimum average user rating (0-5; unrated counts as 0). Applied before ranking limits (#205).
+   * Minimum average user rating (0-5; unrated counts as 0).
    */
   ratingMin?: number;
   /**
@@ -27,7 +42,7 @@ export type SemanticSearchPhotosParams = {
    */
   dateFrom?: string;
   /**
-   * Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
+   * Inclusive capture date (YYYY-MM-DD). Must not be before dateFrom.
    */
   dateTo?: string;
   uploaderId?: number;
