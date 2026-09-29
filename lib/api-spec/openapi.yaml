@@ -425,11 +425,13 @@ paths:
         - name: dateFrom
           in: query
           required: false
+          description: Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
           schema:
             type: string
         - name: dateTo
           in: query
           required: false
+          description: Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
           schema:
             type: string
         - name: uploaderId
@@ -500,11 +502,40 @@ paths:
         - name: exclude
           in: query
           required: false
-          description: Concepts to steer away from — the query vector is pushed away from their embedding.
+          description: Concepts to steer away from — the query vector is pushed away from their embedding. A ranking preference, not guaranteed absence.
           schema:
             type: array
             items:
               type: string
+        - name: ratingMin
+          in: query
+          required: false
+          description: Minimum average user rating (0-5; unrated counts as 0). Applied before ranking limits (#205).
+          schema:
+            type: number
+        - name: ratingMax
+          in: query
+          required: false
+          description: Maximum average user rating (0-5; unrated counts as 0).
+          schema:
+            type: number
+        - name: dateFrom
+          in: query
+          required: false
+          description: Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+          schema:
+            type: string
+        - name: dateTo
+          in: query
+          required: false
+          description: Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
+          schema:
+            type: string
+        - name: uploaderId
+          in: query
+          required: false
+          schema:
+            type: integer
         - name: minQuality
           in: query
           required: false

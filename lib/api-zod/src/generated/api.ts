@@ -596,8 +596,18 @@ export const SearchPhotosQueryParams = zod.object({
   q: zod.coerce.string(),
   ratingMin: zod.coerce.number().optional(),
   ratingMax: zod.coerce.number().optional(),
-  dateFrom: zod.coerce.string().optional(),
-  dateTo: zod.coerce.string().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.",
+    ),
   uploaderId: zod.coerce.number().optional(),
   includeHidden: zod.coerce.boolean().optional(),
   limit: zod.coerce.number().optional(),
@@ -780,8 +790,31 @@ export const SemanticSearchPhotosQueryParams = zod.object({
     .array(zod.coerce.string())
     .optional()
     .describe(
-      "Concepts to steer away from — the query vector is pushed away from their embedding.",
+      "Concepts to steer away from — the query vector is pushed away from their embedding. A ranking preference, not guaranteed absence.",
     ),
+  ratingMin: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Minimum average user rating (0-5; unrated counts as 0). Applied before ranking limits (#205).",
+    ),
+  ratingMax: zod.coerce
+    .number()
+    .optional()
+    .describe("Maximum average user rating (0-5; unrated counts as 0)."),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.",
+    ),
+  uploaderId: zod.coerce.number().optional(),
   minQuality: zod.coerce
     .number()
     .optional()

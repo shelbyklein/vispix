@@ -46,7 +46,15 @@ function parseSearch(search: string) {
     dateTo: p.get("dateTo") ?? "",
     uploaderId: p.get("uploaderId") ?? "",
     exclude: p.get("exclude") ?? "",
+    hidden: p.get("hidden") === "1" ? "1" : "",
   };
+}
+
+// Client-side check mirroring the server's (#205): an inverted date range is
+// shown as an error instead of being sent (the server would answer 400).
+function filterError(dateFrom: string, dateTo: string): string | null {
+  if (dateFrom && dateTo && dateFrom > dateTo) return "“Date from” must be on or before “Date to”.";
+  return null;
 }
 
 function buildQs(params: Record<string, string>) {
@@ -96,8 +104,9 @@ export default function SearchPage() {
   const searchString = useSearch();
 
   const urlParams = parseSearch(searchString);
-  const { q, mode, ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId, exclude } = urlParams;
+  const { q, mode, ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId, exclude, hidden } = urlParams;
   const isSemantic = mode === "semantic";
+  const invalidFilters = filterError(dateFrom, dateTo);
 
   // Exclusion terms (dedicated field) — comma-joined in the URL, applied in both modes.
   const excludeTerms = exclude ? exclude.split(",").map((t) => t.trim()).filter(Boolean) : [];
@@ -110,9 +119,9 @@ export default function SearchPage() {
     setInputValue(q);
   }, [q]);
 
-  const [showHidden, setShowHidden] = useState(false);
-
   const { data: me } = useGetMe();
+  // In the URL (#205) so mode switches and Back/Forward keep it; admin-only.
+  const showHidden = hidden === "1" && me?.role === "admin";
   const { data: users } = useListUsers({ query: { enabled: me?.role === "admin", queryKey: getListUsersQueryKey() } });
 
   const hasActiveFilters =
@@ -136,22 +145,27 @@ export default function SearchPage() {
     offset,
   };
 
-  // Semantic search ignores most keyword filters + pagination — it ranks by
-  // image-embedding similarity to the query, respecting hidden visibility and
-  // the AI quality floor (#181).
+  // Semantic search ranks by image-embedding similarity (one page, no
+  // offset) and applies exactly the same filters as keyword search (#205).
   const semanticParams = {
     q,
+    ...(ratingMin && { ratingMin: parseFloat(ratingMin) }),
+    ...(ratingMax && { ratingMax: parseFloat(ratingMax) }),
+    ...(minQuality && { minQuality: parseFloat(minQuality) }),
+    ...(dateFrom && { dateFrom }),
+    ...(dateTo && { dateTo }),
+    ...(uploaderId && { uploaderId: parseInt(uploaderId, 10) }),
     ...(showHidden && { includeHidden: true }),
     ...(excludeTerms.length && { exclude: excludeTerms }),
-    ...(minQuality && { minQuality: parseFloat(minQuality) }),
   };
 
   const keyword = useSearchPhotos(searchParams, {
-    query: { enabled: !!q && !isSemantic, queryKey: getSearchPhotosQueryKey(searchParams) },
+    query: { enabled: !!q && !isSemantic && !invalidFilters, queryKey: getSearchPhotosQueryKey(searchParams) },
   });
   const semantic = useSemanticSearchPhotos(semanticParams, {
-    query: { enabled: !!q && isSemantic, queryKey: getSemanticSearchPhotosQueryKey(semanticParams) },
+    query: { enabled: !!q && isSemantic && !invalidFilters, queryKey: getSemanticSearchPhotosQueryKey(semanticParams) },
   });
+  const searchError = (isSemantic ? semantic.error : keyword.error) as Error | null;
 
   const keywordPage = keyword.data;
   const [keywordHasMore, setKeywordHasMore] = useState(false);
@@ -211,9 +225,12 @@ export default function SearchPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [photos, pendingAdvance]);
 
+  // Each search / mode / filter change is its own history entry (#205), so
+  // Back and Forward step through earlier searches with their filters intact.
   function navigate(next: Partial<ReturnType<typeof parseSearch>>) {
     const merged = { ...urlParams, ...next };
-    setLocation(`/search${buildQs(merged)}`, { replace: true });
+    const target = `/search${buildQs(merged)}`;
+    if (target !== `/search${buildQs(urlParams)}`) setLocation(target);
   }
 
   function handleSearch(e: React.FormEvent) {
@@ -260,7 +277,7 @@ export default function SearchPage() {
             {me?.role === "admin" && (
               <button
                 type="button"
-                onClick={() => setShowHidden((v) => !v)}
+                onClick={() => navigate({ hidden: showHidden ? "" : "1" })}
                 className={`flex items-center gap-0.5 rounded px-1 py-0.5 text-[10px] font-medium transition-colors ${showHidden ? "bg-primary/10 text-primary" : "hover:bg-muted text-muted-foreground/70 hover:text-muted-foreground"}`}
                 data-testid="toggle-hidden-photos"
                 title={showHidden ? "Hide hidden photos" : "Show hidden photos"}
@@ -316,23 +333,21 @@ export default function SearchPage() {
           <Button type="submit" data-testid="search-submit">
             Search
           </Button>
-          {!isSemantic && (
-            <Button
-              type="button"
-              variant="outline"
-              className={cn("gap-1.5", hasActiveFilters && "border-primary text-primary")}
-              onClick={() => setShowFilters((v) => !v)}
-              data-testid="toggle-filters"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              Filters
-              {hasActiveFilters && (
-                <span className="ml-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
-                  {[ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId].filter(Boolean).length}
-                </span>
-              )}
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="outline"
+            className={cn("gap-1.5", hasActiveFilters && "border-primary text-primary")}
+            onClick={() => setShowFilters((v) => !v)}
+            data-testid="toggle-filters"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+            Filters
+            {hasActiveFilters && (
+              <span className="ml-1 h-4 w-4 rounded-full bg-primary text-primary-foreground text-xs flex items-center justify-center font-medium">
+                {[ratingMin, ratingMax, minQuality, dateFrom, dateTo, uploaderId].filter(Boolean).length}
+              </span>
+            )}
+          </Button>
         </form>
 
         {q && (
@@ -381,10 +396,23 @@ export default function SearchPage() {
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground" data-testid="semantic-hint">
             <Sparkles className="h-3 w-3 text-primary" />
             Ranked by visual similarity to your description (needs photos to be embedded in Admin → Image Embeddings).
+            {hasActiveFilters && " Your filters apply here too."}
+          </p>
+        )}
+        {isSemantic && excludeTerms.length > 0 && (
+          <p className="text-xs text-muted-foreground" data-testid="semantic-exclude-note">
+            In Semantic mode, exclusions push results away from those concepts — matching photos can still appear.
+            Switch to Keyword to remove them outright.
           </p>
         )}
 
-        {!isSemantic && showFilters && (
+        {invalidFilters && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert" data-testid="filter-error">
+            {invalidFilters} Fix the dates to search.
+          </p>
+        )}
+
+        {showFilters && (
           <div
             className="rounded-xl border border-border bg-card p-5 space-y-4"
             data-testid="filter-panel"
@@ -608,7 +636,13 @@ export default function SearchPage() {
           </div>
         )}
 
-        {q && !isInitialLoading && (
+        {q && !invalidFilters && searchError && (
+          <p className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive" role="alert" data-testid="search-error">
+            Search failed: {searchError.message}
+          </p>
+        )}
+
+        {q && !isInitialLoading && !invalidFilters && !searchError && (
           <>
             <div className="flex items-center justify-between gap-3">
               <p className="text-sm text-muted-foreground" data-testid="search-result-count">

@@ -10,7 +10,13 @@ export type SearchPhotosParams = {
   q: string;
   ratingMin?: number;
   ratingMax?: number;
+  /**
+   * Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+   */
   dateFrom?: string;
+  /**
+   * Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
+   */
   dateTo?: string;
   uploaderId?: number;
   includeHidden?: boolean;
