@@ -246,6 +246,13 @@
       "when": 1785167244750,
       "tag": "0034_famous_naoko",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1790647731187,
+      "tag": "0035_brainy_the_fury",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useRoute, useLocation } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
@@ -8,6 +8,8 @@ import {
   useGenerateCampaignSuggestions,
   useGenerationSession,
   generationDownloadUrl,
+  getCampaignBriefConflict,
+  isCampaignRequestUnanswered,
   type ImageGenerationResult,
 } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
@@ -86,12 +88,30 @@ export default function CampaignDetailPage() {
   const generate = useGenerateCampaignSuggestions();
   const session = useGenerationSession(campaign?.sessionId ?? undefined);
 
+  // The draft in the editor, and the server brief/revision it was based on
+  // (#216). The draft only follows the server while it has no unsaved edits, so
+  // a refetch (e.g. after another tab saves) never wipes what the user typed.
   const [brief, setBrief] = useState("");
+  const [base, setBase] = useState<{ id: number; brief: string; revision: number } | null>(null);
+  const draftEdited = base != null && brief.trim() !== base.brief;
   useEffect(() => {
-    if (campaign) setBrief(campaign.brief);
-  }, [campaign?.id, campaign?.brief]);
+    if (!campaign) return;
+    if (base == null || base.id !== campaign.id || !draftEdited) {
+      setBrief(campaign.brief);
+      setBase({ id: campaign.id, brief: campaign.brief, revision: campaign.briefRevision });
+    }
+    // Otherwise keep the edits; the banner below offers the newer version.
+  }, [campaign?.id, campaign?.brief, campaign?.briefRevision]);
+
+  // A generate request that got no HTTP answer is retried with the same id, so
+  // the server can recognise it and not start the work twice.
+  const unansweredRequest = useRef<{ requestId: string; brief: string; revision: number } | null>(null);
+  const [starting, setStarting] = useState(false);
+  // Synchronous double-click guard (state updates land after the handler).
+  const inFlight = useRef(false);
 
   const briefDirty = campaign != null && brief.trim() !== campaign.brief;
+  const changedElsewhere = campaign != null && base != null && draftEdited && campaign.briefRevision !== base.revision;
   const suggestions = [...(session.data?.generations ?? [])].reverse();
   const anyPending = suggestions.some((g) => g.status === "pending");
 
@@ -105,20 +125,63 @@ export default function CampaignDetailPage() {
     );
   }
 
+  function handleConflict(err: unknown): boolean {
+    const conflict = getCampaignBriefConflict(err);
+    if (!conflict) return false;
+    toast({ title: "Brief changed elsewhere", description: conflict.error, variant: "destructive" });
+    return true;
+  }
+
+  function handleSave() {
+    if (!campaign || !base || saving || starting) return;
+    const text = brief.trim();
+    update(
+      { id: campaign.id, brief: text, expectedRevision: base.revision },
+      {
+        onSuccess: (saved) => setBase({ id: saved.id, brief: saved.brief, revision: saved.briefRevision }),
+        onError: (err) => {
+          if (!handleConflict(err)) toast({ title: "Failed to save brief", variant: "destructive" });
+        },
+      },
+    );
+  }
+
+  // Save-and-generate is ONE request (#216): the server saves this exact brief
+  // (refusing if another tab changed it) and only then starts generation, so
+  // the suggestions always come from what's on screen. On any failure the
+  // draft stays in the editor.
   function handleGenerate() {
-    if (campaignId == null || generate.isPending || anyPending) return;
-    // Save an edited brief first so the agent works from what's on screen.
-    if (briefDirty) {
-      update({ id: campaignId, brief: brief.trim() });
-    }
-    generate.mutate(campaignId, {
-      onError: (err) =>
-        toast({
-          title: "Suggestion generation failed",
-          description: err instanceof Error ? err.message : undefined,
-          variant: "destructive",
-        }),
-    });
+    if (campaignId == null || !base || inFlight.current || starting || generate.isPending || anyPending || saving) return;
+    const text = brief.trim();
+    const pending = unansweredRequest.current;
+    const request = pending && pending.brief === text && pending.revision === base.revision
+      ? pending
+      : { requestId: crypto.randomUUID(), brief: text, revision: base.revision };
+    inFlight.current = true;
+    setStarting(true);
+    generate.mutate(
+      { id: campaignId, brief: request.brief, expectedRevision: request.revision, requestId: request.requestId },
+      {
+        onSuccess: (result) => {
+          unansweredRequest.current = null;
+          setBase({ id: campaignId, brief: result.brief, revision: result.briefRevision });
+          if (result.duplicate) toast({ title: "Already generating these suggestions" });
+        },
+        onError: (err) => {
+          unansweredRequest.current = isCampaignRequestUnanswered(err) ? request : null;
+          if (handleConflict(err)) return;
+          toast({
+            title: "Suggestion generation failed",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          });
+        },
+        onSettled: () => {
+          inFlight.current = false;
+          setStarting(false);
+        },
+      },
+    );
   }
 
   return (
@@ -176,19 +239,47 @@ export default function CampaignDetailPage() {
             className="min-h-[140px] text-sm"
             data-testid="campaign-brief-editor"
           />
+          {changedElsewhere && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
+              role="status"
+              data-testid="brief-changed-elsewhere"
+            >
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <span className="min-w-0 flex-1">
+                This brief was changed elsewhere since you started editing. Your edits are kept here.
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 text-xs"
+                onClick={() => {
+                  setBrief(campaign.brief);
+                  setBase({ id: campaign.id, brief: campaign.brief, revision: campaign.briefRevision });
+                }}
+                data-testid="brief-load-latest-btn"
+              >
+                Load latest
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-7 text-xs"
+                onClick={() => setBase({ id: campaign.id, brief: campaign.brief, revision: campaign.briefRevision })}
+                data-testid="brief-keep-mine-btn"
+              >
+                Keep my edits
+              </Button>
+            </div>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             {briefDirty && (
               <Button
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                disabled={saving || !brief.trim()}
-                onClick={() =>
-                  update(
-                    { id: campaign.id, brief: brief.trim() },
-                    { onError: () => toast({ title: "Failed to save brief", variant: "destructive" }) },
-                  )
-                }
+                disabled={saving || starting || !brief.trim() || changedElsewhere}
+                onClick={handleSave}
                 data-testid="save-brief-btn"
               >
                 {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
@@ -199,10 +290,10 @@ export default function CampaignDetailPage() {
               size="sm"
               className="gap-1.5"
               onClick={handleGenerate}
-              disabled={generate.isPending || anyPending || !brief.trim()}
+              disabled={starting || generate.isPending || anyPending || saving || !brief.trim() || changedElsewhere}
               data-testid="generate-suggestions-btn"
             >
-              {generate.isPending || anyPending ? (
+              {starting || generate.isPending || anyPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : (
                 <Sparkles className="h-3.5 w-3.5" />

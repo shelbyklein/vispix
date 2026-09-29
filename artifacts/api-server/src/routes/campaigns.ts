@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod/v4";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, campaignsTable, type Campaign } from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { generateCampaignSuggestions } from "../lib/imageGeneration/campaignSuggestions";
@@ -16,13 +16,44 @@ const CampaignBody = z.object({
   brief: z.string().trim().min(1).max(8000),
 });
 
-const CampaignPatchBody = CampaignBody.partial();
+// `expectedRevision` (#216): the brief revision the client edited. A stale one
+// means another tab changed the brief since — refuse rather than overwrite it.
+const CampaignPatchBody = CampaignBody.partial().extend({
+  expectedRevision: z.number().int().positive().optional(),
+});
+
+// Generate from the brief on screen (#216): the brief is saved and the request
+// claimed in ONE conditional UPDATE before any generation starts, so generation
+// can never read an older brief, a failed/conflicting save starts nothing, and
+// a repeated `requestId` (double click, client retry) starts nothing new. An
+// empty body keeps the old contract: generate from the persisted brief.
+const GenerateBody = z.object({
+  brief: z.string().trim().min(1).max(8000).optional(),
+  expectedRevision: z.number().int().positive().optional(),
+  requestId: z.string().trim().min(8).max(100).optional(),
+});
+
+// Bump the revision only when the brief text actually changes. SET expressions
+// see the pre-update row, so this compares against the stored brief.
+function nextBriefRevision(brief: string): SQL {
+  return sql`CASE WHEN ${campaignsTable.brief} IS DISTINCT FROM ${brief} THEN ${campaignsTable.briefRevision} + 1 ELSE ${campaignsTable.briefRevision} END`;
+}
+
+function conflictBody(current: Campaign) {
+  return {
+    error: "This brief was changed elsewhere since you started editing. Review the latest version before saving or generating.",
+    conflict: true,
+    brief: current.brief,
+    briefRevision: current.briefRevision,
+  };
+}
 
 function serialize(c: Campaign) {
   return {
     id: c.id,
     name: c.name,
     brief: c.brief,
+    briefRevision: c.briefRevision,
     sessionId: c.sessionId,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
@@ -85,16 +116,24 @@ router.patch("/campaigns/:id", requireOrgAuth, async (req: Request, res: Respons
     res.status(400).json({ error: "Invalid campaign update" });
     return;
   }
-  const existing = await findOrgCampaign(id, req.org!.id);
-  if (!existing) {
-    res.status(404).json({ error: "Campaign not found" });
-    return;
-  }
+  const { expectedRevision, ...fields } = body.data;
+  const conditions = [eq(campaignsTable.id, id), eq(campaignsTable.organizationId, req.org!.id)];
+  if (expectedRevision != null) conditions.push(eq(campaignsTable.briefRevision, expectedRevision));
   const [row] = await db
     .update(campaignsTable)
-    .set({ ...body.data, updatedAt: new Date() })
-    .where(eq(campaignsTable.id, id))
+    .set({
+      ...fields,
+      ...(fields.brief != null ? { briefRevision: nextBriefRevision(fields.brief) } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(...conditions))
     .returning();
+  if (!row) {
+    const existing = await findOrgCampaign(id, req.org!.id);
+    if (!existing) res.status(404).json({ error: "Campaign not found" });
+    else res.status(409).json(conflictBody(existing));
+    return;
+  }
   res.json(serialize(row));
 });
 
@@ -123,15 +162,49 @@ router.post("/campaigns/:id/generate", requireOrgAuth, async (req: Request, res:
     res.status(400).json({ error: "Invalid campaign id" });
     return;
   }
-  const campaign = await findOrgCampaign(id, req.org!.id);
+  const body = GenerateBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: "The brief can't be empty (and must be under 8000 characters)" });
+    return;
+  }
+  const { brief, expectedRevision, requestId } = body.data;
+
+  const conditions = [eq(campaignsTable.id, id), eq(campaignsTable.organizationId, req.org!.id)];
+  if (expectedRevision != null) conditions.push(eq(campaignsTable.briefRevision, expectedRevision));
+  if (requestId) conditions.push(sql`${campaignsTable.lastGenerateRequestId} IS DISTINCT FROM ${requestId}`);
+  const [campaign] = await db
+    .update(campaignsTable)
+    .set({
+      ...(brief != null ? { brief, briefRevision: nextBriefRevision(brief) } : {}),
+      ...(requestId ? { lastGenerateRequestId: requestId } : {}),
+      updatedAt: new Date(),
+    })
+    .where(and(...conditions))
+    .returning();
   if (!campaign) {
-    res.status(404).json({ error: "Campaign not found" });
+    const existing = await findOrgCampaign(id, req.org!.id);
+    if (!existing) {
+      res.status(404).json({ error: "Campaign not found" });
+    } else if (requestId && existing.lastGenerateRequestId === requestId) {
+      // Already accepted: answer like the original success, start nothing.
+      res.json({ duplicate: true, sessionId: existing.sessionId, generations: [], concepts: [], brief: existing.brief, briefRevision: existing.briefRevision });
+    } else {
+      res.status(409).json(conflictBody(existing));
+    }
     return;
   }
   try {
-    const result = await generateCampaignSuggestions(campaign, req.dbUser!.id, 3);
-    res.json(result);
+    const result = await generateCampaignSuggestions(campaign, req.dbUser!.id, 3, { requestId });
+    res.json({ ...result, brief: campaign.brief, briefRevision: campaign.briefRevision });
   } catch (error) {
+    // Nothing was accepted, so the same request may be retried. The brief save
+    // stands — it's what the user asked to generate from.
+    if (requestId) {
+      await db
+        .update(campaignsTable)
+        .set({ lastGenerateRequestId: null })
+        .where(and(eq(campaignsTable.id, id), eq(campaignsTable.lastGenerateRequestId, requestId)));
+    }
     const status = (error as { statusCode?: number }).statusCode ?? 500;
     const message = error instanceof Error ? error.message : "Suggestion generation failed";
     if (status >= 500) req.log.error({ err: error }, "Campaign suggestion generation failed");
