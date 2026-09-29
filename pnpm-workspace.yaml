@@ -36,7 +36,6 @@ catalog:
   zod: 3.25.76
 
 # Windows: run lifecycle/package scripts through Git Bash (repo scripts use POSIX syntax)
-scriptShell: C:\Program Files\Git\bin\bash.exe
 
 minimumReleaseAge: 1440
 

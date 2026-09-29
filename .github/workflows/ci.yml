@@ -19,11 +19,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # pnpm-workspace.yaml pins scriptShell to a Windows Git Bash path for local
-      # dev; it doesn't exist on Linux runners, so pnpm can't spawn dependency
-      # postinstall scripts (ENOENT). Strip the line before install. scriptShell
-      # is a pnpm-workspace.yaml-only setting (not overridable via env/.npmrc).
-      - run: sed -i '/^scriptShell:/d' pnpm-workspace.yaml
       - run: pnpm install --frozen-lockfile
       - run: pnpm run typecheck
 
@@ -57,11 +52,6 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-      # pnpm-workspace.yaml pins scriptShell to a Windows Git Bash path for local
-      # dev; it doesn't exist on Linux runners, so pnpm can't spawn dependency
-      # postinstall scripts (ENOENT). Strip the line before install. scriptShell
-      # is a pnpm-workspace.yaml-only setting (not overridable via env/.npmrc).
-      - run: sed -i '/^scriptShell:/d' pnpm-workspace.yaml
       - run: pnpm install --frozen-lockfile
       # Apply migrations to the fresh test database before running integration tests.
       # (Uses tsx directly so it reads DATABASE_URL from the environment, not a .env file.)

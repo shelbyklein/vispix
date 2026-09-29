@@ -57,6 +57,7 @@ deploy/secrets/gcp-sa.json
 .kanbots/
 
 # Local machine/tooling state
+.data/
 .claude/settings.local.json
 scripts/logs/
 

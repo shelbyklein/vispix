@@ -4,12 +4,12 @@ A pnpm-workspace monorepo photo album app: Express API + React web frontend + Ex
 
 ## Branch workflow (dev → main releases)
 
-- **All day-to-day work happens on the `dev` branch**, checked out in the dev worktree at `C:\Vibes\Targetvision\targetvision-dev` (served live at dev.vispix.dev, web 8085 / API 8084). Edit and commit there — not in the prod checkout.
-- The prod checkout (`C:\Vibes\Targetvision\Targetvision`) stays on `main` and is the live site (vispix.dev, web 8083 / API 8080). Don't switch its branch or leave its tree dirty.
-- **Release** (only when the user says so): open a PR `dev` → `main`, merge with a **merge commit** (not squash — keeps the long-lived `dev` history connected), then `git pull` in the prod checkout and restart the prod API if api-server code changed (the API is a prebuilt bundle, no watch; the web is Vite HMR and updates itself).
-- The web dev server picks up `dev` commits via HMR; **API changes need a dev API restart** (kill port 8084, re-run `pnpm run dev:api` in the worktree or `scripts/start-vispix-dev.ps1`).
-- Dev has its **own database** (`vispix_dev`, cloned from prod via `scripts/clone-dev-db.ps1`) — schema changes, migrations, and destructive testing on dev are safe. **At release, run `pnpm --filter @workspace/db run migrate` in the prod checkout** to apply any new migrations to the prod DB.
-- ⚠️ Dev still shares the prod **storage bucket**; the dev `.env` sets `PHOTO_STORAGE_DELETE_DISABLED=true` so dev photo deletes never remove image files prod references. Keep it set.
+- **All day-to-day work happens on the `dev` branch**, checked out on the Beelink home server at `~/vispix-dev/app` (`ssh beelink`). It's served live at **dev.vispix.dev** (web 8085 / API 8084) and **mcp-dev.vispix.dev** (MCP 8086) by the Docker stack in `deploy/dev/`, operated with `scripts/vispix-dev.sh`. See `docs/DEV_ENVIRONMENT.md`.
+- **Prod** (vispix.dev, mcp.vispix.dev) runs on a DigitalOcean droplet. Pushing to `main` builds and deploys it via GitHub Actions and applies pending migrations (`deploy/DEPLOY.md`). There is no prod checkout to maintain by hand.
+- **Release** (only when the user says so): open a PR `dev` → `main` and merge with a **merge commit** (not squash — keeps the long-lived `dev` history connected). The deploy workflow does the rest.
+- The dev web server picks up edits via HMR; **API changes need a dev API restart**: `scripts/vispix-dev.sh restart api` (rebuilds the bundle on start).
+- Run pnpm on the Beelink through the container so native deps match: `scripts/vispix-dev.sh pnpm <args>` (install, typecheck, codegen, db generate/migrate).
+- Dev has its **own database** (`vispix_dev` in the dev Postgres container) and its **own copy of object storage** (`~/vispix-dev/storage`, fake-gcs). Schema changes, migrations, and destructive testing on dev are safe. `PHOTO_STORAGE_DELETE_DISABLED=true` is still set in the dev `.env` from when storage was shared with prod — harmless to keep.
 
 ## Run & Operate
 
@@ -20,7 +20,7 @@ A pnpm-workspace monorepo photo album app: Express API + React web frontend + Ex
 - `pnpm run build` — typecheck + build all packages
 - `pnpm --filter @workspace/api-spec run codegen` — regenerate API hooks and Zod schemas from `lib/api-spec/openapi.yaml`
 - `pnpm run test` — run tests across packages (api-server integration tests need a Postgres `vispix_test` DB; see Migrations)
-- Prerequisites: Node 24 (nvm), pnpm (corepack), PostgreSQL 16 on port 5433 (brew services), Docker Desktop (for fake-gcs-server)
+- Prerequisites (standalone local setup, not the Beelink dev stack): Node 24 (nvm), pnpm (corepack), Docker (Postgres + fake-gcs-server via the root `docker-compose.yml`)
 - Env vars load from a root `.env` file (see `.env.example`). The api-server reads it via `--env-file-if-exists`; `lib/db`'s scripts use `dotenv-cli` (`dotenv -e ../../.env -- <cmd>`).
 
 ## Database & migrations

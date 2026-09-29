@@ -29,9 +29,9 @@ services:
     ports:
       - "4443:4443"
     volumes:
-      # Live object store on the big E: drive (photos are the growing dataset;
-      # keep them off C:, where Docker's own virtual disk lives).
-      - E:/TargetVision/storage:/storage
+      # Object store on the host (override with GCS_STORAGE_DIR). The shared
+      # dev stack on the Beelink uses deploy/dev/docker-compose.yml instead.
+      - ${GCS_STORAGE_DIR:-./.data/gcs}:/storage
       # Seed dir: each subdirectory becomes a bucket on boot.
       - ./scripts/fake-gcs/seed:/data
 

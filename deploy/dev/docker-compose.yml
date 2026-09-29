@@ -1,0 +1,101 @@
+# Vispix DEV stack (dev.vispix.dev) — runs on the Beelink home server.
+# Don't call this directly; use scripts/vispix-dev.sh, which sets
+# VISPIX_DEV_ROOT and the project name. See docs/DEV_ENVIRONMENT.md.
+#
+# $VISPIX_DEV_ROOT layout:
+#   app/       this repo, checked out on `dev` (app/.env = the app's env)
+#   storage/   fake-gcs object store (photos + thumbnails)
+#   secrets/   Vertex service-account JSON (GOOGLE_APPLICATION_CREDENTIALS)
+#   .env       compose-only vars: TUNNEL_TOKEN
+#
+# Postgres + fake-gcs publish on 127.0.0.1 only. The node services use host
+# networking, so app/.env uses plain localhost URLs (5433 / 4443) and the
+# tunnel reaches web (8085) and MCP (8086) on localhost.
+name: vispix-dev
+
+x-node: &node
+  image: node:24-bookworm
+  user: "${VISPIX_UID:-1000}:${VISPIX_GID:-1000}"
+  network_mode: host
+  working_dir: ${VISPIX_DEV_ROOT:?run via scripts/vispix-dev.sh}/app
+  restart: unless-stopped
+  environment:
+    COREPACK_ENABLE_DOWNLOAD_PROMPT: "0"
+    HOME: ${VISPIX_DEV_ROOT}
+  # Same path inside and out, so absolute paths in app/.env work unchanged.
+  volumes:
+    - ${VISPIX_DEV_ROOT}:${VISPIX_DEV_ROOT}
+  depends_on:
+    postgres:
+      condition: service_healthy
+    fake-gcs:
+      condition: service_started
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: vispix_dev
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    mem_limit: 1g
+
+  # Object metadata lives in each file's `user.metadata` xattr — copy storage/
+  # with a tool that preserves xattrs (rsync -X, tar --xattrs) or objects 404.
+  fake-gcs:
+    image: fsouza/fake-gcs-server:1.52.3
+    restart: unless-stopped
+    command: ["-scheme", "http", "-port", "4443",
+              "-public-host", "localhost:4443", "-external-url", "http://localhost:4443",
+              "-backend", "filesystem", "-filesystem-root", "/storage", "-data", "/data"]
+    ports:
+      - "127.0.0.1:4443:4443"
+    volumes:
+      - ${VISPIX_DEV_ROOT}/storage:/storage
+      - ../../scripts/fake-gcs/seed:/data:ro
+    mem_limit: 512m
+
+  # Rebuilds the esbuild bundle on start — `vispix-dev.sh restart api` after API changes.
+  api:
+    <<: *node
+    command: ["sh", "-c", "mkdir -p \"$$HOME/.bin\" && corepack enable --install-directory \"$$HOME/.bin\" && PATH=\"$$HOME/.bin:$$PATH\" pnpm run dev:api"]
+    mem_limit: 1536m
+    cpus: 2
+
+  # Vite on 8085 with HMR; proxies /api -> 8084 and /gcs -> fake-gcs.
+  web:
+    <<: *node
+    command: ["sh", "-c", "mkdir -p \"$$HOME/.bin\" && corepack enable --install-directory \"$$HOME/.bin\" && PATH=\"$$HOME/.bin:$$PATH\" pnpm run dev:web:dev"]
+    mem_limit: 1536m
+    cpus: 2
+
+  # MCP gateway on 8086, public at mcp-dev.vispix.dev. Uses its own
+  # MCP_AUTH_TOKEN (never prod's).
+  mcp:
+    <<: *node
+    command: ["sh", "-c", "mkdir -p \"$$HOME/.bin\" && corepack enable --install-directory \"$$HOME/.bin\" && PATH=\"$$HOME/.bin:$$PATH\" pnpm run mcp:http"]
+    mem_limit: 768m
+    cpus: 1
+
+  # Dashboard-managed tunnel `vispix-dev-beelink`: dev.vispix.dev -> localhost:8085,
+  # mcp-dev.vispix.dev -> localhost:8086.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    network_mode: host
+    command: tunnel --no-autoupdate run --token ${TUNNEL_TOKEN:-}
+    profiles: ["tunnel"]
+    mem_limit: 256m
+
+volumes:
+  postgres-data:
