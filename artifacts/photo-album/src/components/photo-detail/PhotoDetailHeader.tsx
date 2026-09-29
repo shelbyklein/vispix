@@ -1,25 +1,33 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, RotateCw } from "lucide-react";
+
+/** Where the Previous/Next lookup stands (#210). */
+export type PhotoNavState = "loading" | "ready" | "error" | "outside";
 
 export function PhotoDetailHeader({
   albumId,
   albumTitle,
   prevPhotoId,
   nextPhotoId,
-  hasAlbumPhotos,
-  currentIndex,
+  navState,
+  position,
   totalPhotos,
   onNavigate,
+  onRetry,
+  fallbackHref,
 }: {
   albumId: number;
   albumTitle?: string | null;
   prevPhotoId: number | null;
   nextPhotoId: number | null;
-  hasAlbumPhotos: boolean;
-  currentIndex: number;
+  navState: PhotoNavState;
+  position: number | null;
   totalPhotos: number;
   onNavigate: (id: number) => void;
+  onRetry: () => void;
+  /** The same photo without the browsing context (direct-link fallback). */
+  fallbackHref: string | null;
 }) {
   return (
     <div className="flex items-center justify-between gap-3">
@@ -47,9 +55,33 @@ export function PhotoDetailHeader({
             <ChevronLeft className="h-4 w-4" />
             Prev
           </Button>
-          {hasAlbumPhotos && currentIndex >= 0 && (
+          {navState === "loading" && (
+            <span className="px-1 text-muted-foreground" data-testid="photo-position-loading" aria-label="Loading neighbouring photos">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            </span>
+          )}
+          {navState === "ready" && position != null && (
             <span className="text-xs text-muted-foreground px-1 tabular-nums" data-testid="photo-position">
-              {currentIndex + 1} / {totalPhotos}
+              {position} / {totalPhotos}
+            </span>
+          )}
+          {navState === "error" && (
+            <Button variant="ghost" size="sm" className="h-8 gap-1 text-xs" onClick={onRetry} data-testid="photo-nav-retry">
+              <RotateCw className="h-3.5 w-3.5" />
+              Couldn't load — retry
+            </Button>
+          )}
+          {navState === "outside" && (
+            <span className="text-xs text-muted-foreground px-1" data-testid="photo-nav-outside">
+              Not in this album view
+              {fallbackHref && (
+                <>
+                  {" · "}
+                  <Link href={fallbackHref} className="underline hover:text-foreground">
+                    browse whole album
+                  </Link>
+                </>
+              )}
             </span>
           )}
           <Button

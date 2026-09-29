@@ -596,8 +596,18 @@ export const SearchPhotosQueryParams = zod.object({
   q: zod.coerce.string(),
   ratingMin: zod.coerce.number().optional(),
   ratingMax: zod.coerce.number().optional(),
-  dateFrom: zod.coerce.string().optional(),
-  dateTo: zod.coerce.string().optional(),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.",
+    ),
   uploaderId: zod.coerce.number().optional(),
   includeHidden: zod.coerce.boolean().optional(),
   limit: zod.coerce.number().optional(),
@@ -780,8 +790,31 @@ export const SemanticSearchPhotosQueryParams = zod.object({
     .array(zod.coerce.string())
     .optional()
     .describe(
-      "Concepts to steer away from — the query vector is pushed away from their embedding.",
+      "Concepts to steer away from — the query vector is pushed away from their embedding. A ranking preference, not guaranteed absence.",
     ),
+  ratingMin: zod.coerce
+    .number()
+    .optional()
+    .describe(
+      "Minimum average user rating (0-5; unrated counts as 0). Applied before ranking limits (#205).",
+    ),
+  ratingMax: zod.coerce
+    .number()
+    .optional()
+    .describe("Maximum average user rating (0-5; unrated counts as 0)."),
+  dateFrom: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.",
+    ),
+  dateTo: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.",
+    ),
+  uploaderId: zod.coerce.number().optional(),
   minQuality: zod.coerce
     .number()
     .optional()
@@ -1094,6 +1127,67 @@ export const ListSimilarPhotosResponseItem = zod.object({
 export const ListSimilarPhotosResponse = zod.array(
   ListSimilarPhotosResponseItem,
 );
+
+/**
+ * Resolves the photos shown before and after this one in an album's order (created_at DESC, id DESC) under the album page's filters, without loading the album. Without albumId the photo's own album is used (the direct-link fallback).
+ * @summary Previous/next photo within an album view (#210)
+ */
+export const GetPhotoNeighborsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetPhotoNeighborsQueryParams = zod.object({
+  albumId: zod.coerce
+    .number()
+    .optional()
+    .describe("Album the user is browsing; defaults to the photo's own album."),
+  includeHidden: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Admins only; include hidden photos in the sequence."),
+  inCollection: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "Album filter — only photos in (true) \/ not in (false) a collection.",
+    ),
+  hasRating: zod.coerce
+    .boolean()
+    .optional()
+    .describe("Album filter — only rated (true) \/ unrated (false) photos."),
+  aiStatus: zod.enum(["has_description", "failed", "not_analysed"]).optional(),
+  attributionTagId: zod.coerce.number().optional(),
+  hasAttribution: zod.coerce
+    .boolean()
+    .optional()
+    .describe(
+      "Album filter — photos with (true) \/ without (false) any attribution tag.",
+    ),
+});
+
+export const GetPhotoNeighborsResponse = zod.object({
+  albumId: zod.number(),
+  inContext: zod
+    .boolean()
+    .describe("Whether the photo is part of this album view at all."),
+  previousId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Photo shown before it (newer), or null at the start \/ when not in context.",
+    ),
+  nextId: zod
+    .number()
+    .nullable()
+    .describe(
+      "Photo shown after it (older), or null at the end \/ when not in context.",
+    ),
+  position: zod
+    .number()
+    .nullable()
+    .describe("1-based position in the view, or null when not in context."),
+  total: zod.number().describe("Number of photos in the view."),
+});
 
 /**
  * @summary List all photos with optional filters

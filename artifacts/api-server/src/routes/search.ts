@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { and, avg, desc, eq, gte, ilike, inArray, isNotNull, isNull, lte, notInArray, or, sql } from "drizzle-orm";
+import { and, avg, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
 import {
   db,
   albumsTable,
@@ -19,6 +19,7 @@ import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse } from "../lib/photoHelpers";
 import { embedText } from "../lib/aiEmbedding";
 import { withIterativeVectorScan } from "../lib/vectorSearch";
+import { parseSearchFilters, photoFilterConditions, takenAtRange } from "../lib/searchFilters";
 
 const router: IRouter = Router();
 
@@ -32,21 +33,6 @@ const NEGATIVE_LAMBDA = 0.75;
 // yet evaluated get a neutral 5/10 so the progressive backfill doesn't bury them.
 const SEMANTIC_QUALITY_WEIGHT = 0.15;
 const NEUTRAL_QUALITY_SCORE = 5;
-
-// Parse an optional ?minQuality= (0–10) — photos below the AI overall score are
-// dropped; photos without an evaluation are dropped too when the filter is set.
-function parseMinQuality(raw: unknown): number | undefined {
-  if (typeof raw !== "string" || raw.trim() === "") return undefined;
-  const n = parseFloat(raw);
-  if (!Number.isFinite(n)) return undefined;
-  return Math.min(10, Math.max(0, n));
-}
-
-// Parse repeated `?exclude=` query params (or a single one) into trimmed terms.
-function parseExcludeTerms(raw: unknown): string[] {
-  const arr = Array.isArray(raw) ? raw : raw != null ? [raw] : [];
-  return arr.map((t) => String(t).trim()).filter((t) => t.length > 0);
-}
 
 function normalizeVec(v: number[]): number[] {
   const m = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
@@ -146,13 +132,11 @@ async function applyFiltersAndFetchIds(
   }
 
   if (filters.dateFrom || filters.dateTo) {
-    const conditions = [];
-    if (filters.dateFrom) conditions.push(gte(photosTable.takenAt, new Date(filters.dateFrom)));
-    if (filters.dateTo) conditions.push(lte(photosTable.takenAt, new Date(filters.dateTo)));
+    // Same whole-day, inclusive-end semantics as search (#205).
     const dateFiltered = await db
       .select({ id: photosTable.id })
       .from(photosTable)
-      .where(and(...conditions));
+      .where(and(eq(photosTable.organizationId, organizationId), ...takenAtRange(filters.dateFrom, filters.dateTo)));
     const dateIds = new Set(dateFiltered.map((r) => r.id));
     ids = ids.filter((id) => dateIds.has(id));
   }
@@ -257,19 +241,22 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
+  const parsed = parseSearchFilters(req.query as Record<string, unknown>);
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+  const { filters } = parsed;
+
   const limitRaw = req.query.limit ? parseInt(String(req.query.limit), 10) : 48;
   const limit = Math.min(Math.max(Number.isInteger(limitRaw) ? limitRaw : 48, 1), 200);
   const offsetRaw = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
   const offset = Math.max(Number.isInteger(offsetRaw) ? offsetRaw : 0, 0);
 
-  const ratingMin = req.query.ratingMin ? parseFloat(String(req.query.ratingMin)) : undefined;
-  const ratingMax = req.query.ratingMax ? parseFloat(String(req.query.ratingMax)) : undefined;
-  const dateFrom = typeof req.query.dateFrom === "string" ? req.query.dateFrom : undefined;
-  const dateTo = typeof req.query.dateTo === "string" ? req.query.dateTo : undefined;
-  const uploaderId = req.query.uploaderId ? parseInt(String(req.query.uploaderId), 10) : undefined;
-  const minQuality = parseMinQuality(req.query.minQuality);
-  const includeHidden = req.query.includeHidden === "true";
-  const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
+  const canSeeHidden = req.dbUser!.role === "admin" && filters.includeHidden;
+  // Every metadata filter, tenant scope and hidden visibility (#205) — applied
+  // in SQL below, before pagination.
+  const scope = photoFilterConditions(filters, { organizationId: req.org!.id, canSeeHidden });
 
   const pattern = `%${q}%`;
 
@@ -301,14 +288,14 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
     ]),
   ];
 
-  // Drop photos whose AI description matches any excluded term.
-  const excludeTerms = parseExcludeTerms(req.query.exclude);
+  // Keyword exclusions are hard: drop photos whose AI description matches.
+  const excludeTerms = filters.exclude;
   let candidateIds = uniqueIds;
   if (excludeTerms.length > 0 && uniqueIds.length > 0) {
     const excludedRows = await db
       .select({ id: photosTable.id })
       .from(photosTable)
-      .where(or(...excludeTerms.map((t) => ilike(photosTable.aiDescription, `%${t}%`))));
+      .where(and(orgScope, or(...excludeTerms.map((t) => ilike(photosTable.aiDescription, `%${t}%`)))));
     const excludeSet = new Set(excludedRows.map((r) => r.id));
     candidateIds = uniqueIds.filter((id) => !excludeSet.has(id));
   }
@@ -322,31 +309,19 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
   // pagination is consistent across pages: AI quality tier first (#181 — whole
   // scores so recency still matters within a tier; unevaluated photos sort as a
   // middle 5 so the progressive backfill doesn't bury them), then newest-first
-  // with an id tiebreaker. An optional minQuality floor drops low scorers.
+  // with an id tiebreaker. The shared filter predicates run in this query.
   const orderedRows = await db
     .select({ id: photosTable.id })
     .from(photosTable)
     .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photosTable.id))
-    .where(
-      and(
-        inArray(photosTable.id, candidateIds),
-        minQuality != null ? gte(photoAiEvaluationsTable.overallScore, minQuality) : undefined,
-      ),
-    )
+    .where(and(inArray(photosTable.id, candidateIds), ...scope))
     .orderBy(
       sql`round(coalesce(${photoAiEvaluationsTable.overallScore}, ${NEUTRAL_QUALITY_SCORE})) DESC`,
       desc(photosTable.createdAt),
       desc(photosTable.id),
     );
 
-  const filtered = await applyFiltersAndFetchIds(orderedRows.map((r) => r.id), {
-    ratingMin,
-    ratingMax,
-    dateFrom,
-    dateTo,
-    uploaderId,
-  }, req.org!.id);
-
+  const filtered = orderedRows.map((r) => r.id);
   const pageIds = filtered.slice(offset, offset + limit);
   const hasMore = filtered.length > offset + limit;
 
@@ -361,11 +336,16 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
     return;
   }
 
+  const parsed = parseSearchFilters(req.query as Record<string, unknown>);
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error });
+    return;
+  }
+  const { filters } = parsed;
+
   const topKRaw = req.query.topK ? parseInt(String(req.query.topK), 10) : 30;
   const topK = Number.isInteger(topKRaw) && topKRaw > 0 ? Math.min(topKRaw, 100) : 30;
-  const minQuality = parseMinQuality(req.query.minQuality);
-  const includeHidden = req.query.includeHidden === "true";
-  const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
+  const canSeeHidden = req.dbUser!.role === "admin" && filters.includeHidden;
 
   // Embed the query into the same space as the image embeddings. Returns null
   // when embeddings aren't enabled/configured — degrade to no results.
@@ -376,8 +356,9 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
   }
 
   // Steer the query away from excluded concepts: query = norm(pos) - λ·norm(neg).
+  // A ranking preference, not guaranteed absence (the page labels it so).
   let queryVec = posVec;
-  const excludeTerms = parseExcludeTerms(req.query.exclude);
+  const excludeTerms = filters.exclude;
   if (excludeTerms.length > 0) {
     const negVec = await embedText(excludeTerms.join(", "));
     if (negVec) {
@@ -389,9 +370,11 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
   const vecLiteral = `[${queryVec.join(",")}]`;
 
   // Nearest neighbours by cosine distance (matches the HNSW vector_cosine_ops
-  // index). Join photos to respect hidden visibility, and the AI evaluation
-  // (#181) for the quality blend — over-fetch so re-ranking has candidates
-  // beyond the raw topK to promote from.
+  // index). Join photos so the shared filter predicates (#205: dates, ratings,
+  // uploader, quality, hidden, org) run inside the scan — the iterative HNSW
+  // scan keeps going until the LIMIT is filled with matching photos — and the
+  // AI evaluation (#181) for the quality blend. Over-fetch so re-ranking has
+  // candidates beyond the raw topK to promote from.
   const fetchK = Math.min(topK * 2, 200);
   const rows = await withIterativeVectorScan((tx) =>
     tx
@@ -403,13 +386,7 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
       .from(photoEmbeddingsTable)
       .innerJoin(photosTable, eq(photosTable.id, photoEmbeddingsTable.photoId))
       .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photoEmbeddingsTable.photoId))
-      .where(
-        and(
-          eq(photosTable.organizationId, req.org!.id),
-          canSeeHidden ? undefined : eq(photosTable.isHidden, false),
-          minQuality != null ? gte(photoAiEvaluationsTable.overallScore, minQuality) : undefined,
-        ),
-      )
+      .where(and(...photoFilterConditions(filters, { organizationId: req.org!.id, canSeeHidden })))
       .orderBy(sql`${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector`)
       .limit(fetchK),
   );

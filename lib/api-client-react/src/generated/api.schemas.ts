@@ -5,6 +5,20 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+export interface PhotoNeighbors {
+  albumId: number;
+  /** Whether the photo is part of this album view at all. */
+  inContext: boolean;
+  /** Photo shown before it (newer), or null at the start / when not in context. */
+  previousId: number | null;
+  /** Photo shown after it (older), or null at the end / when not in context. */
+  nextId: number | null;
+  /** 1-based position in the view, or null when not in context. */
+  position: number | null;
+  /** Number of photos in the view. */
+  total: number;
+}
+
 export interface HealthStatus {
   status: string;
 }
@@ -830,7 +844,13 @@ export type SearchPhotosParams = {
   q: string;
   ratingMin?: number;
   ratingMax?: number;
+  /**
+   * Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+   */
   dateFrom?: string;
+  /**
+   * Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
+   */
   dateTo?: string;
   uploaderId?: number;
   includeHidden?: boolean;
@@ -851,9 +871,26 @@ export type SemanticSearchPhotosParams = {
   topK?: number;
   includeHidden?: boolean;
   /**
-   * Concepts to steer away from — the query vector is pushed away from their embedding.
+   * Concepts to steer away from — the query vector is pushed away from their embedding. A ranking preference, not guaranteed absence.
    */
   exclude?: string[];
+  /**
+   * Minimum average user rating (0-5; unrated counts as 0). Applied before ranking limits (#205).
+   */
+  ratingMin?: number;
+  /**
+   * Maximum average user rating (0-5; unrated counts as 0).
+   */
+  ratingMax?: number;
+  /**
+   * Capture date (YYYY-MM-DD, whole UTC day as recorded by the camera). Photos without a capture date are excluded when set.
+   */
+  dateFrom?: string;
+  /**
+   * Inclusive capture date (YYYY-MM-DD) — the whole day is included. Must not be before dateFrom.
+   */
+  dateTo?: string;
+  uploaderId?: number;
   /**
    * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
    */
@@ -863,6 +900,40 @@ export type SemanticSearchPhotosParams = {
 export type ListSimilarPhotosParams = {
   topK?: number;
 };
+
+export type GetPhotoNeighborsParams = {
+  /**
+   * Album the user is browsing; defaults to the photo's own album.
+   */
+  albumId?: number;
+  /**
+   * Admins only; include hidden photos in the sequence.
+   */
+  includeHidden?: boolean;
+  /**
+   * Album filter — only photos in (true) / not in (false) a collection.
+   */
+  inCollection?: boolean;
+  /**
+   * Album filter — only rated (true) / unrated (false) photos.
+   */
+  hasRating?: boolean;
+  aiStatus?: GetPhotoNeighborsAiStatus;
+  attributionTagId?: number;
+  /**
+   * Album filter — photos with (true) / without (false) any attribution tag.
+   */
+  hasAttribution?: boolean;
+};
+
+export type GetPhotoNeighborsAiStatus =
+  (typeof GetPhotoNeighborsAiStatus)[keyof typeof GetPhotoNeighborsAiStatus];
+
+export const GetPhotoNeighborsAiStatus = {
+  has_description: "has_description",
+  failed: "failed",
+  not_analysed: "not_analysed",
+} as const;
 
 export type ListPhotosParams = {
   search?: string;

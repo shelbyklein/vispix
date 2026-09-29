@@ -86,6 +86,7 @@ export async function generateCampaignSuggestions(
   campaign: Campaign,
   userId: number,
   count = 3,
+  context: { requestId?: string } = {},
 ): Promise<CampaignSuggestionResult> {
   const key = await getOpenAIKeyForOrg(campaign.organizationId);
   if (!key) {
@@ -147,6 +148,13 @@ export async function generateCampaignSuggestions(
       inputs,
       format,
       variantCount: 1,
+      // Which brief revision (and request) this suggestion came from (#216),
+      // so outputs stay attributable after the brief is edited again.
+      settings: {
+        campaignId: campaign.id,
+        campaignBriefRevision: campaign.briefRevision,
+        ...(context.requestId ? { campaignRequestId: context.requestId } : {}),
+      },
     });
     generations.push(...result.generations);
   }

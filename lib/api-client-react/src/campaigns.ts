@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "./custom-fetch";
+import { ApiError, customFetch } from "./custom-fetch";
 import { getGenerationSessionQueryKey, type ImageGenerationResult } from "./create";
 
 // Campaigns (#192): text briefs that drive AI ad suggestions. Suggestions live
@@ -9,12 +9,34 @@ export interface CampaignSummary {
   id: number;
   name: string;
   brief: string;
+  /** Bumped on every brief change (#216); send it back as `expectedRevision`. */
+  briefRevision: number;
   sessionId: number | null;
   createdAt: string;
   updatedAt: string;
 }
 
 const CAMPAIGNS_KEY = ["campaigns"] as const;
+
+/** A 409 from a brief save/generate: another tab changed the brief (#216). */
+export interface CampaignBriefConflict {
+  error: string;
+  brief: string;
+  briefRevision: number;
+}
+
+export function getCampaignBriefConflict(err: unknown): CampaignBriefConflict | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const data = err.data as Partial<CampaignBriefConflict> & { conflict?: boolean } | null;
+  return data?.conflict && typeof data.brief === "string" && typeof data.briefRevision === "number"
+    ? { error: data.error ?? err.message, brief: data.brief, briefRevision: data.briefRevision }
+    : null;
+}
+
+/** Whether a failed request never got an HTTP answer (so it may be retried as-is). */
+export function isCampaignRequestUnanswered(err: unknown): boolean {
+  return !(err instanceof ApiError);
+}
 
 export function getCampaignQueryKey(id: number | undefined) {
   return ["campaigns", id ?? null] as const;
@@ -47,7 +69,7 @@ export function useCreateCampaign() {
 export function useUpdateCampaign() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, ...body }: { id: number; name?: string; brief?: string }) =>
+    mutationFn: ({ id, ...body }: { id: number; name?: string; brief?: string; expectedRevision?: number }) =>
       customFetch<CampaignSummary>(`/api/campaigns/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: (updated) => {
       queryClient.invalidateQueries({ queryKey: CAMPAIGNS_KEY });
@@ -64,18 +86,36 @@ export function useDeleteCampaign() {
   });
 }
 
+export interface GenerateCampaignSuggestionsResult {
+  sessionId: number | null;
+  generations: ImageGenerationResult[];
+  concepts: { title: string }[];
+  /** The brief (and its revision) the suggestions were generated from. */
+  brief: string;
+  briefRevision: number;
+  /** True when this requestId was already accepted; nothing new was started. */
+  duplicate?: boolean;
+}
+
+/**
+ * Save the on-screen brief and start generation in one request (#216): the
+ * server refuses (409) when `expectedRevision` is stale, and starts nothing new
+ * for a `requestId` it already accepted.
+ */
 export function useGenerateCampaignSuggestions() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (id: number) =>
-      customFetch<{ sessionId: number; generations: ImageGenerationResult[]; concepts: { title: string }[] }>(
-        `/api/campaigns/${id}/generate`,
-        { method: "POST" },
-      ),
-    onSuccess: (result, id) => {
+    mutationFn: ({ id, ...body }: { id: number; brief?: string; expectedRevision?: number; requestId?: string }) =>
+      customFetch<GenerateCampaignSuggestionsResult>(`/api/campaigns/${id}/generate`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSettled: (result, _err, { id }) => {
       queryClient.invalidateQueries({ queryKey: CAMPAIGNS_KEY });
       queryClient.invalidateQueries({ queryKey: getCampaignQueryKey(id) });
-      queryClient.invalidateQueries({ queryKey: getGenerationSessionQueryKey(result.sessionId) });
+      if (result?.sessionId != null) {
+        queryClient.invalidateQueries({ queryKey: getGenerationSessionQueryKey(result.sessionId) });
+      }
     },
   });
 }

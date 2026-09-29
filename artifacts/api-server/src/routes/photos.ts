@@ -50,7 +50,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
-import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, deletePhotoStorageObjects } from "../lib/photoHelpers";
+import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects } from "../lib/photoHelpers";
 import { applyFiltersAndFetchIds } from "./search";
 
 const router: IRouter = Router();
@@ -217,6 +217,64 @@ router.post("/albums/:id/photos/check-duplicates", requireOrgAuth, async (req, r
   res.json(CheckDuplicatesResponse.parse({ duplicates }));
 });
 
+// The album page's filter bar, as query params — shared by the album listing
+// and the details page's Previous/Next lookup (#210).
+function parseAlbumView(query: Record<string, unknown>) {
+  const bool = (v: unknown) => (v === "true" ? true : v === "false" ? false : undefined);
+  const aiStatusRaw = typeof query.aiStatus === "string" ? query.aiStatus : undefined;
+  const aiStatus: "has_description" | "failed" | "not_analysed" | undefined =
+    aiStatusRaw === "has_description" || aiStatusRaw === "failed" || aiStatusRaw === "not_analysed"
+      ? aiStatusRaw
+      : undefined;
+  const attributionTagIdRaw = typeof query.attributionTagId === "string" ? parseInt(query.attributionTagId, 10) : undefined;
+  const attributionTagId = attributionTagIdRaw !== undefined && Number.isInteger(attributionTagIdRaw) ? attributionTagIdRaw : undefined;
+  return {
+    includeHidden: query.includeHidden === "true",
+    filters: {
+      inCollection: bool(query.inCollection),
+      hasRating: bool(query.hasRating),
+      aiStatus,
+      attributionTagId,
+      hasAttribution: bool(query.hasAttribution),
+    },
+  };
+}
+
+// Previous/next of a photo within an album view (#210). `albumId` (default:
+// the photo's own album) and the album filters describe the view the user came
+// from; without them this is the documented direct-link fallback.
+router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<void> => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid photo id" });
+    return;
+  }
+  const albumIdRaw = typeof req.query.albumId === "string" && req.query.albumId !== "" ? parseInt(req.query.albumId, 10) : undefined;
+  if (albumIdRaw !== undefined && !Number.isInteger(albumIdRaw)) {
+    res.status(400).json({ error: "Invalid album id" });
+    return;
+  }
+  const [photo] = await db
+    .select({ id: photosTable.id, albumId: photosTable.albumId, isHidden: photosTable.isHidden })
+    .from(photosTable)
+    .where(and(eq(photosTable.id, id), eq(photosTable.organizationId, req.org!.id)));
+  const isAdmin = req.dbUser!.role === "admin";
+  if (!photo || (photo.isHidden && !isAdmin)) {
+    res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+  const view = parseAlbumView(req.query as Record<string, unknown>);
+  const albumId = albumIdRaw ?? photo.albumId;
+  const result = await fetchAlbumPhotoNeighbors(albumId, photo.id, {
+    organizationId: req.org!.id,
+    // An admin looking at a hidden photo keeps it (and its hidden siblings)
+    // in the sequence, so it has a position.
+    canSeeHidden: isAdmin && (view.includeHidden || photo.isHidden),
+    ...view.filters,
+  });
+  res.json({ albumId, ...result });
+});
+
 router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const params = ListAlbumPhotosParams.safeParse({ id: parseInt(raw, 10) });
@@ -225,8 +283,8 @@ router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void>
     return;
   }
 
-  const includeHidden = req.query.includeHidden === "true";
-  const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
+  const view = parseAlbumView(req.query as Record<string, unknown>);
+  const canSeeHidden = req.dbUser!.role === "admin" && view.includeHidden;
 
   const DEFAULT_LIMIT = 50;
   const MAX_LIMIT = 200;
@@ -237,31 +295,12 @@ router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void>
     : DEFAULT_LIMIT;
   const offset = !isNaN(rawOffset) && rawOffset >= 0 ? rawOffset : 0;
 
-  const inCollectionStr = req.query.inCollection;
-  const inCollection = inCollectionStr === "true" ? true : inCollectionStr === "false" ? false : undefined;
-  const hasRatingStr = req.query.hasRating;
-  const hasRating = hasRatingStr === "true" ? true : hasRatingStr === "false" ? false : undefined;
-  const aiStatusRaw = typeof req.query.aiStatus === "string" ? req.query.aiStatus : undefined;
-  const aiStatus =
-    aiStatusRaw === "has_description" || aiStatusRaw === "failed" || aiStatusRaw === "not_analysed"
-      ? aiStatusRaw
-      : undefined;
-
-  const attributionTagIdRaw = typeof req.query.attributionTagId === "string" ? parseInt(req.query.attributionTagId, 10) : undefined;
-  const attributionTagId = attributionTagIdRaw !== undefined && Number.isInteger(attributionTagIdRaw) ? attributionTagIdRaw : undefined;
-  const hasAttributionStr = req.query.hasAttribution;
-  const hasAttribution = hasAttributionStr === "true" ? true : hasAttributionStr === "false" ? false : undefined;
-
   // Filter and paginate entirely in SQL: only the requested page of photo IDs
   // leaves the database, and only that page is expanded into full responses.
   const { ids: pageIds, hasMore } = await fetchAlbumPhotoPage(params.data.id, {
     organizationId: req.org!.id,
     canSeeHidden,
-    inCollection,
-    hasRating,
-    aiStatus,
-    attributionTagId,
-    hasAttribution,
+    ...view.filters,
     limit,
     offset,
   });

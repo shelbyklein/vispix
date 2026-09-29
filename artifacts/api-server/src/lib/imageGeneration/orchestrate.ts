@@ -202,6 +202,9 @@ export interface RunGenerationArgs {
   variantCount: number;
   /** Revise this earlier output (multi-turn) instead of generating fresh. */
   parentGenerationId?: number;
+  /** Extra provenance stored in each generation's settings (e.g. the campaign
+   * brief revision, #216). Core settings keys always take precedence. */
+  settings?: Record<string, unknown>;
 }
 
 export interface RunGenerationResult {
@@ -295,7 +298,7 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
         sessionId,
         parentGenerationId: parent?.id ?? null,
         prompt: args.prompt,
-        settings: { format, size, variantIndex: variant, variantCount, imageModel: "" },
+        settings: { ...args.settings, format, size, variantIndex: variant, variantCount, imageModel: "" },
         inputs: storedInputs,
         usageNotesSnapshot,
         status: "pending",

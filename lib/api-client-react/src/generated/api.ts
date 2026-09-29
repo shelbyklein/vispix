@@ -51,6 +51,7 @@ import type {
   DashboardStats,
   DeleteDuplicateExtrasResponse,
   DuplicatesSummaryResponse,
+  GetPhotoNeighborsParams,
   GetSmartCollectionPhotosParams,
   HealthStatus,
   ListAlbumPhotosPagedResponse,
@@ -66,6 +67,7 @@ import type {
   Photo,
   PhotoAttributionTagInput,
   PhotoCategoryInput,
+  PhotoNeighbors,
   PhotoTagInput,
   PhotoUpdate,
   PhotoUploadInput,
@@ -1648,6 +1650,117 @@ export function useListSimilarPhotos<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListSimilarPhotosQueryOptions(id, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Resolves the photos shown before and after this one in an album's order (created_at DESC, id DESC) under the album page's filters, without loading the album. Without albumId the photo's own album is used (the direct-link fallback).
+ * @summary Previous/next photo within an album view (#210)
+ */
+export const getGetPhotoNeighborsUrl = (
+  id: number,
+  params?: GetPhotoNeighborsParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/photos/${id}/neighbors?${stringifiedParams}`
+    : `/api/photos/${id}/neighbors`;
+};
+
+export const getPhotoNeighbors = async (
+  id: number,
+  params?: GetPhotoNeighborsParams,
+  options?: RequestInit,
+): Promise<PhotoNeighbors> => {
+  return customFetch<PhotoNeighbors>(getGetPhotoNeighborsUrl(id, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPhotoNeighborsQueryKey = (
+  id: number,
+  params?: GetPhotoNeighborsParams,
+) => {
+  return [`/api/photos/${id}/neighbors`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPhotoNeighborsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPhotoNeighbors>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetPhotoNeighborsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoNeighbors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPhotoNeighborsQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getPhotoNeighbors>>
+  > = ({ signal }) =>
+    getPhotoNeighbors(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPhotoNeighbors>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPhotoNeighborsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPhotoNeighbors>>
+>;
+export type GetPhotoNeighborsQueryError = ErrorType<void>;
+
+/**
+ * @summary Previous/next photo within an album view (#210)
+ */
+
+export function useGetPhotoNeighbors<
+  TData = Awaited<ReturnType<typeof getPhotoNeighbors>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetPhotoNeighborsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoNeighbors>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPhotoNeighborsQueryOptions(id, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
