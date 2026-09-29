@@ -123,3 +123,18 @@ export async function verifyMcpToken(
   }
   return { id: row.id, organizationId: row.organizationId };
 }
+
+/**
+ * Whether the token that minted an MCP media grant (#204) still exists, still
+ * belongs to the grant's org, and is the same credential (fingerprint = first 16
+ * hex of its SHA-256, i.e. of `token_hash`). Revoking a token therefore kills
+ * its outstanding media links on the next fetch.
+ */
+export async function isMcpTokenLive(id: number, organizationId: number, fingerprint: string): Promise<boolean> {
+  const [row] = await db
+    .select({ organizationId: mcpTokensTable.organizationId, tokenHash: mcpTokensTable.tokenHash })
+    .from(mcpTokensTable)
+    .where(eq(mcpTokensTable.id, id))
+    .limit(1);
+  return !!row && row.organizationId === organizationId && row.tokenHash.slice(0, 16) === fingerprint;
+}

@@ -10,6 +10,7 @@ import {
   loadThumbnailImage,
 } from "./photoLibrary.js";
 import { listAssets, getAssetDetail, loadAssetImage, type AssetSummary } from "./assetLibrary.js";
+import type { IssuedMediaLink, MediaLinkIssuer } from "./mediaGrants.js";
 
 // Cap on inline thumbnails per search response: base64 images are the bulk of
 // the payload, and a model judging fit rarely needs more than a screenful.
@@ -27,31 +28,37 @@ type ContentBlock =
   | { type: "image"; data: string; mimeType: string }
   | { type: "resource_link"; uri: string; name: string; description?: string; mimeType?: string };
 
+// Media links are one-object grants (#204) that expire; say when, in UTC.
+function expiryLabel(link: IssuedMediaLink): string {
+  return `expires ${link.expiresAt.toISOString().replace(/\.\d{3}Z$/, "Z")}`;
+}
+
 // A fetchable thumbnail link for a photo (#174). Thumbnails are always JPEG
 // (see api-server thumbnailGeneration.ts), so we declare `mimeType` and a `.jpg`
 // name: the mimeType lets clients that gate on content type render the URL as an
 // inline preview instead of a bare link, and matching the name to the actual
 // JPEG bytes avoids a `.webp`-named-but-JPEG mismatch inherited from the original.
-function thumbnailLink(base: string, id: number, filename: string | null): ContentBlock {
+function thumbnailLink(link: IssuedMediaLink, id: number, filename: string | null): ContentBlock {
   const stem = filename ? `thumb-${filename.replace(/\.[^./\\]+$/, "")}` : `photo-${id}-thumb`;
   return {
     type: "resource_link",
-    uri: `${base}/photo/${id}/thumbnail`,
+    uri: link.url,
     name: `${stem}.jpg`,
-    description: `Thumbnail of photo #${id}`,
+    description: `Thumbnail of photo #${id} (link ${expiryLabel(link)})`,
     mimeType: "image/jpeg",
   };
 }
 
 export interface ServerOptions {
   /**
-   * Base URL of the HTTP gateway (including any auth prefix). When set,
-   * get_photo returns `<base>/photo/<id>/original` download links instead of
-   * signed storage URLs — signed URLs point at the local storage endpoint,
-   * which remote clients can't reach — and photo results also link
-   * `<base>/photo/<id>/thumbnail` for lightweight previews.
+   * Issues the HTTP gateway's media links (#204): expiring, single-object
+   * grants that carry no connector credential. When set, get_photo/get_asset
+   * return gateway download links instead of signed storage URLs — signed URLs
+   * point at the local storage endpoint, which remote clients can't reach — and
+   * photo results also link a thumbnail for lightweight previews. Unset for the
+   * local stdio server, which returns ~1h signed storage URLs.
    */
-  externalDownloadBase?: string;
+  mediaLinks?: MediaLinkIssuer;
   /**
    * The organization this session is scoped to (issue #113, Phase 5): the HTTP
    * gateway sets it from the authenticating token so every tool only sees that
@@ -112,10 +119,10 @@ export function createServer(options: ServerOptions = {}): McpServer {
       // clients can display/embed previews without the base64 (or fetch the
       // ones past the inline cap). Stdio callers already get inline pixels
       // and couldn't reach gateway URLs anyway.
-      if (options.externalDownloadBase) {
+      if (options.mediaLinks) {
         for (const p of results) {
           if (!p.thumbnailKey) continue;
-          content.push(thumbnailLink(options.externalDownloadBase, p.id, p.filename));
+          content.push(thumbnailLink(options.mediaLinks.photo(p.id, "thumbnail"), p.id, p.filename));
         }
       }
 
@@ -142,7 +149,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
     {
       title: "Get one photo in full detail",
       description:
-        "Fetch a single photo by id: full metadata, its thumbnail image, and a time-limited signed URL " +
+        "Fetch a single photo by id: full metadata, its thumbnail image, and a time-limited link " +
         "to download the full-resolution file.",
       inputSchema: {
         id: z.number().int().describe("Photo id (from search_photos results)"),
@@ -154,9 +161,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
         return { content: [textBlock(`Photo #${id} not found.`)], isError: true };
       }
       const { photo } = detail;
-      const fullResUrl = options.externalDownloadBase
-        ? `${options.externalDownloadBase}/photo/${photo.id}/original`
-        : detail.fullResUrl;
+      const grant = options.mediaLinks?.photo(photo.id, "original");
+      const fullResUrl = grant ? grant.url : detail.fullResUrl;
+      const validity = grant ? expiryLabel(grant) : "valid ~1h";
       const lines = [
         `photo #${photo.id}`,
         photo.filename && `file: ${photo.filename}`,
@@ -167,7 +174,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
         photo.rights.length > 0 ? `usage rights: ${photo.rights.join(", ")}` : "usage rights: none recorded",
         photo.takenAt && `taken: ${photo.takenAt}`,
         photo.aiDescription && `description: ${photo.aiDescription}`,
-        fullResUrl && `full-resolution download (valid ~1h): ${fullResUrl}`,
+        fullResUrl && `full-resolution download (${validity}): ${fullResUrl}`,
       ].filter(Boolean);
 
       const content: ContentBlock[] = [textBlock(lines.join("\n"))];
@@ -176,11 +183,11 @@ export function createServer(options: ServerOptions = {}): McpServer {
           type: "resource_link",
           uri: fullResUrl,
           name: photo.filename || `photo-${photo.id}`,
-          description: "Full-resolution original (link valid ~1h)",
+          description: `Full-resolution original (link ${validity})`,
         });
       }
-      if (options.externalDownloadBase && photo.thumbnailKey) {
-        content.push(thumbnailLink(options.externalDownloadBase, photo.id, photo.filename));
+      if (options.mediaLinks && photo.thumbnailKey) {
+        content.push(thumbnailLink(options.mediaLinks.photo(photo.id, "thumbnail"), photo.id, photo.filename));
       }
       const img = await loadThumbnailImage(photo.thumbnailKey);
       if (img) content.push({ type: "image", data: img.base64, mimeType: img.mimeType });
@@ -292,13 +299,13 @@ export function createServer(options: ServerOptions = {}): McpServer {
         return { content: [textBlock(`Asset #${id} not found.`)], isError: true };
       }
       const { asset } = detail;
-      const downloadUrl = options.externalDownloadBase
-        ? `${options.externalDownloadBase}/asset/${asset.id}/original`
-        : detail.fullResUrl;
+      const grant = options.mediaLinks?.asset(asset.id);
+      const downloadUrl = grant ? grant.url : detail.fullResUrl;
+      const validity = grant ? expiryLabel(grant) : "valid ~1h";
       const lines = [
         describeAsset(asset),
         asset.fileSize != null && `size: ${asset.fileSize} bytes`,
-        downloadUrl && `original download (valid ~1h): ${downloadUrl}`,
+        downloadUrl && `original download (${validity}): ${downloadUrl}`,
       ].filter(Boolean) as string[];
 
       const content: ContentBlock[] = [textBlock(lines.join("\n"))];
@@ -307,7 +314,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
           type: "resource_link",
           uri: downloadUrl,
           name: asset.filename || asset.name,
-          description: "Original file (link valid ~1h)",
+          description: `Original file (link ${validity})`,
           ...(asset.contentType ? { mimeType: asset.contentType } : {}),
         });
       }
