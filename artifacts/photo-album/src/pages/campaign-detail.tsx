@@ -96,8 +96,13 @@ export default function CampaignDetailPage() {
   const draftEdited = base != null && brief.trim() !== base.brief;
   useEffect(() => {
     if (!campaign) return;
+    const serverHasDraft = campaign.brief === brief.trim();
     if (base == null || base.id !== campaign.id || !draftEdited) {
       setBrief(campaign.brief);
+      setBase({ id: campaign.id, brief: campaign.brief, revision: campaign.briefRevision });
+    } else if (serverHasDraft) {
+      // The server already holds exactly this draft (e.g. generate saved it and
+      // then failed): that's our own save, not a change from elsewhere.
       setBase({ id: campaign.id, brief: campaign.brief, revision: campaign.briefRevision });
     }
     // Otherwise keep the edits; the banner below offers the newer version.
