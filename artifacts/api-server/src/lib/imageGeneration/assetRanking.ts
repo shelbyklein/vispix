@@ -128,7 +128,9 @@ export function rankBrandAssets<T extends RankableAsset>(
         score += 30;
         reasons.push(`Matches requested ${v} variant${asset.variant ? ` (“${asset.variant}”)` : ""}`);
       } else if (variantW.length > 0) {
-        score -= 10;
+        // A different variant of a logo is still a better answer to a logo
+        // request than a non-logo asset: keep this below the "logo-shaped" bonus.
+        score -= 2;
       }
     }
 

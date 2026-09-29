@@ -55,6 +55,16 @@ describe("brand asset ranking (TT-VPX-BRAND-01/02)", () => {
     expect(r[0].reasons.join(" ")).toContain(`requested ${variant} variant`);
   });
 
+  it("keeps every logo above non-logo brand assets for a variant request", () => {
+    // Found on dev: the team shirt outranked the other USA Archery logos for
+    // "horizontal logo for a banner".
+    for (const query of ["horizontal logo for a banner", "white logo"]) {
+      const r = top(query).map((x) => x.asset.id);
+      const worstLogo = Math.max(...[5, 6, 7].map((id) => r.indexOf(id)));
+      for (const nonLogo of [1, 2, 3]) expect(r.indexOf(nonLogo)).toBeGreaterThan(worstLogo);
+    }
+  });
+
   it("finds a specific event logo by identity words", () => {
     const r = top("Gator Cup event logo");
     expect(r[0].asset.id).toBe(4);
