@@ -1,6 +1,7 @@
 import OpenAI from "openai";
-import { and, eq, ilike, inArray, or, sql } from "drizzle-orm";
-import { db, photosTable, assetsTable, photoEmbeddingsTable } from "@workspace/db";
+import { and, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { db, photosTable, assetsTable, photoEmbeddingsTable, projectsTable } from "@workspace/db";
+import { rankBrandAssets, type MatchConfidence } from "./assetRanking";
 import { embedText } from "../aiEmbedding";
 import { withIterativeVectorScan } from "../vectorSearch";
 import { getOpenAIKeyForOrg } from "../aiProviders";
@@ -22,6 +23,12 @@ export interface PlanCandidate {
   name: string;
   previewUrl: string;
   role: "style" | "hero_photo" | "exact_asset";
+  // Asset candidates (#206): what the asset is and why it was suggested.
+  variant?: string | null;
+  notes?: string | null;
+  isPrimary?: boolean;
+  reasons?: string[];
+  confidence?: MatchConfidence;
 }
 
 export interface CandidateSlot {
@@ -146,28 +153,87 @@ export async function findPhotoCandidates(organizationId: number, query: string)
     }));
 }
 
-export async function findAssetCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
-  const pattern = `%${query.trim()}%`;
-  const rows = await db
-    .select({ id: assetsTable.id, name: assetsTable.name, storageKey: assetsTable.storageKey, kind: assetsTable.kind, contentType: assetsTable.contentType })
+// Image assets of an org, with what ranking needs.
+async function loadRankableAssets(organizationId: number) {
+  return db
+    .select({
+      id: assetsTable.id,
+      name: assetsTable.name,
+      kind: assetsTable.kind,
+      variant: assetsTable.variant,
+      notes: assetsTable.notes,
+      projectId: assetsTable.projectId,
+      projectName: projectsTable.name,
+      isPrimary: assetsTable.isPrimary,
+      storageKey: assetsTable.storageKey,
+    })
+    .from(assetsTable)
+    .leftJoin(projectsTable, eq(projectsTable.id, assetsTable.projectId))
+    .where(and(eq(assetsTable.organizationId, organizationId), ilike(assetsTable.contentType, "image/%")));
+}
+
+/**
+ * Asset candidates for a request, ranked by the designated primary mark,
+ * requested variant, identity words and project (#206) — never "any brand
+ * asset, alphabetically". Each carries its variant, notes and match reasons so
+ * the user can see why it was suggested. Reference assets appear only when
+ * they actually match the request.
+ */
+export async function findAssetCandidates(
+  organizationId: number,
+  query: string,
+  opts: { projectId?: number | null } = {},
+): Promise<PlanCandidate[]> {
+  const rows = await loadRankableAssets(organizationId);
+  return rankBrandAssets(rows, query, opts)
+    .filter((r) => r.asset.kind === "brand" || r.score > 1)
+    .slice(0, MAX_CANDIDATES)
+    .map((r) => ({
+      kind: "asset" as const,
+      refId: r.asset.id,
+      name: r.asset.name,
+      previewUrl: `/api/storage${r.asset.storageKey}`,
+      role: r.asset.kind === "brand" ? ("exact_asset" as const) : ("style" as const),
+      variant: r.asset.variant,
+      notes: r.asset.notes,
+      isPrimary: r.isEffectivePrimary,
+      reasons: r.reasons,
+      confidence: r.confidence,
+    }));
+}
+
+/**
+ * The logo an automatic flow (Campaigns) may attach without asking: the
+ * organization's designated primary mark, or none (#206). Never falls back to
+ * an arbitrary brand asset.
+ */
+export async function findDesignatedPrimaryLogo(organizationId: number): Promise<PlanCandidate | null> {
+  const [row] = await db
+    .select({ id: assetsTable.id, name: assetsTable.name, storageKey: assetsTable.storageKey, variant: assetsTable.variant })
     .from(assetsTable)
     .where(
       and(
         eq(assetsTable.organizationId, organizationId),
+        eq(assetsTable.isPrimary, true),
+        isNull(assetsTable.projectId),
+        eq(assetsTable.kind, "brand"),
         ilike(assetsTable.contentType, "image/%"),
-        or(ilike(assetsTable.name, pattern), eq(assetsTable.kind, "brand")),
       ),
     )
-    // Brand assets (logos) first — they're what the planner usually wants.
-    .orderBy(sql`CASE WHEN ${assetsTable.kind} = 'brand' THEN 0 ELSE 1 END`, assetsTable.name)
-    .limit(MAX_CANDIDATES);
-  return rows.map((r) => ({
-    kind: "asset" as const,
-    refId: r.id,
-    name: r.name,
-    previewUrl: `/api/storage${r.storageKey}`,
-    role: r.kind === "brand" ? ("exact_asset" as const) : ("style" as const),
-  }));
+    .limit(1);
+  return row
+    ? {
+        kind: "asset",
+        refId: row.id,
+        name: row.name,
+        previewUrl: `/api/storage${row.storageKey}`,
+        role: "exact_asset",
+        variant: row.variant,
+        isPrimary: true,
+        reasons: ["Designated primary logo"],
+        confidence: "high",
+      }
+    : null;
 }
 
 export async function planGeneration(

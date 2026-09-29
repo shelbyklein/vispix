@@ -19,4 +19,6 @@ export interface AssetUpdate {
   folder?: string | null;
   /** @nullable */
   projectId?: number | null;
+  /** Mark (true) or unmark (false) as the primary logo for the asset's scope; replaces any previous primary in that scope. Organization owners/admins only; brand image assets only. */
+  isPrimary?: boolean;
 }

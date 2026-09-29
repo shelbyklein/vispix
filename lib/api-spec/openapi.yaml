@@ -3124,6 +3124,9 @@ components:
           enum: [brand, reference]
         name:
           type: string
+        isPrimary:
+          type: boolean
+          description: The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).
         variant:
           type: ["string", "null"]
         notes:
@@ -3196,6 +3199,9 @@ components:
           type: ["string", "null"]
         projectId:
           type: ["integer", "null"]
+        isPrimary:
+          type: boolean
+          description: Mark (true) or unmark (false) as the primary logo for the asset's scope; replaces any previous primary in that scope. Organization owners/admins only; brand image assets only.
 
     AttributionTag:
       type: object

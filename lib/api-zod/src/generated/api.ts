@@ -5080,6 +5080,12 @@ export const ListAssetsResponseItem = zod.object({
   id: zod.number(),
   kind: zod.enum(["brand", "reference"]),
   name: zod.string(),
+  isPrimary: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).",
+    ),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
   folder: zod.string().nullish(),
@@ -5130,12 +5136,24 @@ export const UpdateAssetBody = zod.object({
   notes: zod.string().nullish(),
   folder: zod.string().nullish(),
   projectId: zod.number().nullish(),
+  isPrimary: zod
+    .boolean()
+    .optional()
+    .describe(
+      "Mark (true) or unmark (false) as the primary logo for the asset's scope; replaces any previous primary in that scope. Organization owners\/admins only; brand image assets only.",
+    ),
 });
 
 export const UpdateAssetResponse = zod.object({
   id: zod.number(),
   kind: zod.enum(["brand", "reference"]),
   name: zod.string(),
+  isPrimary: zod
+    .boolean()
+    .optional()
+    .describe(
+      "The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).",
+    ),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
   folder: zod.string().nullish(),

@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { eq } from "drizzle-orm";
 import { db, campaignsTable, imageGenerationSessionsTable, type Campaign } from "@workspace/db";
 import { getOpenAIKeyForOrg } from "../aiProviders";
-import { findPhotoCandidates, findAssetCandidates } from "./plan";
+import { findPhotoCandidates, findDesignatedPrimaryLogo } from "./plan";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat, type RequestedInput, type RunGenerationResult } from "./orchestrate";
 import { logger } from "../logger";
 
@@ -80,7 +80,12 @@ export interface CampaignSuggestionResult {
   sessionId: number;
   generations: RunGenerationResult["generations"];
   concepts: { title: string }[];
+  /** Things the user should know about the inputs, e.g. no primary logo. */
+  notices: string[];
 }
+
+export const NO_PRIMARY_LOGO_NOTICE =
+  "No primary logo is designated, so these suggestions were generated without a logo. Mark your primary logo in Assets to include it.";
 
 export async function generateCampaignSuggestions(
   campaign: Campaign,
@@ -124,6 +129,8 @@ export async function generateCampaignSuggestions(
   // asset when a logo is wanted. Then fire the (async) generation — pending
   // rows return immediately and the client polls the session.
   const generations: RunGenerationResult["generations"] = [];
+  let primaryLogo: Awaited<ReturnType<typeof findDesignatedPrimaryLogo>> | undefined;
+  let missingLogo = false;
   for (const concept of concepts) {
     const inputs: RequestedInput[] = [];
     try {
@@ -132,8 +139,11 @@ export async function generateCampaignSuggestions(
         if (photo) inputs.push({ kind: "photo", refId: photo.refId, role: "hero_photo", name: photo.name });
       }
       if (concept.useLogo) {
-        const [asset] = await findAssetCandidates(campaign.organizationId, "logo");
-        if (asset) inputs.push({ kind: "asset", refId: asset.refId, role: asset.role, name: asset.name });
+        // Only the designated primary mark is attached automatically (#206);
+        // with none designated the concept is generated without a logo.
+        if (primaryLogo === undefined) primaryLogo = await findDesignatedPrimaryLogo(campaign.organizationId);
+        if (primaryLogo) inputs.push({ kind: "asset", refId: primaryLogo.refId, role: primaryLogo.role, name: primaryLogo.name });
+        else missingLogo = true;
       }
     } catch (err) {
       logger.warn({ err, campaignId: campaign.id }, "Campaign concept grounding failed — generating without inputs");
@@ -161,5 +171,10 @@ export async function generateCampaignSuggestions(
 
   await db.update(campaignsTable).set({ updatedAt: new Date() }).where(eq(campaignsTable.id, campaign.id));
 
-  return { sessionId, generations, concepts: concepts.map((c) => ({ title: c.title })) };
+  return {
+    sessionId,
+    generations,
+    concepts: concepts.map((c) => ({ title: c.title })),
+    notices: missingLogo ? [NO_PRIMARY_LOGO_NOTICE] : [],
+  };
 }

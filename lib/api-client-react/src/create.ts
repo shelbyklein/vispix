@@ -110,6 +110,12 @@ export interface PlanCandidate {
   name: string;
   previewUrl: string;
   role: GenerationInputRole;
+  // Asset candidates (#206): what the asset is and why it was suggested.
+  variant?: string | null;
+  notes?: string | null;
+  isPrimary?: boolean;
+  reasons?: string[];
+  confidence?: "high" | "medium" | "low";
 }
 
 export interface PlanCandidateSlot {
