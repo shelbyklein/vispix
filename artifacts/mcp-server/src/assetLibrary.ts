@@ -46,17 +46,21 @@ export async function listAssets(options: {
   const { kind, project, organizationId } = options;
 
   // Project filter includes global assets (projectId null): an org-wide logo
-  // is "the right one" for any project without its own.
+  // is "the right one" for any project without its own. Both project lookups
+  // are tenant-scoped (#228): another org's project names must never match or
+  // appear in the "Available" hint.
+  const inOrg = organizationId != null ? eq(projectsTable.organizationId, organizationId) : undefined;
   let projectId: number | null = null;
   if (project?.trim()) {
     const [match] = await db
       .select({ id: projectsTable.id })
       .from(projectsTable)
-      .where(ilike(projectsTable.name, project.trim()));
+      .where(and(ilike(projectsTable.name, project.trim()), inOrg));
     if (!match) {
       const projects = await db
         .select({ name: projectsTable.name })
         .from(projectsTable)
+        .where(inOrg)
         .orderBy(asc(projectsTable.name));
       return {
         assets: [],
