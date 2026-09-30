@@ -18,7 +18,8 @@ export function AuthCardLogo() {
 }
 
 export default function SignInPage() {
-  const [email, setEmail] = useState("");
+  // Invite emails to existing accounts link here with ?email= (the invitee joins on sign-in).
+  const [email, setEmail] = useState(() => new URLSearchParams(window.location.search).get("email") ?? "");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);

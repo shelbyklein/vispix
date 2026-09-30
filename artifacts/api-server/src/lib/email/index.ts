@@ -25,6 +25,10 @@ function getTransport(): Transporter | null {
     // SMTP_SECURE=true if a provider wants implicit TLS on a nonstandard port.
     secure: process.env.SMTP_SECURE === "true" || port === 465,
     auth: { user, pass },
+    // Bounded so a slow provider can't hold a request (invites await the send).
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 20_000,
   });
   return cached;
 }

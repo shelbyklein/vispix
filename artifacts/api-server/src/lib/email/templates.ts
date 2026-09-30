@@ -64,16 +64,18 @@ export function emailVerificationEmail(url: string): EmailContent {
   };
 }
 
-export function orgInviteEmail(orgName: string, signUpUrl: string): EmailContent {
+export function orgInviteEmail(orgName: string, joinUrl: string, opts: { existingAccount?: boolean } = {}): EmailContent {
   const org = esc(orgName);
+  // Someone who already has an account signs in; anyone else signs up.
+  const how = opts.existingAccount ? "Sign in" : "Sign up";
   return {
     subject: `You've been invited to ${orgName} on Vispix`,
     html: layout(
       `<p style="margin:0 0 16px;">You've been invited to join <strong>${org}</strong> on Vispix, your team's shared photo library.</p>
-       <p style="margin:0 0 24px;">${button(signUpUrl, "Accept invitation")}</p>
-       <p style="margin:0;color:#71717a;font-size:13px;">Sign up with this email address and you'll be added to ${org} automatically.</p>`,
+       <p style="margin:0 0 24px;">${button(joinUrl, "Accept invitation")}</p>
+       <p style="margin:0;color:#71717a;font-size:13px;">${how} with this email address and you'll be added to ${org} automatically.</p>`,
     ),
-    text: `You've been invited to ${orgName} on Vispix\n\nJoin ${orgName} on Vispix, your team's shared photo library. Sign up with this email address and you'll be added automatically:\n\n${signUpUrl}`,
+    text: `You've been invited to ${orgName} on Vispix\n\nJoin ${orgName} on Vispix, your team's shared photo library. ${how} with this email address and you'll be added automatically:\n\n${joinUrl}`,
   };
 }
 

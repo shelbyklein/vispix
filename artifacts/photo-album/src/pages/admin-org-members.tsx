@@ -120,7 +120,7 @@ function InviteRow({ invite, onRevoke, revoking }: { invite: OrgInvite; onRevoke
       <div className="flex-1 min-w-0">
         <p className="text-sm text-foreground truncate">{invite.email}</p>
         <p className="text-xs text-muted-foreground">
-          {invite.role} · invited {formatDate(invite.createdAt)} · joins on first sign-in
+          {invite.role} · invited {formatDate(invite.createdAt)} · joins when they next sign in
         </p>
       </div>
       <Button size="icon" variant="ghost" className="h-8 w-8 shrink-0" disabled={revoking} onClick={() => onRevoke(invite.id)} aria-label="Revoke invite">
@@ -152,9 +152,19 @@ export default function AdminOrgMembersPage() {
     createInvite(
       { email: value, role },
       {
-        onSuccess: () => {
+        onSuccess: (invite) => {
           setEmail("");
-          toast({ title: `Invited ${value}` });
+          // The invite stands even when the email fails — say so, so the
+          // inviter can let the person know another way.
+          if (invite.emailSent === false) {
+            toast({
+              title: `Invited ${value}, but the email couldn't be sent`,
+              description: "Let them know to sign in or sign up at vispix.dev with this address — they'll join automatically.",
+              variant: "destructive",
+            });
+          } else {
+            toast({ title: `Invited ${value}` });
+          }
         },
         onError: () => toast({ title: "Couldn't send invite", variant: "destructive" }),
       },

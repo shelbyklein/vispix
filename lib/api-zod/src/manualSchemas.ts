@@ -314,7 +314,8 @@ export const CreateOrgInviteBody = z.object({
   email: z.string().trim().email().max(255),
   role: OrgRole.optional(),
 });
-export const CreateOrgInviteResponse = OrgInvite;
+// emailSent: whether the invite email went out; the invite stands either way.
+export const CreateOrgInviteResponse = OrgInvite.extend({ emailSent: z.boolean() });
 
 // --- Org settings / info (Phase 4d) ---
 export const OrgDetailsResponse = z.object({

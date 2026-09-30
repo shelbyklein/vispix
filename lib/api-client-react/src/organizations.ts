@@ -99,6 +99,8 @@ export type OrgMember = {
   joinedAt: string;
 };
 export type OrgInvite = { id: number; email: string; role: string; createdAt: string };
+/** The create response also says whether the invite email went out. */
+export type CreatedOrgInvite = OrgInvite & { emailSent: boolean };
 export type OrgRole = "owner" | "admin" | "member";
 
 const MEMBERS_KEY = ["organizations", "members"] as const;
@@ -122,7 +124,7 @@ export function useCreateOrgInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { email: string; role?: OrgRole }) =>
-      customFetch<OrgInvite>("/api/organizations/invites", {
+      customFetch<CreatedOrgInvite>("/api/organizations/invites", {
         method: "POST",
         body: JSON.stringify(input),
       }),

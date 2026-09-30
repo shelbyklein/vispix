@@ -10,7 +10,8 @@ vi.mock("../auth", () => ({
         const id = headers.get("x-test-auth-user");
         // email/name mirror the id so a not-yet-provisioned id (e.g. an email)
         // is provisioned by requireAuth — exercising invite auto-join.
-        return id ? { user: { id, email: id, name: id } } : null;
+        // Real sessions exist only for verified addresses (requireEmailVerification).
+        return id ? { user: { id, email: id, name: id, emailVerified: true } } : null;
       },
     },
     // app.ts mounts toNodeHandler(auth); tests never hit /api/auth, but the

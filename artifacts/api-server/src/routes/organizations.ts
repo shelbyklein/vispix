@@ -27,6 +27,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import { requireOrgAuth, requireOrgRole } from "../middlewares/requireOrg";
 import { sendEmail, appUrl, adminAlertEmail } from "../lib/email";
 import { orgInviteEmail, adminNewOrgEmail } from "../lib/email/templates";
+import { acceptPendingInvitesForAuthUser, hasAccount } from "../lib/orgInvites";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
@@ -90,6 +91,13 @@ export function orgLogoUrl(logoKey: string | null): string | null {
 // uses this to populate its org switcher; the chosen id goes back as the
 // X-Organization-Id header (see requireOrg).
 router.get("/organizations", requireAuth, async (req, res): Promise<void> => {
+  // Someone already signed in when they were invited joins here, the next
+  // time the app loads their organizations (sign-in does the same).
+  try {
+    await acceptPendingInvitesForAuthUser(req.dbUser!.authUserId);
+  } catch (err) {
+    req.log.error({ err }, "Failed to accept pending org invites");
+  }
   const rows = await db
     .select(myOrgColumns)
     .from(organizationMembersTable)
@@ -362,12 +370,18 @@ router.post("/organizations/invites", ...requireOrgAdmin, async (req, res): Prom
     })
     .returning();
 
-  // Email the invitee a join link. Signing up with this exact address
-  // auto-consumes the invite (see requireAuth provisioning). Best-effort.
-  const signUpUrl = appUrl(`/sign-up?email=${encodeURIComponent(email)}`);
-  const inviteMail = orgInviteEmail(req.org!.name, signUpUrl);
-  sendEmail({ to: email, subject: inviteMail.subject, html: inviteMail.html, text: inviteMail.text }).catch((err) =>
-    logger.error({ err }, "Failed to send org invite email"),
+  // Email the invitee a join link: sign-in if they already have an account,
+  // sign-up otherwise. Either way they join once their verified address signs
+  // in (see lib/orgInvites). The invite stands even if the email fails; the
+  // response says so, so the inviter can follow up another way.
+  const existingAccount = await hasAccount(email);
+  const joinUrl = appUrl(`/${existingAccount ? "sign-in" : "sign-up"}?email=${encodeURIComponent(email)}`);
+  const inviteMail = orgInviteEmail(req.org!.name, joinUrl, { existingAccount });
+  const emailSent = await sendEmail({ to: email, subject: inviteMail.subject, html: inviteMail.html, text: inviteMail.text }).catch(
+    (err) => {
+      logger.error({ err }, "Failed to send org invite email");
+      return false;
+    },
   );
 
   res.status(201).json(
@@ -376,6 +390,7 @@ router.post("/organizations/invites", ...requireOrgAdmin, async (req, res): Prom
       email: invite.email,
       role: invite.role,
       createdAt: invite.createdAt.toISOString(),
+      emailSent,
     }),
   );
 });

@@ -1,6 +1,7 @@
 import { type Request, type Response, type NextFunction } from "express";
 import { fromNodeHeaders } from "better-auth/node";
-import { db, usersTable, insertUserSchema, organizationInvitesTable, organizationMembersTable } from "@workspace/db";
+import { db, usersTable, insertUserSchema } from "@workspace/db";
+import { acceptPendingInvites } from "../lib/orgInvites";
 import { eq, sql } from "drizzle-orm";
 import { auth } from "../lib/auth";
 import { logger } from "../lib/logger";
@@ -56,21 +57,16 @@ export const requireAuth = async (req: Request, res: Response, next: NextFunctio
         }
         const [inserted] = await tx.insert(usersTable).values(parsed.data).returning();
 
-        // Auto-join any orgs this email was invited to (#113 Phase 4c) and
-        // consume the invites, so an invited teammate lands in the shared org
-        // rather than the "create your own org" screen.
-        const emailKey = email.toLowerCase();
-        const invites = await tx
-          .select()
-          .from(organizationInvitesTable)
-          .where(eq(organizationInvitesTable.email, emailKey));
-        if (invites.length > 0) {
-          await tx
-            .insert(organizationMembersTable)
-            .values(invites.map((i) => ({ organizationId: i.organizationId, userId: inserted.id, role: i.role })))
-            .onConflictDoNothing();
-          await tx.delete(organizationInvitesTable).where(eq(organizationInvitesTable.email, emailKey));
-          await tx.update(usersTable).set({ lastActiveOrgId: invites[0].organizationId }).where(eq(usersTable.id, inserted.id));
+        // Auto-join any orgs this (verified) email was invited to (#113 Phase
+        // 4c) and consume the invites, so an invited teammate lands in the
+        // shared org rather than the "create your own org" screen.
+        const joined = await acceptPendingInvites(tx, {
+          userId: inserted.id,
+          email,
+          emailVerified: (session.user as { emailVerified?: boolean }).emailVerified,
+        });
+        if (joined.length > 0) {
+          await tx.update(usersTable).set({ lastActiveOrgId: joined[0] }).where(eq(usersTable.id, inserted.id));
         }
         return inserted;
       });
