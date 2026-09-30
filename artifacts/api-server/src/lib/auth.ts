@@ -8,6 +8,7 @@ import { loadAppSettings } from "./aiProviders";
 import { sendEmail, appUrl, adminAlertEmail } from "./email";
 import { passwordResetEmail, adminNewSignupEmail, emailVerificationEmail } from "./email/templates";
 import { logger } from "./logger";
+import { acceptPendingInvitesForAuthUser } from "./orgInvites";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -84,6 +85,20 @@ export const auth = betterAuth({
             await sendEmail({ to, subject, html, text });
           } catch (err) {
             logger.error({ err }, "Failed to send new-signup admin alert");
+          }
+        },
+      },
+    },
+    // Signing in joins any organizations that have invited this (verified)
+    // address since — so an invite reaches someone who already has an
+    // account. First-ever sign-ins are handled by requireAuth provisioning.
+    session: {
+      create: {
+        after: async (session) => {
+          try {
+            await acceptPendingInvitesForAuthUser(session.userId);
+          } catch (err) {
+            logger.error({ err }, "Failed to accept pending org invites on sign-in");
           }
         },
       },
