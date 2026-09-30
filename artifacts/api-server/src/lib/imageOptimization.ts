@@ -2,6 +2,7 @@ import sharp from "sharp";
 import { eq } from "drizzle-orm";
 import { db, photosTable, organizationSettingsTable } from "@workspace/db";
 import { objectStorageClient, parseObjectPath, getPrivateObjectDir } from "./objectStorage";
+import { keyBelongsToOrg } from "./storageKeys";
 import { logger } from "./logger";
 import { createLimiter } from "./concurrencyLimit";
 
@@ -73,6 +74,12 @@ async function optimizeOriginalImageUnbounded(
   if (!storageKey.startsWith("/objects/")) {
     return "skipped";
   }
+  // Never overwrite another org's object through this org's row.
+  if (!keyBelongsToOrg(storageKey, organizationId)) {
+    logger.warn({ photoId, storageKey, organizationId }, "Refusing to optimize an object outside the photo's organization");
+    return "skipped";
+  }
+
   if (!(await isImageOptimizationEnabled(organizationId))) {
     return "skipped";
   }

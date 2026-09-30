@@ -292,7 +292,7 @@ router.delete("/albums/:id", requireOrgAuth, async (req, res): Promise<void> => 
   }
 
   const photosToClean = await db
-    .select({ id: photosTable.id, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+    .select({ id: photosTable.id, organizationId: photosTable.organizationId, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
     .from(photosTable)
     .where(eq(photosTable.albumId, params.data.id));
 

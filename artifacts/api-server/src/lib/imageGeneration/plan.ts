@@ -1,9 +1,8 @@
 import OpenAI from "openai";
-import { and, eq, ilike, inArray, isNull, or, sql } from "drizzle-orm";
-import { db, photosTable, assetsTable, photoEmbeddingsTable, projectsTable } from "@workspace/db";
+import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
+import { db, photosTable, assetsTable, projectsTable } from "@workspace/db";
 import { rankBrandAssets, type MatchConfidence } from "./assetRanking";
-import { embedText } from "../aiEmbedding";
-import { withIterativeVectorScan } from "../vectorSearch";
+import { retrievePhotos } from "../photoRetrieval";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { GENERATION_FORMATS, type GenerationFormat } from "./orchestrate";
 import { logger } from "../logger";
@@ -104,37 +103,19 @@ async function callPlanner(
   }
 }
 
-/** Semantic photo candidates, falling back to keyword when embeddings are off. */
+/**
+ * Hero-photo candidates from the shared retrieval service (#213): concept
+ * ranking, identical to web and MCP search for the same query. When the
+ * embedding provider is unavailable, falls back to keyword retrieval.
+ */
 export async function findPhotoCandidates(organizationId: number, query: string): Promise<PlanCandidate[]> {
-  let ids: number[] = [];
-  const vec = await embedText(query);
-  if (vec) {
-    const vecLiteral = `[${vec.join(",")}]`;
-    const rows = await withIterativeVectorScan((tx) =>
-      tx
-        .select({ id: photoEmbeddingsTable.photoId })
-        .from(photoEmbeddingsTable)
-        .innerJoin(photosTable, eq(photosTable.id, photoEmbeddingsTable.photoId))
-        .where(and(eq(photosTable.organizationId, organizationId), eq(photosTable.isHidden, false)))
-        .orderBy(sql`${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector`)
-        .limit(MAX_CANDIDATES),
-    );
-    ids = rows.map((r) => r.id);
-  } else {
-    const words = query.split(/\s+/).filter(Boolean);
-    const rows = await db
-      .select({ id: photosTable.id })
-      .from(photosTable)
-      .where(
-        and(
-          eq(photosTable.organizationId, organizationId),
-          eq(photosTable.isHidden, false),
-          or(...words.map((w) => ilike(photosTable.aiDescription, `%${w}%`))),
-        ),
-      )
-      .limit(MAX_CANDIDATES);
-    ids = rows.map((r) => r.id);
+  const request = { organizationId, canSeeHidden: false, text: query, limit: MAX_CANDIDATES };
+  let result = await retrievePhotos({ ...request, mode: "concept" });
+  if (result.status === "unavailable") {
+    logger.warn({ reason: result.degraded?.reason }, "Concept retrieval unavailable; hero photo candidates fall back to keyword");
+    result = await retrievePhotos({ ...request, mode: "keyword" });
   }
+  const ids = result.items.map((i) => i.photoId);
   if (ids.length === 0) return [];
   const rows = await db
     .select({ id: photosTable.id, filename: photosTable.filename, url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })

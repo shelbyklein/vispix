@@ -4,6 +4,7 @@ export {
   setBaseUrl,
   setAuthTokenGetter,
   setActiveOrgIdGetter,
+  ApiError,
 } from "./custom-fetch";
 export type { AuthTokenGetter, ActiveOrgIdGetter } from "./custom-fetch";
 export * from "./collectionTags";

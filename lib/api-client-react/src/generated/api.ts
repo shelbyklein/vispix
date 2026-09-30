@@ -68,6 +68,7 @@ import type {
   PhotoAttributionTagInput,
   PhotoCategoryInput,
   PhotoNeighbors,
+  PhotoRetrievalResponse,
   PhotoTagInput,
   PhotoUpdate,
   PhotoUploadInput,
@@ -81,6 +82,7 @@ import type {
   RegistrationSettingsUpdate,
   ReorderBody,
   ReorderResult,
+  RetrievePhotosParams,
   SearchPhotosPagedResponse,
   SearchPhotosParams,
   SemanticSearchPhotosParams,
@@ -1540,6 +1542,100 @@ export function useSemanticSearchPhotos<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getSemanticSearchPhotosQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Shared photo retrieval (docs/PHOTO_RETRIEVAL.md) — keyword or concept search with continuation, explicit states and ranking metadata
+ */
+export const getRetrievePhotosUrl = (params: RetrievePhotosParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/search/photos?${stringifiedParams}`
+    : `/api/search/photos`;
+};
+
+export const retrievePhotos = async (
+  params: RetrievePhotosParams,
+  options?: RequestInit,
+): Promise<PhotoRetrievalResponse> => {
+  return customFetch<PhotoRetrievalResponse>(getRetrievePhotosUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getRetrievePhotosQueryKey = (params?: RetrievePhotosParams) => {
+  return [`/api/search/photos`, ...(params ? [params] : [])] as const;
+};
+
+export const getRetrievePhotosQueryOptions = <
+  TData = Awaited<ReturnType<typeof retrievePhotos>>,
+  TError = ErrorType<void>,
+>(
+  params: RetrievePhotosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof retrievePhotos>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getRetrievePhotosQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof retrievePhotos>>> = ({
+    signal,
+  }) => retrievePhotos(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof retrievePhotos>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type RetrievePhotosQueryResult = NonNullable<
+  Awaited<ReturnType<typeof retrievePhotos>>
+>;
+export type RetrievePhotosQueryError = ErrorType<void>;
+
+/**
+ * @summary Shared photo retrieval (docs/PHOTO_RETRIEVAL.md) — keyword or concept search with continuation, explicit states and ranking metadata
+ */
+
+export function useRetrievePhotos<
+  TData = Awaited<ReturnType<typeof retrievePhotos>>,
+  TError = ErrorType<void>,
+>(
+  params: RetrievePhotosParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof retrievePhotos>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getRetrievePhotosQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

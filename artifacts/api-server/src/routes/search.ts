@@ -1,5 +1,5 @@
-import { Router, type IRouter } from "express";
-import { and, avg, desc, eq, ilike, inArray, isNotNull, isNull, notInArray, or, sql } from "drizzle-orm";
+import { Router, type IRouter, type Response } from "express";
+import { and, avg, desc, eq, ilike, inArray, isNotNull, or } from "drizzle-orm";
 import {
   db,
   albumsTable,
@@ -9,35 +9,16 @@ import {
   tagsTable,
   collectionTagsTable,
   photoCollectionsTable,
-  photoEmbeddingsTable,
-  photoAiEvaluationsTable,
   aiAnalysisEventsTable,
   photoAttributionTagsTable,
 } from "@workspace/db";
-import { SearchPhotosPagedResponse, SemanticSearchPhotosResponse } from "@workspace/api-zod";
+import { SearchPhotosPagedResponse, SemanticSearchPhotosResponse, RetrievePhotosResponse } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse } from "../lib/photoHelpers";
-import { embedText } from "../lib/aiEmbedding";
-import { withIterativeVectorScan } from "../lib/vectorSearch";
-import { parseSearchFilters, photoFilterConditions, takenAtRange } from "../lib/searchFilters";
+import { parseSearchFilters, takenAtRange } from "../lib/searchFilters";
+import { retrievePhotos, RetrievalError, MAX_PAGE_SIZE } from "../lib/photoRetrieval";
 
 const router: IRouter = Router();
-
-// How hard an excluded concept pushes the semantic query vector away from it.
-const NEGATIVE_LAMBDA = 0.75;
-
-// AI criteria evaluation (#181) as a search signal. In semantic search the
-// final rank blends embedding similarity with the photo's overall AI score:
-// final = similarity * (1 - W) + (score / 10) * W. Small on purpose — relevance
-// still dominates; the score breaks ties between similar matches. Photos not
-// yet evaluated get a neutral 5/10 so the progressive backfill doesn't bury them.
-const SEMANTIC_QUALITY_WEIGHT = 0.15;
-const NEUTRAL_QUALITY_SCORE = 5;
-
-function normalizeVec(v: number[]): number[] {
-  const m = Math.sqrt(v.reduce((s, x) => s + x * x, 0)) || 1;
-  return v.map((x) => x / m);
-}
 
 interface PhotoFilterOptions {
   search?: string;
@@ -234,99 +215,60 @@ async function applyFiltersAndFetchIds(
   return ids;
 }
 
+// Photo search routes are adapters over the shared retrieval service (#213,
+// docs/PHOTO_RETRIEVAL.md): /search (keyword, offset pages) and
+// /search/semantic (concept, topK array) keep their response shapes;
+// /search/photos exposes the full contract.
+
+function retrievalErrorStatus(err: unknown): number | null {
+  if (!(err instanceof RetrievalError)) return null;
+  return err.code === "search_timeout" ? 503 : err.code === "invalid_scope" ? 500 : 400;
+}
+
+/** Aborts the provider call when the client goes away before we answer. */
+function abortOnClientClose(res: Response): AbortSignal {
+  const ac = new AbortController();
+  res.on("close", () => {
+    if (!res.writableFinished) ac.abort();
+  });
+  return ac.signal;
+}
+
+function intParam(raw: unknown, fallback: number): number {
+  const n = typeof raw === "string" ? parseInt(raw, 10) : NaN;
+  return Number.isInteger(n) ? n : fallback;
+}
+
 router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
   if (!q) {
     res.json(SearchPhotosPagedResponse.parse({ photos: [], hasMore: false }));
     return;
   }
-
   const parsed = parseSearchFilters(req.query as Record<string, unknown>);
   if (!parsed.ok) {
     res.status(400).json({ error: parsed.error });
     return;
   }
-  const { filters } = parsed;
-
-  const limitRaw = req.query.limit ? parseInt(String(req.query.limit), 10) : 48;
-  const limit = Math.min(Math.max(Number.isInteger(limitRaw) ? limitRaw : 48, 1), 200);
-  const offsetRaw = req.query.offset ? parseInt(String(req.query.offset), 10) : 0;
-  const offset = Math.max(Number.isInteger(offsetRaw) ? offsetRaw : 0, 0);
-
-  const canSeeHidden = req.dbUser!.role === "admin" && filters.includeHidden;
-  // Every metadata filter, tenant scope and hidden visibility (#205) — applied
-  // in SQL below, before pagination.
-  const scope = photoFilterConditions(filters, { organizationId: req.org!.id, canSeeHidden });
-
-  const pattern = `%${q}%`;
-
-  const orgScope = eq(photosTable.organizationId, req.org!.id);
-  const hiddenCondition = canSeeHidden ? undefined : eq(photosTable.isHidden, false);
-
-  const [byAlbumTitle, byUploader, byAiDescription] = await Promise.all([
-    db
-      .select({ id: photosTable.id })
-      .from(photosTable)
-      .innerJoin(albumsTable, eq(photosTable.albumId, albumsTable.id))
-      .where(and(ilike(albumsTable.title, pattern), orgScope, hiddenCondition)),
-    db
-      .select({ id: photosTable.id })
-      .from(photosTable)
-      .innerJoin(usersTable, eq(photosTable.uploaderId, usersTable.id))
-      .where(and(ilike(usersTable.name, pattern), orgScope, hiddenCondition)),
-    db
-      .select({ id: photosTable.id })
-      .from(photosTable)
-      .where(and(ilike(photosTable.aiDescription, pattern), orgScope, hiddenCondition)),
-  ]);
-
-  const uniqueIds = [
-    ...new Set([
-      ...byAlbumTitle.map((r) => r.id),
-      ...byUploader.map((r) => r.id),
-      ...byAiDescription.map((r) => r.id),
-    ]),
-  ];
-
-  // Keyword exclusions are hard: drop photos whose AI description matches.
-  const excludeTerms = filters.exclude;
-  let candidateIds = uniqueIds;
-  if (excludeTerms.length > 0 && uniqueIds.length > 0) {
-    const excludedRows = await db
-      .select({ id: photosTable.id })
-      .from(photosTable)
-      .where(and(orgScope, or(...excludeTerms.map((t) => ilike(photosTable.aiDescription, `%${t}%`)))));
-    const excludeSet = new Set(excludedRows.map((r) => r.id));
-    candidateIds = uniqueIds.filter((id) => !excludeSet.has(id));
+  const { includeHidden, exclude, ...filters } = parsed.filters;
+  try {
+    const result = await retrievePhotos({
+      organizationId: req.org!.id,
+      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      mode: "keyword",
+      text: q,
+      exclude,
+      filters,
+      limit: Math.min(Math.max(intParam(req.query.limit, 48), 1), 200),
+      offset: Math.max(intParam(req.query.offset, 0), 0),
+    });
+    const photos = await buildPhotosResponse(result.items.map((i) => i.photoId), req.org!.id, req.dbUser?.id);
+    res.json(SearchPhotosPagedResponse.parse({ photos, hasMore: result.page.nextCursor != null }));
+  } catch (err) {
+    const status = retrievalErrorStatus(err);
+    if (status == null) throw err;
+    res.status(status).json({ error: (err as RetrievalError).message, code: (err as RetrievalError).code });
   }
-
-  if (candidateIds.length === 0) {
-    res.json(SearchPhotosPagedResponse.parse({ photos: [], hasMore: false }));
-    return;
-  }
-
-  // The ILIKE union has no inherent order — impose a stable one so offset
-  // pagination is consistent across pages: AI quality tier first (#181 — whole
-  // scores so recency still matters within a tier; unevaluated photos sort as a
-  // middle 5 so the progressive backfill doesn't bury them), then newest-first
-  // with an id tiebreaker. The shared filter predicates run in this query.
-  const orderedRows = await db
-    .select({ id: photosTable.id })
-    .from(photosTable)
-    .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photosTable.id))
-    .where(and(inArray(photosTable.id, candidateIds), ...scope))
-    .orderBy(
-      sql`round(coalesce(${photoAiEvaluationsTable.overallScore}, ${NEUTRAL_QUALITY_SCORE})) DESC`,
-      desc(photosTable.createdAt),
-      desc(photosTable.id),
-    );
-
-  const filtered = orderedRows.map((r) => r.id);
-  const pageIds = filtered.slice(offset, offset + limit);
-  const hasMore = filtered.length > offset + limit;
-
-  const photos = await buildPhotosResponse(pageIds, req.org!.id, req.dbUser?.id);
-  res.json(SearchPhotosPagedResponse.parse({ photos, hasMore }));
 });
 
 router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> => {
@@ -335,76 +277,76 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
     res.json(SemanticSearchPhotosResponse.parse([]));
     return;
   }
-
   const parsed = parseSearchFilters(req.query as Record<string, unknown>);
   if (!parsed.ok) {
     res.status(400).json({ error: parsed.error });
     return;
   }
-  const { filters } = parsed;
+  const { includeHidden, exclude, ...filters } = parsed.filters;
+  const topKRaw = intParam(req.query.topK, 30);
+  try {
+    const result = await retrievePhotos({
+      organizationId: req.org!.id,
+      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      mode: "concept",
+      text: q,
+      exclude,
+      filters,
+      limit: topKRaw > 0 ? Math.min(topKRaw, 100) : 30,
+      signal: abortOnClientClose(res),
+    });
+    // The array response can't carry states; headers say when nothing was
+    // ranked because the embedding provider was unavailable.
+    res.setHeader("X-Search-Status", result.status);
+    if (result.degraded) res.setHeader("X-Search-Degraded", `${result.degraded.affects}:${result.degraded.reason}`);
+    const photos = await buildPhotosResponse(result.items.map((i) => i.photoId), req.org!.id, req.dbUser?.id);
+    res.json(SemanticSearchPhotosResponse.parse(photos));
+  } catch (err) {
+    const status = retrievalErrorStatus(err);
+    if (status == null) throw err;
+    res.status(status).json({ error: (err as RetrievalError).message, code: (err as RetrievalError).code });
+  }
+});
 
-  const topKRaw = req.query.topK ? parseInt(String(req.query.topK), 10) : 30;
-  const topK = Number.isInteger(topKRaw) && topKRaw > 0 ? Math.min(topKRaw, 100) : 30;
-  const canSeeHidden = req.dbUser!.role === "admin" && filters.includeHidden;
-
-  // Embed the query into the same space as the image embeddings. Returns null
-  // when embeddings aren't enabled/configured — degrade to no results.
-  const posVec = await embedText(q);
-  if (!posVec) {
-    res.json(SemanticSearchPhotosResponse.parse([]));
+router.get("/search/photos", requireOrgAuth, async (req, res): Promise<void> => {
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  const mode = req.query.mode ?? "combined";
+  if (mode !== "combined" && mode !== "concept" && mode !== "keyword") {
+    res.status(400).json({ error: "mode must be combined, concept or keyword", code: "invalid_request" });
     return;
   }
-
-  // Steer the query away from excluded concepts: query = norm(pos) - λ·norm(neg).
-  // A ranking preference, not guaranteed absence (the page labels it so).
-  let queryVec = posVec;
-  const excludeTerms = filters.exclude;
-  if (excludeTerms.length > 0) {
-    const negVec = await embedText(excludeTerms.join(", "));
-    if (negVec) {
-      const p = normalizeVec(posVec);
-      const n = normalizeVec(negVec);
-      queryVec = p.map((x, i) => x - NEGATIVE_LAMBDA * n[i]);
-    }
+  const parsed = parseSearchFilters(req.query as Record<string, unknown>);
+  if (!parsed.ok) {
+    res.status(400).json({ error: parsed.error, code: "invalid_request" });
+    return;
   }
-  const vecLiteral = `[${queryVec.join(",")}]`;
-
-  // Nearest neighbours by cosine distance (matches the HNSW vector_cosine_ops
-  // index). Join photos so the shared filter predicates (#205: dates, ratings,
-  // uploader, quality, hidden, org) run inside the scan — the iterative HNSW
-  // scan keeps going until the LIMIT is filled with matching photos — and the
-  // AI evaluation (#181) for the quality blend. Over-fetch so re-ranking has
-  // candidates beyond the raw topK to promote from.
-  const fetchK = Math.min(topK * 2, 200);
-  const rows = await withIterativeVectorScan((tx) =>
-    tx
-      .select({
-        id: photoEmbeddingsTable.photoId,
-        similarity: sql<number>`1 - (${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector)`,
-        aiScore: photoAiEvaluationsTable.overallScore,
-      })
-      .from(photoEmbeddingsTable)
-      .innerJoin(photosTable, eq(photosTable.id, photoEmbeddingsTable.photoId))
-      .leftJoin(photoAiEvaluationsTable, eq(photoAiEvaluationsTable.photoId, photoEmbeddingsTable.photoId))
-      .where(and(...photoFilterConditions(filters, { organizationId: req.org!.id, canSeeHidden })))
-      .orderBy(sql`${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector`)
-      .limit(fetchK),
-  );
-
-  // Blend similarity with the AI quality score (#181), re-rank, keep topK.
-  const ranked = rows
-    .map((r) => ({
-      id: r.id,
-      final:
-        Number(r.similarity) * (1 - SEMANTIC_QUALITY_WEIGHT) +
-        ((r.aiScore ?? NEUTRAL_QUALITY_SCORE) / 10) * SEMANTIC_QUALITY_WEIGHT,
-    }))
-    .sort((a, b) => b.final - a.final)
-    .slice(0, topK);
-
-  // buildPhotosResponse preserves input id order → results stay ranked.
-  const photos = await buildPhotosResponse(ranked.map((r) => r.id), req.org!.id, req.dbUser?.id);
-  res.json(SemanticSearchPhotosResponse.parse(photos));
+  const { includeHidden, exclude, ...filters } = parsed.filters;
+  try {
+    const result = await retrievePhotos({
+      organizationId: req.org!.id,
+      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      mode,
+      text: q,
+      exclude,
+      filters,
+      limit: Math.min(Math.max(intParam(req.query.limit, 30), 1), MAX_PAGE_SIZE),
+      cursor: typeof req.query.cursor === "string" && req.query.cursor ? req.query.cursor : null,
+      signal: abortOnClientClose(res),
+    });
+    const photos = await buildPhotosResponse(result.items.map((i) => i.photoId), req.org!.id, req.dbUser?.id);
+    const byId = new Map(photos.flatMap((p) => (p ? [[p.id, p] as const] : [])));
+    const { items, ...rest } = result;
+    res.json(
+      RetrievePhotosResponse.parse({
+        ...rest,
+        items: items.filter((i) => byId.has(i.photoId)).map((i) => ({ photo: byId.get(i.photoId), match: i.match })),
+      }),
+    );
+  } catch (err) {
+    const status = retrievalErrorStatus(err);
+    if (status == null) throw err;
+    res.status(status).json({ error: (err as RetrievalError).message, code: (err as RetrievalError).code });
+  }
 });
 
 export { applyFiltersAndFetchIds };

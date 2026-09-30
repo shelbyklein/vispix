@@ -10,7 +10,16 @@ interface UploadMetadata {
 interface UploadResponse {
   uploadURL: string;
   objectPath: string;
+  /** Headers signed into the URL (Content-Type, optionally a length range); send them exactly. */
+  uploadHeaders?: Record<string, string>;
   metadata: UploadMetadata;
+}
+
+/** The PUT headers for a presigned upload: exactly what the server signed. */
+export function presignedUploadHeaders(file: { type?: string | null }, uploadHeaders?: Record<string, string>): Record<string, string> {
+  return uploadHeaders && Object.keys(uploadHeaders).length > 0
+    ? uploadHeaders
+    : { "Content-Type": file.type || "application/octet-stream" };
 }
 
 interface UseUploadOptions {
@@ -103,11 +112,19 @@ export function useUpload(options: UseUploadOptions = {}) {
   );
 
   const uploadToPresignedUrl = useCallback(
-    (file: File, uploadURL: string, onProgress?: (percent: number) => void, signal?: AbortSignal): Promise<void> => {
+    (
+      file: File,
+      uploadURL: string,
+      onProgress?: (percent: number) => void,
+      signal?: AbortSignal,
+      uploadHeaders?: Record<string, string>,
+    ): Promise<void> => {
       return new Promise((resolve, reject) => {
         const xhr = new XMLHttpRequest();
         xhr.open("PUT", uploadURL);
-        xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+        for (const [name, value] of Object.entries(presignedUploadHeaders(file, uploadHeaders))) {
+          xhr.setRequestHeader(name, value);
+        }
 
         // Stall watchdog: a connection that stops making progress would
         // otherwise hang forever and permanently occupy a bulk-upload slot.
@@ -194,7 +211,7 @@ export function useUpload(options: UseUploadOptions = {}) {
         await uploadToPresignedUrl(file, uploadResponse.uploadURL, (xhrPct) => {
           setProgress(10 + Math.round(xhrPct * 0.85));
           onProgress?.(xhrPct);
-        }, signal);
+        }, signal, uploadResponse.uploadHeaders);
 
         setProgress(100);
         onProgress?.(100);
@@ -241,11 +258,11 @@ export function useUpload(options: UseUploadOptions = {}) {
         throw new Error("Failed to get upload URL");
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as UploadResponse;
       return {
         method: "PUT",
         url: data.uploadURL,
-        headers: { "Content-Type": file.type || "application/octet-stream" },
+        headers: presignedUploadHeaders(file, data.uploadHeaders),
       };
     },
     []

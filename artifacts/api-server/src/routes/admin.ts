@@ -713,7 +713,7 @@ router.post("/admin/photos/duplicates/delete-extras", ...requireOrgAdmin, async 
   // extraIds are already org-scoped, but re-assert org on the delete as
   // defense-in-depth so no foreign id can ever be removed.
   const toDelete = await db
-    .select({ id: photosTable.id, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+    .select({ id: photosTable.id, organizationId: photosTable.organizationId, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
     .from(photosTable)
     .where(and(inArray(photosTable.id, extraIds), eq(photosTable.organizationId, orgId)));
 
@@ -819,7 +819,7 @@ router.post("/admin/photos/near-duplicates/delete-extras", ...requireOrgAdmin, a
   // extraIds are already org-scoped; re-assert org on the reads/delete as
   // defense-in-depth so no foreign id can ever be removed.
   const toDelete = await db
-    .select({ id: photosTable.id, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+    .select({ id: photosTable.id, organizationId: photosTable.organizationId, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
     .from(photosTable)
     .where(and(inArray(photosTable.id, extraIds), eq(photosTable.organizationId, orgId)));
 

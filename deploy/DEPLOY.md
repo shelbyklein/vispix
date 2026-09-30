@@ -115,12 +115,20 @@ site (save as `cors.json`, then apply):
 ```json
 [{ "origin": ["https://vispix.dev"],
    "method": ["GET", "PUT", "HEAD"],
-   "responseHeader": ["Content-Type"],
+   "responseHeader": ["Content-Type", "x-goog-content-length-range"],
    "maxAgeSeconds": 3600 }]
 ```
 ```bash
 gsutil cors set cors.json gs://vispix-prod
 ```
+
+Upload size signing (audit #8): with `SIGN_UPLOAD_LENGTH_RANGE=true`, upload
+URLs bind `x-goog-content-length-range: 0,<declared size>`, so GCS itself
+refuses a larger PUT. Browsers then send that header cross-origin, which GCS
+only allows when the bucket CORS `responseHeader` lists it. **Apply the CORS
+above first, then set the variable** — in the other order, browser uploads
+fail. Registration enforces the real object size (100 MB, and quota) either
+way.
 
 > The service-account key grants write access to the bucket. Treat it like a
 > password — it never gets committed (the compose mount and `.gitignore` keep it

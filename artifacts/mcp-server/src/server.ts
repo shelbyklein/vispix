@@ -93,8 +93,8 @@ export function createServer(options: ServerOptions = {}): McpServer {
         includeImages: z.boolean().default(true).describe("Inline thumbnail images in the response"),
       },
     },
-    async ({ query, count, exclude, minRating, minQuality, rightsTag, person, includeImages }) => {
-      const { results, note } = await searchPhotos({ query, count, exclude, minRating, minQuality, rightsTag, person, organizationId: options.organizationId });
+    async ({ query, count, exclude, minRating, minQuality, rightsTag, person, includeImages }, extra) => {
+      const { results, note } = await searchPhotos({ query, count, exclude, minRating, minQuality, rightsTag, person, organizationId: options.organizationId, signal: extra.signal });
       if (results.length === 0) {
         return { content: [textBlock(note ?? `No photos matched "${query}".`)] };
       }

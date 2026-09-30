@@ -30,6 +30,13 @@ describe("signed upload URLs", () => {
     expect(signedHeaders(url)).not.toContain("content-type");
   });
 
+  it("cover the content-length range when a size limit is given (audit #8)", async () => {
+    const url = await signObjectURL({ bucketName: "b", objectName: "o", method: "PUT", ttlSec: 60, contentType: "image/jpeg", maxBytes: 5000 });
+    expect(signedHeaders(url)).toEqual(expect.arrayContaining(["content-type", "x-goog-content-length-range"]));
+    const unbounded = await signObjectURL({ bucketName: "b", objectName: "o", method: "PUT", ttlSec: 60, contentType: "image/jpeg" });
+    expect(signedHeaders(unbounded)).not.toContain("x-goog-content-length-range");
+  });
+
   it("the browser upload URL for an org is keyed under the org and bound to the type", async () => {
     const url = await service.getObjectEntityUploadURL(42, "font/woff2");
     expect(new URL(url).pathname).toMatch(/^\/test-bucket\/private\/orgs\/42\/uploads\/[0-9a-f-]{36}$/);

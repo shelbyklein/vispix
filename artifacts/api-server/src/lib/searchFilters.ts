@@ -1,5 +1,13 @@
 import { eq, gte, lt, lte, sql, type SQL } from "drizzle-orm";
-import { photosTable, ratingsTable, photoAiEvaluationsTable } from "@workspace/db";
+import {
+  photosTable,
+  ratingsTable,
+  photoAiEvaluationsTable,
+  photoAttributionTagsTable,
+  attributionTagsTable,
+  photoCollectionsTable,
+  collectionsTable,
+} from "@workspace/db";
 
 // One filter contract for photo search (#205). Keyword search, semantic search
 // and the Photos page all parse filters here and apply the same SQL predicates
@@ -14,6 +22,8 @@ import { photosTable, ratingsTable, photoAiEvaluationsTable } from "@workspace/d
 //   ratingMin/Max      average user rating 0–5; unrated counts as 0.
 //   minQuality         AI overall score 0–10; unevaluated photos excluded.
 //   uploaderId         exact uploader.
+//   rightsTagId        carries this usage-rights tag (#213; the org's own tags only).
+//   personId           is in this person collection (#213; the org's own people only).
 //   includeHidden      honoured for admins only.
 //   exclude            keyword: hard removal by AI description; semantic: a
 //                      ranking preference (the route steers the query vector),
@@ -26,6 +36,8 @@ export interface SearchFilters {
   dateFrom?: string;
   dateTo?: string;
   uploaderId?: number;
+  rightsTagId?: number;
+  personId?: number;
   includeHidden: boolean;
   exclude: string[];
 }
@@ -75,11 +87,13 @@ export function parseSearchFilters(query: Record<string, unknown>): ParsedSearch
     return { ok: false, error: "ratingMin must be at most ratingMax" };
   }
 
-  const u = oneString(query.uploaderId);
-  let uploaderId: number | undefined;
-  if (u != null) {
-    uploaderId = Number(u);
-    if (!Number.isSafeInteger(uploaderId) || uploaderId <= 0) return { ok: false, error: "uploaderId must be a positive integer" };
+  const ids: Partial<Record<"uploaderId" | "rightsTagId" | "personId", number>> = {};
+  for (const name of ["uploaderId", "rightsTagId", "personId"] as const) {
+    const raw = oneString(query[name]);
+    if (raw == null) continue;
+    const n = Number(raw);
+    if (!Number.isSafeInteger(n) || n <= 0) return { ok: false, error: `${name} must be a positive integer` };
+    ids[name] = n;
   }
 
   const rawExclude = Array.isArray(query.exclude) ? query.exclude : query.exclude != null ? [query.exclude] : [];
@@ -93,7 +107,7 @@ export function parseSearchFilters(query: Record<string, unknown>): ParsedSearch
       minQuality,
       dateFrom,
       dateTo,
-      uploaderId,
+      ...ids,
       includeHidden: oneString(query.includeHidden) === "true",
       exclude,
     },
@@ -137,6 +151,16 @@ export function photoFilterConditions(
   if (filters.ratingMin != null) out.push(sql`${averageRating} >= ${filters.ratingMin}`);
   if (filters.ratingMax != null) out.push(sql`${averageRating} <= ${filters.ratingMax}`);
   if (filters.uploaderId != null) out.push(eq(photosTable.uploaderId, filters.uploaderId));
+  if (filters.rightsTagId != null) {
+    out.push(
+      sql`exists (select 1 from ${photoAttributionTagsTable} join ${attributionTagsTable} on ${attributionTagsTable.id} = ${photoAttributionTagsTable.tagId} where ${photoAttributionTagsTable.photoId} = ${photosTable.id} and ${photoAttributionTagsTable.tagId} = ${filters.rightsTagId} and ${attributionTagsTable.organizationId} = ${opts.organizationId})`,
+    );
+  }
+  if (filters.personId != null) {
+    out.push(
+      sql`exists (select 1 from ${photoCollectionsTable} join ${collectionsTable} on ${collectionsTable.id} = ${photoCollectionsTable.collectionId} where ${photoCollectionsTable.photoId} = ${photosTable.id} and ${photoCollectionsTable.collectionId} = ${filters.personId} and ${collectionsTable.kind} = 'person' and ${collectionsTable.organizationId} = ${opts.organizationId})`,
+    );
+  }
   if (filters.minQuality != null) {
     out.push(
       sql`exists (select 1 from ${photoAiEvaluationsTable} where ${photoAiEvaluationsTable.photoId} = ${photosTable.id} and ${photoAiEvaluationsTable.overallScore} >= ${filters.minQuality})`,

@@ -30,4 +30,12 @@ export type SearchPhotosParams = {
    * Only photos whose AI overall evaluation score (0-10) is at least this; unevaluated photos are dropped when set.
    */
   minQuality?: number;
+  /**
+   * Only photos carrying this usage-rights tag (the organization's own tags).
+   */
+  rightsTagId?: number;
+  /**
+   * Only photos in this person collection (the organization's own people).
+   */
+  personId?: number;
 };

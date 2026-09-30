@@ -285,7 +285,8 @@ function GlobalSearchBar() {
         ref={inputRef}
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        placeholder="Search photos..."
+        placeholder="Search photos, filenames or IDs…"
+        aria-label="Search photos by description, filename or photo ID"
         className="h-8 pl-8 pr-3 text-sm w-full bg-muted/50 border-transparent focus:bg-background focus:border-input"
         data-testid="global-search-input"
       />
