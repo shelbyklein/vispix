@@ -281,6 +281,13 @@ describe("cursor binding", () => {
     });
   });
 
+  it("rejects a cursor when the query vector changes (a model or provider update)", async () => {
+    const p1 = await retrievePhotos(base({ limit: 5 }));
+    clearQueryEmbeddingCache();
+    embedQuery.mockImplementationOnce(async () => ({ ok: true as const, vec: unit({ 0: 1, 5: 0.01 }) }));
+    await expect(retrievePhotos(base({ limit: 5, cursor: p1.page.nextCursor }))).rejects.toMatchObject({ code: "cursor_mismatch" });
+  });
+
   it("rejects malformed cursors and cursors from the other mode", async () => {
     await expect(retrievePhotos(base({ cursor: "not-a-cursor" }))).rejects.toBeInstanceOf(RetrievalError);
     const kw = await retrievePhotos(base({ mode: "keyword", text: "archer", limit: 1 }));
