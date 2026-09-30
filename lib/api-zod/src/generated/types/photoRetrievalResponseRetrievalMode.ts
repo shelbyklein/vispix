@@ -10,6 +10,7 @@ export type PhotoRetrievalResponseRetrievalMode =
   (typeof PhotoRetrievalResponseRetrievalMode)[keyof typeof PhotoRetrievalResponseRetrievalMode];
 
 export const PhotoRetrievalResponseRetrievalMode = {
-  concept: "concept",
+  combined: "combined",
   keyword: "keyword",
+  concept: "concept",
 } as const;

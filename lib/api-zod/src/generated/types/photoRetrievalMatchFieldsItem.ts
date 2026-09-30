@@ -10,6 +10,8 @@ export type PhotoRetrievalMatchFieldsItem =
   (typeof PhotoRetrievalMatchFieldsItem)[keyof typeof PhotoRetrievalMatchFieldsItem];
 
 export const PhotoRetrievalMatchFieldsItem = {
+  photo_id: "photo_id",
+  filename: "filename",
   album_title: "album_title",
   uploader: "uploader",
   description: "description",

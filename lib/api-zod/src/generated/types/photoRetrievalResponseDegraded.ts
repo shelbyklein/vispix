@@ -11,5 +11,5 @@
  */
 export type PhotoRetrievalResponseDegraded = {
   reason: "not_configured" | "timeout" | "cancelled" | "provider_error";
-  affects: "query" | "exclusions";
+  affects: "query" | "exclusions" | "concept";
 } | null;

@@ -10,6 +10,7 @@ export type PhotoRetrievalMatchType =
   (typeof PhotoRetrievalMatchType)[keyof typeof PhotoRetrievalMatchType];
 
 export const PhotoRetrievalMatchType = {
+  exact: "exact",
   keyword: "keyword",
   concept: "concept",
 } as const;

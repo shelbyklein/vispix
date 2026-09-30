@@ -1000,9 +1000,11 @@ export const SemanticSearchPhotosResponse = zod.array(
 export const RetrievePhotosQueryParams = zod.object({
   q: zod.coerce.string(),
   mode: zod
-    .enum(["concept", "keyword"])
+    .enum(["combined", "keyword", "concept"])
     .optional()
-    .describe("concept (semantic, default) or keyword."),
+    .describe(
+      "combined (default — exact photo ID\/filename matches, then concept ranking; literal matches when concept is unavailable), keyword (literal-only — exact matches, then substring matches) or concept.",
+    ),
   limit: zod.coerce
     .number()
     .optional()
@@ -1221,16 +1223,24 @@ export const RetrievePhotosResponse = zod.object({
       }),
       match: zod
         .object({
-          type: zod.enum(["keyword", "concept"]),
+          type: zod.enum(["exact", "keyword", "concept"]),
           fields: zod
-            .array(zod.enum(["album_title", "uploader", "description"]))
+            .array(
+              zod.enum([
+                "photo_id",
+                "filename",
+                "album_title",
+                "uploader",
+                "description",
+              ]),
+            )
             .optional(),
           similarity: zod.number().optional(),
           qualityScore: zod.number().nullish(),
           score: zod.number().optional(),
         })
         .describe(
-          "Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).",
+          "Why the photo is here. exact — the query is its photo ID or filename; keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).",
         ),
     }),
   ),
@@ -1264,12 +1274,12 @@ export const RetrievePhotosResponse = zod.object({
         "cancelled",
         "provider_error",
       ]),
-      affects: zod.enum(["query", "exclusions"]),
+      affects: zod.enum(["query", "exclusions", "concept"]),
     })
     .nullable(),
   retrieval: zod.object({
     version: zod.string(),
-    mode: zod.enum(["concept", "keyword"]),
+    mode: zod.enum(["combined", "keyword", "concept"]),
     embeddingModel: zod.string().nullable(),
     ranking: zod.string(),
   }),

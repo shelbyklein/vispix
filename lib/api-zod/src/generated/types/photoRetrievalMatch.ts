@@ -9,7 +9,7 @@ import type { PhotoRetrievalMatchFieldsItem } from "./photoRetrievalMatchFieldsI
 import type { PhotoRetrievalMatchType } from "./photoRetrievalMatchType";
 
 /**
- * Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
+ * Why the photo is here. exact — the query is its photo ID or filename; keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
  */
 export interface PhotoRetrievalMatch {
   type: PhotoRetrievalMatchType;

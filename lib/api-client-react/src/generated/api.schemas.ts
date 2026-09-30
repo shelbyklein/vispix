@@ -359,15 +359,16 @@ export type PhotoRetrievalResponseCoverage = {
  */
 export type PhotoRetrievalResponseDegraded = {
   reason: "not_configured" | "timeout" | "cancelled" | "provider_error";
-  affects: "query" | "exclusions";
+  affects: "query" | "exclusions" | "concept";
 } | null;
 
 export type PhotoRetrievalResponseRetrievalMode =
   (typeof PhotoRetrievalResponseRetrievalMode)[keyof typeof PhotoRetrievalResponseRetrievalMode];
 
 export const PhotoRetrievalResponseRetrievalMode = {
-  concept: "concept",
+  combined: "combined",
   keyword: "keyword",
+  concept: "concept",
 } as const;
 
 export type PhotoRetrievalResponseRetrieval = {
@@ -382,6 +383,7 @@ export type PhotoRetrievalMatchType =
   (typeof PhotoRetrievalMatchType)[keyof typeof PhotoRetrievalMatchType];
 
 export const PhotoRetrievalMatchType = {
+  exact: "exact",
   keyword: "keyword",
   concept: "concept",
 } as const;
@@ -390,13 +392,15 @@ export type PhotoRetrievalMatchFieldsItem =
   (typeof PhotoRetrievalMatchFieldsItem)[keyof typeof PhotoRetrievalMatchFieldsItem];
 
 export const PhotoRetrievalMatchFieldsItem = {
+  photo_id: "photo_id",
+  filename: "filename",
   album_title: "album_title",
   uploader: "uploader",
   description: "description",
 } as const;
 
 /**
- * Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
+ * Why the photo is here. exact — the query is its photo ID or filename; keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
  */
 export interface PhotoRetrievalMatch {
   type: PhotoRetrievalMatchType;
@@ -1026,7 +1030,7 @@ export type SemanticSearchPhotosParams = {
 export type RetrievePhotosParams = {
   q: string;
   /**
-   * concept (semantic, default) or keyword.
+   * combined (default — exact photo ID/filename matches, then concept ranking; literal matches when concept is unavailable), keyword (literal-only — exact matches, then substring matches) or concept.
    */
   mode?: RetrievePhotosMode;
   /**
@@ -1080,8 +1084,9 @@ export type RetrievePhotosMode =
   (typeof RetrievePhotosMode)[keyof typeof RetrievePhotosMode];
 
 export const RetrievePhotosMode = {
-  concept: "concept",
+  combined: "combined",
   keyword: "keyword",
+  concept: "concept",
 } as const;
 
 export type ListSimilarPhotosParams = {

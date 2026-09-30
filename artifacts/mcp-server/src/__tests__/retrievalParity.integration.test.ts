@@ -135,7 +135,7 @@ describe("identical requests give identical ordered photos in every caller (TT-V
   });
 
   it("agrees under filters (web ratingMin/minQuality = MCP minRating/minQuality)", async () => {
-    const web = await get("/search/photos", { q: QUERY, limit: 25, ratingMin: 4, minQuality: 7 });
+    const web = await get("/search/photos", { q: QUERY, mode: "concept", limit: 25, ratingMin: 4, minQuality: 7 });
     const mcp = await searchPhotos({ query: QUERY, count: 25, minRating: 4, minQuality: 7, organizationId: orgA });
     const webIds = web.body.items.map((i: { photo: { id: number } }) => i.photo.id);
     expect(webIds.length).toBeGreaterThan(0);
@@ -148,7 +148,7 @@ describe("identical requests give identical ordered photos in every caller (TT-V
     const pages: number[] = [];
     let cursor: string | null = null;
     for (let guard = 0; guard < 50; guard++) {
-      const r = await get("/search/photos", { q: QUERY, limit: 7, minQuality: 5, ...(cursor ? { cursor } : {}) });
+      const r = await get("/search/photos", { q: QUERY, mode: "concept", limit: 7, minQuality: 5, ...(cursor ? { cursor } : {}) });
       expect(r.status).toBe(200);
       pages.push(...r.body.items.map((i: { photo: { id: number } }) => i.photo.id));
       cursor = r.body.page.nextCursor;
@@ -157,7 +157,7 @@ describe("identical requests give identical ordered photos in every caller (TT-V
         break;
       }
     }
-    const whole = await get("/search/photos", { q: QUERY, limit: 200, minQuality: 5 });
+    const whole = await get("/search/photos", { q: QUERY, mode: "concept", limit: 200, minQuality: 5 });
     const wholeIds = whole.body.items.map((i: { photo: { id: number } }) => i.photo.id);
     expect(pages).toEqual(wholeIds);
     expect(new Set(pages).size).toBe(pages.length);
@@ -165,8 +165,9 @@ describe("identical requests give identical ordered photos in every caller (TT-V
   });
 
   it("reports contract metadata and rejects a stale cursor over HTTP", async () => {
+    // The default mode is combined (#208): no exact match here, so concept results.
     const p1 = await get("/search/photos", { q: QUERY, limit: 5 });
-    expect(p1.body.retrieval).toMatchObject({ version: "photo-retrieval/1", mode: "concept" });
+    expect(p1.body.retrieval).toMatchObject({ version: "photo-retrieval/1", mode: "combined" });
     expect(p1.body.items[0].match).toMatchObject({ type: "concept" });
     const stale = await get("/search/photos", { q: QUERY, limit: 5, minQuality: 3, cursor: p1.body.page.nextCursor });
     expect(stale.status).toBe(400);

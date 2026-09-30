@@ -15,7 +15,7 @@ produced.
 retrievePhotos({
   organizationId,          // required; a positive integer from the authenticated session
   canSeeHidden,            // true only for org admins who asked for hidden photos
-  mode: "keyword" | "concept",
+  mode: "combined" | "keyword" | "concept",
   text,                    // the user's query, trimmed; empty → empty result
   exclude,                 // terms; see "Exclusions"
   filters,                 // normalized, see below
@@ -77,8 +77,9 @@ order: score DESC, photo id ASC
 
 ### `keyword`
 
-The query matches, case-insensitively and as a substring, the album title, the
-uploader's name or the AI description:
+The query matches, case-insensitively and as a literal substring (`%` and `_`
+are not wildcards), the album title, the uploader's name, the AI description or
+the filename:
 
 ```
 order: round(aiOverallScore ?? 5) DESC, created_at DESC, photo id DESC
@@ -87,13 +88,38 @@ order: round(aiOverallScore ?? 5) DESC, created_at DESC, photo id DESC
 Keyword results are genuine matches, so paging runs until they're exhausted
 (no depth cap). Each item reports which fields matched.
 
-### Exact lookup and combined mode (#208)
+### Exact lookup (#208)
 
-These modes are reserved for #208 (FIND-02) and must follow this precedence:
-exact authorized matches (photo ID, exact filename) come first, then concept
-results with those photos removed. Exact matches obey scope and visibility like
-everything else. When the provider is unavailable, exact matches are still
-returned with a degraded state.
+Before ranking, `combined` and `keyword` look for exact matches of the query
+as a photo ID or a filename. They return these first, on the first page only,
+tagged `match.type: "exact"`, and remove them from the ranked part on every
+page. Exact matches obey scope, visibility and every filter, just like the
+ranked results. They're capped at 50 and ordered by filename, then photo ID.
+
+- **Photo ID:** the whole query is `123`, `#123`, `id:123`, `photo 123`, or a
+  link ending in `/photos/123`. A bare number is also treated as ordinary
+  text, so `2026` still finds "2026 Nationals".
+- **Filename:** the whole query compared with each photo's filename,
+  case-insensitively, after Unicode NFC normalization, trimming, and removing a
+  trailing image extension (`jpg`, `jpeg`, `png`, `gif`, `webp`, `heic`,
+  `heif`, `tif`, `tiff`, `avif`, `bmp`) from both sides. So `Fri-pm (146).webp`,
+  `fri-pm (146).JPG` and `Fri-pm (146)` all match a photo stored as
+  `Fri-pm (146).webp`. That matters because optimization rewrites originals to
+  `.webp`. Punctuation is literal, with no wildcards. Repeated names across
+  albums all match.
+
+### `combined` (the default search)
+
+Exact matches first, then `concept` results with the exact matches removed.
+When the embedding provider is unavailable, the ranked part falls back to
+`keyword`, and the response keeps `status: "ok"` with
+`degraded: { affects: "concept", reason }`. Literal results stay visible, and
+the page says concept matching is off. The cursor records which ranking the
+first page used, so later pages continue it.
+
+`keyword` is the explicit literal-only option: exact matches, then substring
+matches on album title, uploader, AI description or filename. LIKE wildcards
+in the query (`%`, `_`) are matched literally.
 
 ### Exclusions
 
@@ -107,13 +133,15 @@ returned with a degraded state.
 ```ts
 {
   status: "ok" | "unavailable",
-  items: [{ photoId, match }],   // match: { type: "keyword", fields: [...] }
+  items: [{ photoId, match }],   // match: { type: "exact", fields: ["photo_id" | "filename"] }
+                                 //      | { type: "keyword", fields: [...] }
                                  //      | { type: "concept", similarity, qualityScore, score }
   page: { nextCursor, exhausted, limited },
   total,                         // qualifying results: keyword matches, or ranked (embedded) photos for concept
   coverage: { notEmbedded },     // concept only
   degraded: { reason, affects } | null,  // reason: "not_configured" | "timeout" | "cancelled" | "provider_error"
                                          // affects: "query" (nothing ranked) | "exclusions" (ranked, exclusions not applied)
+                                         //        | "concept" (combined: literal results only)
   retrieval: { version, mode, embeddingModel, ranking },
 }
 ```
@@ -126,6 +154,7 @@ returned with a degraded state.
 | `ok`, no items, `exhausted: true` | Zero genuine matches |
 | `unavailable` + `degraded.reason` | The embedding provider isn't configured, timed out or failed; nothing was ranked. This is not an empty result |
 | `ok` + `degraded.affects: "exclusions"` | Results are ranked, but the exclusion terms couldn't be embedded, so they weren't applied |
+| `ok` + `degraded.affects: "concept"` | `combined` only: concept ranking was unavailable, so the results are exact and keyword matches |
 | error `search_timeout` | The database query exceeded its statement timeout |
 | error `cursor_mismatch` | The cursor belongs to a different query, filter set, model or ranking version; restart from page one |
 
@@ -144,6 +173,32 @@ pages reuse the same vector and don't spend another provider call.
 
 The legacy offset/topK endpoints use the same ordering through an offset
 adapter.
+
+## Search page states (#209)
+
+The search page (`/search`) uses `GET /search/photos` in `combined` mode by
+default, or `keyword` for "Exact words". It loads pages through the cursor.
+
+| Response | The page shows |
+|---|---|
+| items, `nextCursor` | Results and "Showing N of T"; scrolling loads more |
+| `exhausted` | "All N results" |
+| `limited` | "Top 1,000 shown — refine your search"; no further loading |
+| no items, `exhausted` | "No photos found" (a genuine empty result) |
+| `unavailable` | "Search is unavailable right now" with the reason and Retry, never "No photos found" |
+| `degraded.affects: "concept"` | Results plus "Concept matching is unavailable — showing exact and keyword matches" |
+| `degraded.affects: "exclusions"` | Results plus "Exclusions couldn't be applied" |
+| `coverage.notEmbedded` > 0 | "K matching photos aren't indexed for concept search yet" |
+| first-page error | An error message with Retry |
+| next-page error | Loaded results stay; "Couldn't load more" with Retry |
+| `cursor_mismatch` | The search restarts from page one once |
+
+- Each query and filter set is its own cached query. Changing either starts a
+  new query and aborts the superseded request, and a late response can only
+  land in its own cache entry, so it never mixes into the current results.
+  Pages are de-duplicated by photo ID.
+- Each result shows why it matched ("Photo ID", "Filename", "Matches:
+  description, album", "Similar content") and never a similarity number.
 
 ## Performance and bounds
 
@@ -185,7 +240,8 @@ exact ranking took 52 ms.
 |---|---|---|
 | Web keyword (`GET /search`) | ILIKE unions materialized in Node, then SQL filter and order, offset | `keyword` mode through the offset adapter; same response shape |
 | Web semantic (`GET /search/semantic`) | HNSW top-2×topK, then blend | `concept` mode, first `topK`; same array response |
-| Web contract (`GET /search/photos`) | – | The full contract: items, cursor, states, ranking metadata |
+| Web contract (`GET /search/photos`) | – | The full contract: items, cursor, states, ranking metadata. Default mode `combined` |
+| Search page (`/search`), global search box | Keyword/Semantic toggles on the legacy endpoints | `/search/photos`: "All matches" (`combined`, default) or "Exact words" (`keyword`) |
 | Create page photo picker | `/search/semantic` | Unchanged endpoint, now the service |
 | Create planner / campaign hero photo (`findPhotoCandidates`) | HNSW top-6, no blend; any-word ILIKE fallback | `concept`, limit 6; when unavailable, `keyword` with the degraded state recorded |
 | MCP `search_photos` | HNSW, post-filtered over-fetch (≤500), no blend | `concept` with every filter in SQL; notes report exhausted/limited/degraded |

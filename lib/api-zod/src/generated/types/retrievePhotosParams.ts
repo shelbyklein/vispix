@@ -10,7 +10,7 @@ import type { RetrievePhotosMode } from "./retrievePhotosMode";
 export type RetrievePhotosParams = {
   q: string;
   /**
-   * concept (semantic, default) or keyword.
+   * combined (default — exact photo ID/filename matches, then concept ranking; literal matches when concept is unavailable), keyword (literal-only — exact matches, then substring matches) or concept.
    */
   mode?: RetrievePhotosMode;
   /**

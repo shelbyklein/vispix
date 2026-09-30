@@ -310,9 +310,9 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
 
 router.get("/search/photos", requireOrgAuth, async (req, res): Promise<void> => {
   const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
-  const mode = req.query.mode ?? "concept";
-  if (mode !== "concept" && mode !== "keyword") {
-    res.status(400).json({ error: "mode must be concept or keyword", code: "invalid_request" });
+  const mode = req.query.mode ?? "combined";
+  if (mode !== "combined" && mode !== "concept" && mode !== "keyword") {
+    res.status(400).json({ error: "mode must be combined, concept or keyword", code: "invalid_request" });
     return;
   }
   const parsed = parseSearchFilters(req.query as Record<string, unknown>);

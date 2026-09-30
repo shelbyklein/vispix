@@ -10,6 +10,7 @@ export type RetrievePhotosMode =
   (typeof RetrievePhotosMode)[keyof typeof RetrievePhotosMode];
 
 export const RetrievePhotosMode = {
-  concept: "concept",
+  combined: "combined",
   keyword: "keyword",
+  concept: "concept",
 } as const;

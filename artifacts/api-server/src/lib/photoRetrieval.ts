@@ -8,7 +8,7 @@
 // org's qualifying embedded photos, not an approximate top-N window, so the
 // order doesn't depend on page size and deep results stay reachable.
 import { createHash } from "node:crypto";
-import { and, sql, type SQL } from "drizzle-orm";
+import { and, notInArray, sql, type SQL } from "drizzle-orm";
 import { db, photosTable, photoEmbeddingsTable, photoAiEvaluationsTable, albumsTable, usersTable } from "@workspace/db";
 import { embedQuery, EMBEDDING_MODEL_TAG, type EmbedFailure } from "./aiEmbedding";
 import { photoFilterConditions, type SearchFilters } from "./searchFilters";
@@ -29,7 +29,11 @@ const W = CONCEPT_QUALITY_WEIGHT;
 const CONCEPT_RANKING = `exact: similarity*${1 - W} + (quality ?? ${NEUTRAL_QUALITY_SCORE})/10*${W} desc, id asc`;
 const KEYWORD_RANKING = `round(quality ?? ${NEUTRAL_QUALITY_SCORE}) desc, created_at desc, id desc`;
 
-export type RetrievalMode = "keyword" | "concept";
+export type RetrievalMode = "combined" | "keyword" | "concept";
+/** The ranking behind a page: combined mode continues one of these. */
+type RankedMode = "keyword" | "concept";
+/** Exact matches are capped; they're lookups, not a ranking. */
+export const MAX_EXACT_MATCHES = 50;
 export type RetrievalFilters = Omit<SearchFilters, "includeHidden" | "exclude">;
 
 export interface RetrievalRequest {
@@ -51,8 +55,10 @@ export interface RetrievalRequest {
   signal?: AbortSignal;
 }
 
-export type KeywordField = "album_title" | "uploader" | "description";
+export type KeywordField = "album_title" | "uploader" | "description" | "filename";
+export type ExactField = "photo_id" | "filename";
 export type RetrievalMatch =
+  | { type: "exact"; fields: ExactField[] }
   | { type: "keyword"; fields: KeywordField[] }
   | { type: "concept"; similarity: number; qualityScore: number | null; score: number };
 
@@ -64,8 +70,11 @@ export interface RetrievalResult {
   total: number | null;
   /** Concept only: qualifying photos without an embedding, which concept search can't find. */
   coverage: { notEmbedded: number } | null;
-  /** Provider trouble: nothing ranked ("query"), or exclusions not applied ("exclusions"). */
-  degraded: { reason: EmbedFailure; affects: "query" | "exclusions" } | null;
+  /**
+   * Provider trouble: nothing ranked ("query"), exclusions not applied
+   * ("exclusions"), or combined search fell back to literal matches ("concept").
+   */
+  degraded: { reason: EmbedFailure; affects: "query" | "exclusions" | "concept" } | null;
   retrieval: { version: string; mode: RetrievalMode; embeddingModel: string | null; ranking: string };
 }
 
@@ -129,6 +138,8 @@ interface CursorBody {
   n: number;
   /** concept: [score, id]; keyword: [tier, created_at text, id]. */
   k: (number | string)[];
+  /** Which ranking produced the page (combined mode continues it). */
+  s?: RankedMode;
 }
 
 function hashOf(value: unknown): string {
@@ -141,7 +152,8 @@ function encodeCursor(c: CursorBody): string {
 
 const TIMESTAMP_TEXT = /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(\.\d{1,6})?([+-]\d{2}(:?\d{2})?|Z)?$/;
 
-function decodeCursor(raw: string, mode: RetrievalMode): CursorBody {
+/** Decode and validate a cursor; `expected` is the ranking it must continue, if known. */
+function decodeCursor(raw: string, expected?: RankedMode): CursorBody & { s: RankedMode } {
   const bad = () => new RetrievalError("invalid_cursor", "The continuation cursor is malformed; restart the search.");
   let c: CursorBody;
   try {
@@ -150,14 +162,38 @@ function decodeCursor(raw: string, mode: RetrievalMode): CursorBody {
     throw bad();
   }
   if (!c || c.v !== 1 || typeof c.h !== "string" || !Number.isSafeInteger(c.n) || c.n < 0 || !Array.isArray(c.k)) throw bad();
+  const ranked = c.s ?? expected;
+  if ((c.s != null && c.s !== "concept" && c.s !== "keyword") || !ranked || (expected && ranked !== expected)) throw bad();
   const isId = (x: unknown) => Number.isSafeInteger(x) && (x as number) > 0;
   const isNum = (x: unknown) => typeof x === "number" && Number.isFinite(x);
   const ok =
-    mode === "concept"
+    ranked === "concept"
       ? c.k.length === 2 && isNum(c.k[0]) && isId(c.k[1])
       : c.k.length === 3 && isNum(c.k[0]) && typeof c.k[1] === "string" && TIMESTAMP_TEXT.test(c.k[1]) && isId(c.k[2]);
   if (!ok) throw bad();
-  return c;
+  return { ...c, s: ranked };
+}
+
+// ---------------------------------------------------------------------------
+// Exact lookup (#208): the whole query as a photo ID or a filename.
+
+const IMAGE_EXTENSION = /\.(jpe?g|png|gif|webp|heic|heif|tiff?|avif|bmp)$/i;
+const IMAGE_EXTENSION_SQL = "\\.(jpe?g|png|gif|webp|heic|heif|tiff?|avif|bmp)$";
+const PHOTO_ID_QUERY = /^(?:#|id:\s*|photo\s+#?)?(\d{1,10})$/i;
+const PHOTO_LINK_QUERY = /\/photos\/(\d{1,10})(?:[/?#].*)?$/;
+
+/** How a query reads as an exact lookup: a photo ID and/or a filename stem. */
+export function parseExactQuery(text: string): { photoId: number | null; filenameStem: string | null } {
+  const t = text.normalize("NFC").trim();
+  const idMatch = PHOTO_ID_QUERY.exec(t) ?? PHOTO_LINK_QUERY.exec(t);
+  const id = idMatch ? Number(idMatch[1]) : null;
+  const stem = t.replace(IMAGE_EXTENSION, "").trim().toLowerCase();
+  return { photoId: id != null && Number.isSafeInteger(id) && id > 0 && id <= 2147483647 ? id : null, filenameStem: stem || null };
+}
+
+/** LIKE pattern for a literal substring: `%`, `_` and `\` in the query match themselves. */
+function containsPattern(text: string): string {
+  return `%${text.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
 // ---------------------------------------------------------------------------
@@ -213,7 +249,8 @@ export async function retrievePhotos(req: RetrievalRequest): Promise<RetrievalRe
     ),
     hidden: req.canSeeHidden,
   };
-  const args = { req, text, exclude, conditions, normalized, limit };
+  // Validate the cursor's shape before any query or provider call.
+  const cursor = req.cursor ? decodeCursor(req.cursor, req.mode === "combined" ? undefined : req.mode) : null;
 
   if (!text) {
     return {
@@ -226,12 +263,41 @@ export async function retrievePhotos(req: RetrievalRequest): Promise<RetrievalRe
       retrieval: {
         version: RETRIEVAL_VERSION,
         mode: req.mode,
-        embeddingModel: req.mode === "concept" ? EMBEDDING_MODEL_TAG : null,
-        ranking: req.mode === "concept" ? CONCEPT_RANKING : KEYWORD_RANKING,
+        embeddingModel: req.mode === "keyword" ? null : EMBEDDING_MODEL_TAG,
+        ranking: req.mode === "keyword" ? KEYWORD_RANKING : CONCEPT_RANKING,
       },
     };
   }
-  return req.mode === "concept" ? concept(args) : keyword(args);
+
+  const base = { req, text, exclude, conditions, normalized, limit, cursor };
+  if (req.mode === "concept") return concept({ ...base, excludeIds: [] });
+
+  // keyword and combined: exact matches first (first page only), and never
+  // again in the ranked part on any page.
+  const exact = await exactMatches(text, conditions);
+  const excludeIds = exact.map((e) => e.photoId);
+  let ranked: RetrievalResult;
+  if (req.mode === "keyword") {
+    ranked = await keyword({ ...base, excludeIds });
+  } else if ((cursor?.s ?? "concept") === "concept") {
+    ranked = await concept({ ...base, excludeIds });
+    if (ranked.status === "unavailable" && !cursor && ranked.degraded) {
+      // Keep literal results visible when concept ranking is unavailable.
+      const { reason } = ranked.degraded;
+      ranked = { ...(await keyword({ ...base, excludeIds })), degraded: { reason, affects: "concept" } };
+    }
+  } else {
+    ranked = await keyword({ ...base, excludeIds });
+  }
+
+  const firstPage = !cursor && Math.trunc(req.offset ?? 0) <= 0;
+  const exactItems = firstPage ? exact.map((e) => ({ photoId: e.photoId, match: { type: "exact" as const, fields: e.fields } })) : [];
+  return {
+    ...ranked,
+    items: [...exactItems, ...ranked.items],
+    total: ranked.total == null ? null : ranked.total + exact.length,
+    retrieval: { ...ranked.retrieval, mode: req.mode, ranking: `exact photo ID/filename matches first; then ${ranked.retrieval.ranking}` },
+  };
 }
 
 interface ModeArgs {
@@ -241,16 +307,41 @@ interface ModeArgs {
   conditions: SQL[];
   normalized: Record<string, unknown>;
   limit: number;
+  cursor: (CursorBody & { s: RankedMode }) | null;
+  /** Photos already returned as exact matches; the ranked part never repeats them. */
+  excludeIds: number[];
 }
 
 function startPosition(req: RetrievalRequest, cursor: CursorBody | null): number {
   return cursor ? cursor.n : Math.max(0, Math.trunc(req.offset ?? 0));
 }
 
-async function concept({ req, text, exclude, conditions, normalized, limit }: ModeArgs): Promise<RetrievalResult> {
-  const retrieval = { version: RETRIEVAL_VERSION, mode: "concept" as const, embeddingModel: EMBEDDING_MODEL_TAG, ranking: CONCEPT_RANKING };
-  // Validate the cursor's shape before spending a provider call.
-  const cursor = req.cursor ? decodeCursor(req.cursor, "concept") : null;
+/** Photos whose ID or filename is exactly the query, inside scope and filters. */
+async function exactMatches(text: string, conditions: SQL[]): Promise<{ photoId: number; fields: ExactField[] }[]> {
+  const { photoId, filenameStem } = parseExactQuery(text);
+  if (photoId == null && filenameStem == null) return [];
+  const stem = sql`lower(btrim(regexp_replace(normalize(coalesce(${photosTable.filename}, ''), NFC), ${IMAGE_EXTENSION_SQL}, '', 'i')))`;
+  const byId = photoId != null ? sql`${photosTable.id} = ${photoId}` : sql`false`;
+  const byName = filenameStem != null ? sql`${stem} = ${filenameStem}` : sql`false`;
+  const rows = await withStatementTimeout(async (tx) =>
+    (
+      await tx.execute<{ id: number; by_id: boolean; by_name: boolean }>(sql`
+        select ${photosTable.id} as id, ${byId} as by_id, ${byName} as by_name
+        from ${photosTable}
+        where ${and(...conditions)} and (${byId} or ${byName})
+        order by ${photosTable.filename} asc nulls last, ${photosTable.id} asc
+        limit ${MAX_EXACT_MATCHES}
+      `)
+    ).rows,
+  );
+  return rows.map((r) => ({
+    photoId: Number(r.id),
+    fields: [...(r.by_id ? (["photo_id"] as const) : []), ...(r.by_name ? (["filename"] as const) : [])],
+  }));
+}
+
+async function concept({ req, text, exclude, conditions, normalized, limit, cursor, excludeIds }: ModeArgs): Promise<RetrievalResult> {
+  const retrieval = { version: RETRIEVAL_VERSION, mode: "concept" as RetrievalMode, embeddingModel: EMBEDDING_MODEL_TAG, ranking: CONCEPT_RANKING };
 
   const pos = await embedCached(text, req.signal);
   if (!pos.ok) {
@@ -269,13 +360,13 @@ async function concept({ req, text, exclude, conditions, normalized, limit }: Mo
     }
   }
 
-  const h = hashOf({ ...normalized, model: EMBEDDING_MODEL_TAG, vec: hashOf(vec) });
+  const h = hashOf({ ...normalized, s: "concept", model: EMBEDDING_MODEL_TAG, vec: hashOf(vec) });
   if (cursor && cursor.h !== h) {
     throw new RetrievalError("cursor_mismatch", "The search changed since this page; restart from the first page.");
   }
   const n = startPosition(req, cursor);
   const take = Math.min(limit, MAX_CONCEPT_DEPTH - n);
-  const where = and(...conditions);
+  const where = and(...conditions, ...(excludeIds.length ? [notInArray(photosTable.id, excludeIds)] : []));
   const vecLiteral = `[${vec.join(",")}]`;
   const score = sql`((1 - r.dist) * ${sql.raw(String(1 - W))} + coalesce(r.q, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))}) / 10 * ${sql.raw(String(W))})`;
 
@@ -320,7 +411,7 @@ async function concept({ req, text, exclude, conditions, normalized, limit }: Mo
       match: { type: "concept", similarity: 1 - Number(r.dist), qualityScore: r.q == null ? null : Number(r.q), score: Number(r.score) },
     })),
     page: {
-      nextCursor: hasMore && !limited && last ? encodeCursor({ v: 1, h, n: n + items.length, k: [Number(last.score), Number(last.id)] }) : null,
+      nextCursor: hasMore && !limited && last ? encodeCursor({ v: 1, h, n: n + items.length, k: [Number(last.score), Number(last.id)], s: "concept" }) : null,
       exhausted: !hasMore,
       limited,
     },
@@ -331,23 +422,25 @@ async function concept({ req, text, exclude, conditions, normalized, limit }: Mo
   };
 }
 
-async function keyword({ req, text, exclude, conditions, normalized, limit }: ModeArgs): Promise<RetrievalResult> {
-  const retrieval = { version: RETRIEVAL_VERSION, mode: "keyword" as const, embeddingModel: null, ranking: KEYWORD_RANKING };
-  const cursor = req.cursor ? decodeCursor(req.cursor, "keyword") : null;
-  const h = hashOf(normalized);
+async function keyword({ req, text, exclude, conditions, normalized, limit, cursor, excludeIds }: ModeArgs): Promise<RetrievalResult> {
+  const retrieval = { version: RETRIEVAL_VERSION, mode: "keyword" as RetrievalMode, embeddingModel: null, ranking: KEYWORD_RANKING };
+  const h = hashOf({ ...normalized, s: "keyword" });
   if (cursor && cursor.h !== h) {
     throw new RetrievalError("cursor_mismatch", "The search changed since this page; restart from the first page.");
   }
   const n = startPosition(req, cursor);
-  const pattern = `%${text}%`;
+  // A literal substring: `%` and `_` in the query are not wildcards.
+  const pattern = containsPattern(text);
   const inAlbum = sql`${albumsTable.title} ilike ${pattern}`;
   const byUploader = sql`${usersTable.name} ilike ${pattern}`;
   const inDescription = sql`coalesce(${photosTable.aiDescription} ilike ${pattern}, false)`;
+  const inFilename = sql`coalesce(${photosTable.filename} ilike ${pattern}, false)`;
   // Keyword exclusions are hard: drop photos whose AI description mentions any term.
   const where = and(
     ...conditions,
-    sql`(${inAlbum} or ${byUploader} or ${inDescription})`,
-    ...exclude.map((t) => sql`coalesce(${photosTable.aiDescription}, '') not ilike ${`%${t}%`}`),
+    sql`(${inAlbum} or ${byUploader} or ${inDescription} or ${inFilename})`,
+    ...exclude.map((t) => sql`coalesce(${photosTable.aiDescription}, '') not ilike ${containsPattern(t)}`),
+    ...(excludeIds.length ? [notInArray(photosTable.id, excludeIds)] : []),
   );
   const from = sql`${photosTable}
     join ${albumsTable} on ${albumsTable.id} = ${photosTable.albumId}
@@ -356,13 +449,13 @@ async function keyword({ req, text, exclude, conditions, normalized, limit }: Mo
 
   const { rows, total } = await withStatementTimeout(async (tx) => {
     const counts = await tx.execute<{ total: number }>(sql`select count(*)::int as total from ${from} where ${where}`);
-    const result = await tx.execute<{ id: number; tier: number; created_at: string; created: string; m_album: boolean; m_uploader: boolean; m_desc: boolean }>(sql`
+    const result = await tx.execute<{ id: number; tier: number; created_at: string; created: string; m_album: boolean; m_uploader: boolean; m_desc: boolean; m_file: boolean }>(sql`
       select s.* from (
         select ${photosTable.id} as id,
                round(coalesce(${photoAiEvaluationsTable.overallScore}::float8, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))})) as tier,
                ${photosTable.createdAt} as created_at,
                ${photosTable.createdAt}::text as created,
-               ${inAlbum} as m_album, ${byUploader} as m_uploader, ${inDescription} as m_desc
+               ${inAlbum} as m_album, ${byUploader} as m_uploader, ${inDescription} as m_desc, ${inFilename} as m_file
         from ${from}
         where ${where}
       ) s
@@ -393,11 +486,12 @@ async function keyword({ req, text, exclude, conditions, normalized, limit }: Mo
           ...(r.m_album ? (["album_title"] as const) : []),
           ...(r.m_uploader ? (["uploader"] as const) : []),
           ...(r.m_desc ? (["description"] as const) : []),
+          ...(r.m_file ? (["filename"] as const) : []),
         ],
       },
     })),
     page: {
-      nextCursor: hasMore && last ? encodeCursor({ v: 1, h, n: n + items.length, k: [Number(last.tier), last.created, Number(last.id)] }) : null,
+      nextCursor: hasMore && last ? encodeCursor({ v: 1, h, n: n + items.length, k: [Number(last.tier), last.created, Number(last.id)], s: "keyword" }) : null,
       exhausted: !hasMore,
       limited: false,
     },

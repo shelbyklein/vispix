@@ -592,10 +592,10 @@ paths:
         - name: mode
           in: query
           required: false
-          description: concept (semantic, default) or keyword.
+          description: combined (default — exact photo ID/filename matches, then concept ranking; literal matches when concept is unavailable), keyword (literal-only — exact matches, then substring matches) or concept.
           schema:
             type: string
-            enum: [concept, keyword]
+            enum: [combined, keyword, concept]
         - name: limit
           in: query
           required: false
@@ -3080,7 +3080,7 @@ components:
               enum: [not_configured, timeout, cancelled, provider_error]
             affects:
               type: string
-              enum: [query, exclusions]
+              enum: [query, exclusions, concept]
         retrieval:
           type: object
           required: [version, mode, embeddingModel, ranking]
@@ -3089,7 +3089,7 @@ components:
               type: string
             mode:
               type: string
-              enum: [concept, keyword]
+              enum: [combined, keyword, concept]
             embeddingModel:
               type: ["string", "null"]
             ranking:
@@ -3107,16 +3107,16 @@ components:
     PhotoRetrievalMatch:
       type: object
       required: [type]
-      description: Why the photo is here. keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
+      description: Why the photo is here. exact — the query is its photo ID or filename; keyword — which fields contain the query; concept — raw cosine similarity, the AI score used, and the blended rank score (not a calibrated confidence).
       properties:
         type:
           type: string
-          enum: [keyword, concept]
+          enum: [exact, keyword, concept]
         fields:
           type: array
           items:
             type: string
-            enum: [album_title, uploader, description]
+            enum: [photo_id, filename, album_title, uploader, description]
         similarity:
           type: number
         qualityScore:
