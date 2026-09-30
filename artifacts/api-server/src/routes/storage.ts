@@ -5,7 +5,7 @@ import {
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
 import { and, asc, eq } from "drizzle-orm";
-import { isAllowedUploadType, safeObjectHeaders } from "../lib/storageKeys";
+import { isAllowedUploadType, safeObjectHeaders, MAX_UPLOAD_BYTES, uploadLengthRangeSigningEnabled } from "../lib/storageKeys";
 import { db, organizationMembersTable, organizationsTable, photosTable } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { requireAuth } from "../middlewares/requireAuth";
@@ -88,6 +88,10 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
       res.status(400).json({ error: "Only image and font files are allowed" });
       return;
     }
+    if (size > MAX_UPLOAD_BYTES) {
+      res.status(413).json({ error: `Files are limited to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`, code: "file_too_large", maxBytes: MAX_UPLOAD_BYTES });
+      return;
+    }
 
     // Storage-quota pre-flight (#118): refuse to mint an upload URL when the
     // file would cross the org's plan cap, so over-cap bytes never reach storage.
@@ -105,8 +109,12 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
     }
 
     // Key the upload under the caller's active org (#113), and bind the declared
-    // type into the signature so the PUT can't store something else.
-    let uploadURL = await objectStorageService.getObjectEntityUploadURL(req.org!.id, contentType);
+    // type (and, when enabled, the declared size) into the signature so the PUT
+    // can't store something else. The client sends exactly `uploadHeaders`.
+    const signLength = uploadLengthRangeSigningEnabled();
+    let uploadURL = await objectStorageService.getObjectEntityUploadURL(req.org!.id, contentType, signLength ? size : undefined);
+    const uploadHeaders: Record<string, string> = { "Content-Type": contentType };
+    if (signLength) uploadHeaders["x-goog-content-length-range"] = `0,${size}`;
     const objectPath = objectStorageService.normalizeObjectEntityPath(uploadURL);
 
     // In local dev the browser can't PUT cross-origin to fake-gcs-server, so
@@ -123,6 +131,7 @@ router.post("/storage/uploads/request-url", requireOrgAuth, async (req: Request,
       RequestUploadUrlResponse.parse({
         uploadURL,
         objectPath,
+        uploadHeaders,
         metadata: { name, size, contentType },
       }),
     );

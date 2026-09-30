@@ -3956,6 +3956,11 @@ export const RequestUploadUrlResponse = zod.object({
     .describe(
       "Normalized object path (e.g. `\/objects\/uploads\/uuid`). Store this in your database.",
     ),
+  uploadHeaders: zod
+    .record(zod.string(), zod.string())
+    .describe(
+      "Headers the PUT must send exactly — they're signed into the URL (Content-Type, and x-goog-content-length-range when size signing is enabled).",
+    ),
   metadata: zod
     .object({
       name: zod.string().min(1).describe("Original file name."),

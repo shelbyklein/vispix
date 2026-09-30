@@ -773,11 +773,18 @@ export interface UploadUrlRequest {
   contentType: string;
 }
 
+/**
+ * Headers the PUT must send exactly — they're signed into the URL (Content-Type, and x-goog-content-length-range when size signing is enabled).
+ */
+export type UploadUrlResponseUploadHeaders = { [key: string]: string };
+
 export interface UploadUrlResponse {
   /** Presigned URL for PUT upload. Absolute in production; may be a relative proxy path (e.g. `/gcs/...`) in local dev. */
   uploadURL: string;
   /** Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database. */
   objectPath: string;
+  /** Headers the PUT must send exactly — they're signed into the URL (Content-Type, and x-goog-content-length-range when size signing is enabled). */
+  uploadHeaders: UploadUrlResponseUploadHeaders;
   metadata?: UploadUrlRequest;
 }
 

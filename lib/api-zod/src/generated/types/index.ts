@@ -123,6 +123,7 @@ export * from "./tagCount";
 export * from "./tagInput";
 export * from "./uploadUrlRequest";
 export * from "./uploadUrlResponse";
+export * from "./uploadUrlResponseUploadHeaders";
 export * from "./user";
 export * from "./userRole";
 export * from "./userRoleUpdate";

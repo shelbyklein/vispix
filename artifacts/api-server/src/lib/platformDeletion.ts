@@ -18,6 +18,7 @@ import {
 import { and, asc, eq, ne, sql } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
 import { logger } from "./logger";
+import { ownedKeys } from "./storageKeys";
 import { stripe } from "./stripe";
 
 // Platform-level deletion of organizations and users (issue #196).
@@ -80,14 +81,19 @@ function storageDeletesDisabled(): boolean {
 // Best-effort object purge: failures are logged, never thrown. The DB rows are
 // already gone by the time this runs, so a failed unlink leaks an object rather
 // than corrupting state — worth a log line, not a failed request.
-async function purgeObjects(keys: (string | null)[], context: Record<string, unknown>): Promise<number> {
+async function purgeObjects(
+  keys: (string | null)[],
+  context: Record<string, unknown> & { organizationId: number },
+): Promise<number> {
   if (storageDeletesDisabled()) {
     logger.info({ ...context, keyCount: keys.length }, "Storage purge skipped (PHOTO_STORAGE_DELETE_DISABLED)");
     return 0;
   }
+  // An org purge only unlinks that org's objects (or legacy unprefixed keys).
+  const { owned, foreign } = ownedKeys(keys, context.organizationId);
+  if (foreign.length) logger.warn({ ...context, foreign }, "Refusing to purge storage objects outside the organization");
   let deleted = 0;
-  for (const key of keys) {
-    if (!key) continue;
+  for (const key of owned) {
     try {
       await objectStorageService.deleteObjectEntity(key);
       deleted += 1;

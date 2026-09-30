@@ -7,10 +7,11 @@ import {
   useUploadPhoto,
 } from "@workspace/api-client-react";
 
-async function uploadBlob(uploadURL: string, blob: Blob, contentType: string): Promise<void> {
+async function uploadBlob(uploadURL: string, blob: Blob, contentType: string, uploadHeaders?: Record<string, string>): Promise<void> {
+  // Send exactly the headers the server signed into the URL.
   const response = await fetch(uploadURL, {
     method: "PUT",
-    headers: { "Content-Type": contentType },
+    headers: uploadHeaders && Object.keys(uploadHeaders).length > 0 ? uploadHeaders : { "Content-Type": contentType },
     body: blob,
   });
   if (!response.ok) {
@@ -85,11 +86,11 @@ export function usePhotoUpload({ albumId, onSuccess, onError }: UsePhotoUploadOp
 
         const blob = await uriToBlob(uri);
 
-        const { uploadURL, objectPath } = await requestUrl({
+        const { uploadURL, objectPath, uploadHeaders } = await requestUrl({
           data: { name: filename, size: blob.size, contentType },
         });
 
-        await uploadBlob(uploadURL, blob, contentType);
+        await uploadBlob(uploadURL, blob, contentType, uploadHeaders);
 
         await uploadPhoto({
           id: albumId,

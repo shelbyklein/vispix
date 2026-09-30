@@ -10,7 +10,7 @@ import { computeAndStorePerceptualHash } from "../lib/perceptualHash";
 import { optimizeOriginalImage } from "../lib/imageOptimization";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { readMagicBytes, detectImageMimeType } from "../lib/magicBytes";
-import { isOrgUploadKey } from "../lib/storageKeys";
+import { isOrgUploadKey, MAX_UPLOAD_BYTES } from "../lib/storageKeys";
 import { logger } from "../lib/logger";
 import {
   ListAlbumPhotosParams,
@@ -78,9 +78,39 @@ router.post("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void
     return;
   }
 
+  let mimeType: string | null = null;
+  // The stored object's real size (audit #8): quota and the recorded filesize
+  // use it, never the client's claim. Only the legacy URL-only path (no stored
+  // object) falls back to the declared size.
+  let filesize: number | null = body.data.filesize ?? null;
+  let objectFile: Awaited<ReturnType<typeof objectStorageService.getObjectEntityFile>> | null = null;
+  if (body.data.storageKey) {
+    try {
+      objectFile = await objectStorageService.getObjectEntityFile(body.data.storageKey);
+      const [metadata] = await objectFile.getMetadata();
+      mimeType = (metadata.contentType as string) || null;
+      const actual = Number(metadata.size);
+      filesize = Number.isFinite(actual) && actual >= 0 ? actual : null;
+    } catch {
+      res.status(400).json({ error: "Unable to verify uploaded file type" });
+      return;
+    }
+    if (filesize == null) {
+      res.status(400).json({ error: "Unable to verify uploaded file size" });
+      return;
+    }
+    if (filesize > MAX_UPLOAD_BYTES) {
+      await objectFile.delete().catch((err) => {
+        logger.error({ err, storageKey: body.data.storageKey }, "Failed to delete oversized upload");
+      });
+      res.status(413).json({ error: `Photos are limited to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`, code: "file_too_large", maxBytes: MAX_UPLOAD_BYTES });
+      return;
+    }
+  }
+
   // Storage-quota gate (#118): refuse the upload when it would cross the org's
   // plan cap. Enterprise (unlimited) always passes; existing photos are untouched.
-  const quota = await assertUploadAllowed(req.org!, body.data.filesize ?? 0);
+  const quota = await assertUploadAllowed(req.org!, filesize ?? 0);
   if (!quota.allowed) {
     res.status(402).json({
       error: "Storage limit reached — upgrade your plan to add more photos.",
@@ -92,18 +122,7 @@ router.post("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void
     return;
   }
 
-  let mimeType: string | null = null;
-  if (body.data.storageKey) {
-    let objectFile;
-    try {
-      objectFile = await objectStorageService.getObjectEntityFile(body.data.storageKey);
-      const [metadata] = await objectFile.getMetadata();
-      mimeType = (metadata.contentType as string) || null;
-    } catch {
-      res.status(400).json({ error: "Unable to verify uploaded file type" });
-      return;
-    }
-
+  if (objectFile) {
     try {
       const magicBuf = await readMagicBytes(objectFile);
       const detectedType = detectImageMimeType(magicBuf);
@@ -152,7 +171,7 @@ router.post("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void
       storageKey: body.data.storageKey,
       takenAt: body.data.takenAt ? new Date(body.data.takenAt) : null,
       filename: body.data.filename ?? null,
-      filesize: body.data.filesize ?? null,
+      filesize,
     })
     .returning();
 
@@ -409,7 +428,7 @@ router.delete("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> =>
   const { ids } = body.data;
 
   const toDelete = await db
-    .select({ id: photosTable.id, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+    .select({ id: photosTable.id, organizationId: photosTable.organizationId, storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
     .from(photosTable)
     .where(and(inArray(photosTable.id, ids), eq(photosTable.organizationId, req.org!.id)));
 

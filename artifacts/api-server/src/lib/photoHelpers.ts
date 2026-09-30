@@ -1,6 +1,7 @@
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
 import { eq, and, asc, avg, count, desc, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
 import { ObjectStorageService } from "./objectStorage";
+import { ownedKeys } from "./storageKeys";
 import { logger } from "./logger";
 
 const objectStorageService = new ObjectStorageService();
@@ -164,6 +165,7 @@ export async function fetchAlbumPhotoNeighbors(
  */
 export async function deletePhotoStorageObjects(photo: {
   id: number;
+  organizationId: number;
   storageKey: string | null;
   thumbnailKey: string | null;
 }): Promise<void> {
@@ -171,8 +173,11 @@ export async function deletePhotoStorageObjects(photo: {
     logger.info({ photoId: photo.id }, "Storage delete skipped (PHOTO_STORAGE_DELETE_DISABLED)");
     return;
   }
-  for (const key of [photo.storageKey, photo.thumbnailKey]) {
-    if (!key) continue;
+  // Never delete another org's object through this org's row (defense in depth
+  // for rows registered before upload keys were org-checked).
+  const { owned, foreign } = ownedKeys([photo.storageKey, photo.thumbnailKey], photo.organizationId);
+  if (foreign.length) logger.warn({ photoId: photo.id, foreign }, "Refusing to delete storage objects outside the photo's organization");
+  for (const key of owned) {
     try {
       await objectStorageService.deleteObjectEntity(key);
     } catch (err) {

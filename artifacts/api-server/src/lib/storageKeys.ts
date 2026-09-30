@@ -1,6 +1,20 @@
 // Storage key and content-type rules shared by the upload, register and serve
 // paths (security hardening, 2026-09-29).
 
+/** Largest object an upload may create (matches the web client's limit). */
+export const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
+
+/**
+ * Whether signed upload URLs bind `x-goog-content-length-range` (audit #8), so
+ * GCS itself refuses a PUT outside the declared size. Off by default: browsers
+ * must then send that header, and real GCS only allows it cross-origin once
+ * the bucket's CORS `responseHeader` lists it (deploy/DEPLOY.md). Registration
+ * enforces the real object size either way.
+ */
+export function uploadLengthRangeSigningEnabled(): boolean {
+  return process.env.SIGN_UPLOAD_LENGTH_RANGE === "true";
+}
+
 /**
  * Whether a client-supplied key is an upload issued to this organization by
  * POST /storage/uploads/request-url (`/objects/orgs/<org>/uploads/<uuid>`).
@@ -21,6 +35,17 @@ export function isOrgUploadKey(key: string, organizationId: number): boolean {
  */
 export function keyBelongsToOrg(key: string, organizationId: number): boolean {
   return !key.startsWith("/objects/orgs/") || key.startsWith(`/objects/orgs/${organizationId}/`);
+}
+
+/** The keys an irreversible storage operation (delete, overwrite) may act on for this org's row. */
+export function ownedKeys(keys: (string | null | undefined)[], organizationId: number): { owned: string[]; foreign: string[] } {
+  const owned: string[] = [];
+  const foreign: string[] = [];
+  for (const key of keys) {
+    if (!key) continue;
+    (keyBelongsToOrg(key, organizationId) ? owned : foreign).push(key);
+  }
+  return { owned, foreign };
 }
 
 const FONT_TYPES = new Set([

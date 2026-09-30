@@ -115,7 +115,7 @@ export class ObjectStorageService {
   // suffix after /objects/ as the entity id.
   // contentType, when given, is signed into the URL: the PUT must send exactly
   // that Content-Type or storage rejects it.
-  async getObjectEntityUploadURL(organizationId: number, contentType?: string): Promise<string> {
+  async getObjectEntityUploadURL(organizationId: number, contentType?: string, maxBytes?: number): Promise<string> {
     const privateObjectDir = this.getPrivateObjectDir();
     if (!privateObjectDir) {
       throw new Error(
@@ -135,6 +135,7 @@ export class ObjectStorageService {
       method: "PUT",
       ttlSec: 900,
       contentType,
+      maxBytes,
     });
   }
 
@@ -238,6 +239,7 @@ export async function signObjectURL({
   method,
   ttlSec,
   contentType,
+  maxBytes,
 }: {
   bucketName: string;
   objectName: string;
@@ -245,6 +247,8 @@ export async function signObjectURL({
   ttlSec: number;
   /** PUT only: sign the Content-Type header into the URL. */
   contentType?: string;
+  /** PUT only: sign `x-goog-content-length-range: 0,<maxBytes>` so GCS refuses larger bodies. */
+  maxBytes?: number;
 }): Promise<string> {
   const [url] = await objectStorageClient
     .bucket(bucketName)
@@ -254,6 +258,7 @@ export async function signObjectURL({
       action: method === "GET" || method === "HEAD" ? "read" : method === "PUT" ? "write" : "delete",
       expires: Date.now() + ttlSec * 1000,
       ...(method === "PUT" && contentType ? { contentType } : {}),
+      ...(method === "PUT" && maxBytes != null ? { extensionHeaders: { "x-goog-content-length-range": `0,${maxBytes}` } } : {}),
     });
   return url;
 }

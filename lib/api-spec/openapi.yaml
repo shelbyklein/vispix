@@ -1744,6 +1744,10 @@ paths:
                 $ref: '#/components/schemas/UploadUrlResponse'
         '400':
           description: Missing or invalid required fields.
+        '402':
+          description: The upload would exceed the organization's storage limit (storage_limit_exceeded).
+        '413':
+          description: The declared size exceeds the upload limit (file_too_large).
         '500':
           description: Failed to generate upload URL.
 
@@ -3667,7 +3671,7 @@ components:
 
     UploadUrlResponse:
       type: object
-      required: [uploadURL, objectPath]
+      required: [uploadURL, objectPath, uploadHeaders]
       properties:
         uploadURL:
           type: string
@@ -3675,6 +3679,11 @@ components:
         objectPath:
           type: string
           description: Normalized object path (e.g. `/objects/uploads/uuid`). Store this in your database.
+        uploadHeaders:
+          type: object
+          additionalProperties:
+            type: string
+          description: Headers the PUT must send exactly — they're signed into the URL (Content-Type, and x-goog-content-length-range when size signing is enabled).
         metadata:
           $ref: '#/components/schemas/UploadUrlRequest'
 

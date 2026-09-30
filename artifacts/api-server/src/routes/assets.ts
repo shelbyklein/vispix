@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { isOrgUploadKey } from "../lib/storageKeys";
+import { isOrgUploadKey, MAX_UPLOAD_BYTES } from "../lib/storageKeys";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { db, assetsTable, projectsTable } from "@workspace/db";
 import {
@@ -12,8 +12,10 @@ import {
   DeleteAssetParams,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
+import { ObjectStorageService } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const objectStorageService = new ObjectStorageService();
 
 // The asset library (brand marks + reference works) deliberately skips the
 // photo pipeline: no thumbnails, no AI analysis, no embeddings. Files are
@@ -92,9 +94,28 @@ router.post("/assets", requireOrgAuth, async (req, res): Promise<void> => {
     }
   }
 
+  // Record the stored object's real size, never the client's claim (audit #8).
+  let fileSize: number;
+  try {
+    const file = await objectStorageService.getObjectEntityFile(body.data.storageKey);
+    const [metadata] = await file.getMetadata();
+    fileSize = Number(metadata.size);
+  } catch {
+    res.status(400).json({ error: "Uploaded file not found" });
+    return;
+  }
+  if (!Number.isFinite(fileSize) || fileSize < 0) {
+    res.status(400).json({ error: "Unable to verify uploaded file size" });
+    return;
+  }
+  if (fileSize > MAX_UPLOAD_BYTES) {
+    res.status(413).json({ error: `Assets are limited to ${MAX_UPLOAD_BYTES / (1024 * 1024)} MB`, code: "file_too_large", maxBytes: MAX_UPLOAD_BYTES });
+    return;
+  }
+
   const [asset] = await db
     .insert(assetsTable)
-    .values({ ...body.data, createdById: req.dbUser!.id, organizationId: req.org!.id })
+    .values({ ...body.data, fileSize, createdById: req.dbUser!.id, organizationId: req.org!.id })
     .returning();
 
   const full = await buildAssetResponse(asset.id, req.org!.id);
