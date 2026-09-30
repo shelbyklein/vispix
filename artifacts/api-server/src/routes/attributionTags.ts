@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, ne, sql } from "drizzle-orm";
 import { db, attributionTagsTable, photoAttributionTagsTable, photosTable, albumsTable } from "@workspace/db";
 import {
   ListAttributionTagsResponse,
@@ -23,6 +23,31 @@ const router: IRouter = Router();
 // instance-superadmin one, now that attribution tags are per-org (#113).
 const requireOrgAdmin = [requireOrgAuth, requireOrgRole("owner", "admin")] as const;
 
+const DUPLICATE_TAG = "A tag with that name already exists";
+
+/** Another tag in this org with the same name, ignoring case. Other orgs' names never count. */
+async function nameTaken(organizationId: number, name: string, exceptId?: number): Promise<boolean> {
+  const [row] = await db
+    .select({ id: attributionTagsTable.id })
+    .from(attributionTagsTable)
+    .where(
+      and(
+        eq(attributionTagsTable.organizationId, organizationId),
+        sql`lower(${attributionTagsTable.name}) = lower(${name})`,
+        exceptId != null ? ne(attributionTagsTable.id, exceptId) : undefined,
+      ),
+    )
+    .limit(1);
+  return !!row;
+}
+
+function isUniqueViolation(err: unknown): boolean {
+  for (let e: unknown = err; e && typeof e === "object"; e = (e as { cause?: unknown }).cause) {
+    if ((e as { code?: unknown }).code === "23505") return true;
+  }
+  return false;
+}
+
 router.get("/attribution-tags", requireOrgAuth, async (req, res): Promise<void> => {
   const tags = await db
     .select()
@@ -43,16 +68,19 @@ router.post("/attribution-tags", ...requireOrgAdmin, async (req, res): Promise<v
     res.status(400).json({ error: "Tag name cannot be empty" });
     return;
   }
-  const [existing] = await db
-    .select()
-    .from(attributionTagsTable)
-    .where(and(eq(attributionTagsTable.name, name), eq(attributionTagsTable.organizationId, req.org!.id)));
-  if (existing) {
-    res.status(409).json({ error: "A tag with that name already exists" });
+  // Names are unique per organization (migration 0037), ignoring case here so
+  // "Social" and "social" can't both exist; another org's tags never matter.
+  if (await nameTaken(req.org!.id, name)) {
+    res.status(409).json({ error: DUPLICATE_TAG });
     return;
   }
-  const [tag] = await db.insert(attributionTagsTable).values({ name, organizationId: req.org!.id }).returning();
-  res.status(201).json(UpdateAttributionTagResponse.parse({ id: tag.id, name: tag.name }));
+  try {
+    const [tag] = await db.insert(attributionTagsTable).values({ name, organizationId: req.org!.id }).returning();
+    res.status(201).json(UpdateAttributionTagResponse.parse({ id: tag.id, name: tag.name }));
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    res.status(409).json({ error: DUPLICATE_TAG }); // a concurrent create won the race
+  }
 });
 
 router.patch("/attribution-tags/:id", ...requireOrgAdmin, async (req, res): Promise<void> => {
@@ -72,11 +100,22 @@ router.patch("/attribution-tags/:id", ...requireOrgAdmin, async (req, res): Prom
     res.status(400).json({ error: "Tag name cannot be empty" });
     return;
   }
-  const [tag] = await db
-    .update(attributionTagsTable)
-    .set({ name })
-    .where(and(eq(attributionTagsTable.id, id), eq(attributionTagsTable.organizationId, req.org!.id)))
-    .returning();
+  if (await nameTaken(req.org!.id, name, id)) {
+    res.status(409).json({ error: DUPLICATE_TAG });
+    return;
+  }
+  let tag: typeof attributionTagsTable.$inferSelect | undefined;
+  try {
+    [tag] = await db
+      .update(attributionTagsTable)
+      .set({ name })
+      .where(and(eq(attributionTagsTable.id, id), eq(attributionTagsTable.organizationId, req.org!.id)))
+      .returning();
+  } catch (err) {
+    if (!isUniqueViolation(err)) throw err;
+    res.status(409).json({ error: DUPLICATE_TAG });
+    return;
+  }
   if (!tag) {
     res.status(404).json({ error: "Tag not found" });
     return;

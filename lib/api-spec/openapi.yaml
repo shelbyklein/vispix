@@ -984,6 +984,8 @@ paths:
                 $ref: "#/components/schemas/AttributionTag"
         "404":
           description: Tag not found
+        "409":
+          description: Another tag in this organization already has that name (ignoring case)
     delete:
       operationId: deleteAttributionTag
       tags: [attribution]

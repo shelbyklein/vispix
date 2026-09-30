@@ -177,10 +177,14 @@ export async function searchPhotos({
   // answer listing the org's own names, never "no filter".
   let rightsTagId: number | undefined;
   if (rightsTag?.trim()) {
+    // Case-insensitive within the org; an exact-case name wins if older data
+    // has case variants (new ones are refused by the API).
     const [tag] = await db
       .select({ id: attributionTagsTable.id })
       .from(attributionTagsTable)
-      .where(and(ilike(attributionTagsTable.name, rightsTag.trim()), eq(attributionTagsTable.organizationId, organizationId)));
+      .where(and(ilike(attributionTagsTable.name, rightsTag.trim()), eq(attributionTagsTable.organizationId, organizationId)))
+      .orderBy(sql`${attributionTagsTable.name} = ${rightsTag.trim()} desc`, attributionTagsTable.id)
+      .limit(1);
     if (!tag) {
       const tags = await listUsageRights(organizationId);
       return {
