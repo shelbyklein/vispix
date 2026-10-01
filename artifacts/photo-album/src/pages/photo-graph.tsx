@@ -532,5 +532,5 @@ function GraphCanvas({
     graph.linkColor(graph.linkColor()).linkWidth(graph.linkWidth()).linkDirectionalParticles(graph.linkDirectionalParticles());
   }, [hoverId, centreId]);
 
-  return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px]")} role="img" aria-label={label} data-testid="graph-canvas" />;
+  return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px] lg:[mask-image:linear-gradient(to_right,transparent,black_72px)]")} role="img" aria-label={label} data-testid="graph-canvas" />;
 }
