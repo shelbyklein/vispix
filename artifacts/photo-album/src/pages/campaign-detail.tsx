@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, Megaphone, Loader2, Sparkles, Download, Trash2, AlertTriangle, Save } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 // Campaign detail (#192): the brief on top (editable), suggested results below,
 // and a "Generate 3" that produces three distinct ad concepts on the spot.
@@ -83,6 +84,9 @@ export default function CampaignDetailPage() {
   const campaignId = params?.id ? parseInt(params.id, 10) : undefined;
 
   const { data: campaign, isLoading } = useCampaign(campaignId);
+  const caps = useCapabilities();
+  // Only its creator or an org owner/admin can change a campaign (#218).
+  const canManage = campaign != null && caps.canManageItem(campaign.createdById);
   const { mutate: update, isPending: saving } = useUpdateCampaign();
   const { mutate: remove, isPending: deleting } = useDeleteCampaign();
   const generate = useGenerateCampaignSuggestions();
@@ -203,6 +207,7 @@ export default function CampaignDetailPage() {
               <span className="min-w-0 truncate">{campaign.name}</span>
             </h1>
           </div>
+          {canManage && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="ghost" size="icon" title="Delete campaign" data-testid="delete-campaign-btn">
@@ -234,6 +239,7 @@ export default function CampaignDetailPage() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          )}
         </div>
 
         {/* The brief — the instructions the agent works from. */}
@@ -242,9 +248,15 @@ export default function CampaignDetailPage() {
           <Textarea
             value={brief}
             onChange={(e) => setBrief(e.target.value)}
+            readOnly={!canManage}
             className="min-h-[140px] text-sm"
             data-testid="campaign-brief-editor"
           />
+          {!canManage && (
+            <p className="text-xs text-muted-foreground" data-testid="campaign-read-only">
+              Only the person who created this campaign or an organization owner/admin can change it.
+            </p>
+          )}
           {changedElsewhere && (
             <div
               className="flex flex-wrap items-center gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-foreground"
@@ -284,7 +296,7 @@ export default function CampaignDetailPage() {
                 size="sm"
                 variant="outline"
                 className="gap-1.5"
-                disabled={saving || starting || !brief.trim() || changedElsewhere}
+                disabled={!canManage || saving || starting || !brief.trim() || changedElsewhere}
                 onClick={handleSave}
                 data-testid="save-brief-btn"
               >
@@ -296,7 +308,7 @@ export default function CampaignDetailPage() {
               size="sm"
               className="gap-1.5"
               onClick={handleGenerate}
-              disabled={starting || generate.isPending || anyPending || saving || !brief.trim() || changedElsewhere}
+              disabled={!canManage || starting || generate.isPending || anyPending || saving || !brief.trim() || changedElsewhere}
               data-testid="generate-suggestions-btn"
             >
               {starting || generate.isPending || anyPending ? (

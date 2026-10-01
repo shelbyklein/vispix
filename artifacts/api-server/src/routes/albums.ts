@@ -21,6 +21,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse, deletePhotoStorageObjects } from "../lib/photoHelpers";
+import { canManageItem } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -29,12 +30,7 @@ const router: IRouter = Router();
 // own org's albums — the old creator-or-platform-admin rule left org owners
 // unable to delete albums in their own organization (#191 surfaced this).
 function canManageAlbum(req: Request, ownerId: number): boolean {
-  return (
-    ownerId === req.dbUser!.id ||
-    req.dbUser!.role === "admin" ||
-    req.orgRole === "owner" ||
-    req.orgRole === "admin"
-  );
+  return canManageItem(req, ownerId);
 }
 
 // Tenant scope (#113): buildAlbumResponse is only ever called with an album the

@@ -4,6 +4,7 @@ import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse } from "../lib/photoHelpers";
 import { parseSearchFilters } from "../lib/searchFilters";
 import { retrievePhotos, RetrievalError, MAX_PAGE_SIZE } from "../lib/photoRetrieval";
+import { canSeeHiddenPhotos } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -46,7 +47,7 @@ router.get("/search", requireOrgAuth, async (req, res): Promise<void> => {
   try {
     const result = await retrievePhotos({
       organizationId: req.org!.id,
-      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      canSeeHidden: canSeeHiddenPhotos(req) && includeHidden,
       mode: "keyword",
       text: q,
       exclude,
@@ -79,7 +80,7 @@ router.get("/search/semantic", requireOrgAuth, async (req, res): Promise<void> =
   try {
     const result = await retrievePhotos({
       organizationId: req.org!.id,
-      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      canSeeHidden: canSeeHiddenPhotos(req) && includeHidden,
       mode: "concept",
       text: q,
       exclude,
@@ -116,7 +117,7 @@ router.get("/search/photos", requireOrgAuth, async (req, res): Promise<void> => 
   try {
     const result = await retrievePhotos({
       organizationId: req.org!.id,
-      canSeeHidden: req.dbUser!.role === "admin" && includeHidden,
+      canSeeHidden: canSeeHiddenPhotos(req) && includeHidden,
       mode,
       text: q,
       exclude,

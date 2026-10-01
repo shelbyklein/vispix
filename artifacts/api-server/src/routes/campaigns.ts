@@ -4,6 +4,7 @@ import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, campaignsTable, type Campaign } from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { generateCampaignSuggestions } from "../lib/imageGeneration/campaignSuggestions";
+import { canManageItem } from "../lib/capabilities";
 
 // Campaigns (#192): text briefs that drive AI ad suggestions. Org-scoped; the
 // suggestions themselves live in the campaign's image-generation session (see
@@ -55,6 +56,7 @@ function serialize(c: Campaign) {
     brief: c.brief,
     briefRevision: c.briefRevision,
     sessionId: c.sessionId,
+    createdById: c.createdById,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),
   };
@@ -117,6 +119,16 @@ router.patch("/campaigns/:id", requireOrgAuth, async (req: Request, res: Respons
     return;
   }
   const { expectedRevision, ...fields } = body.data;
+  // Someone else's campaign: only its creator or an org owner/admin (#218).
+  const owned = await findOrgCampaign(id, req.org!.id);
+  if (!owned) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+  if (!canManageItem(req, owned.createdById)) {
+    res.status(403).json({ error: "Only the campaign's creator or an organization owner/admin can change it" });
+    return;
+  }
   const conditions = [eq(campaignsTable.id, id), eq(campaignsTable.organizationId, req.org!.id)];
   if (expectedRevision != null) conditions.push(eq(campaignsTable.briefRevision, expectedRevision));
   const [row] = await db
@@ -148,6 +160,10 @@ router.delete("/campaigns/:id", requireOrgAuth, async (req: Request, res: Respon
     res.status(404).json({ error: "Campaign not found" });
     return;
   }
+  if (!canManageItem(req, existing.createdById)) {
+    res.status(403).json({ error: "Only the campaign's creator or an organization owner/admin can delete it" });
+    return;
+  }
   // The generation session (and its outputs) survive — suggestions already
   // produced remain traceable in Create's session list.
   await db.delete(campaignsTable).where(eq(campaignsTable.id, id));
@@ -168,6 +184,16 @@ router.post("/campaigns/:id/generate", requireOrgAuth, async (req: Request, res:
     return;
   }
   const { brief, expectedRevision, requestId } = body.data;
+  // Someone else's campaign: only its creator or an org owner/admin (#218).
+  const owned = await findOrgCampaign(id, req.org!.id);
+  if (!owned) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+  if (!canManageItem(req, owned.createdById)) {
+    res.status(403).json({ error: "Only the campaign's creator or an organization owner/admin can change it" });
+    return;
+  }
 
   const conditions = [eq(campaignsTable.id, id), eq(campaignsTable.organizationId, req.org!.id)];
   if (expectedRevision != null) conditions.push(eq(campaignsTable.briefRevision, expectedRevision));

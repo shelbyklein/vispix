@@ -13,6 +13,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService } from "../lib/objectStorage";
+import { canManageItem, isOrgManager } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -141,16 +142,15 @@ router.patch("/assets/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
   const { isPrimary, ...fields } = body.data;
-  const isPlatformAdmin = req.dbUser!.role === "admin";
-  // Editing an asset: its creator or a platform admin (unchanged).
-  if (Object.keys(fields).length > 0 && existing.createdById !== req.dbUser!.id && !isPlatformAdmin) {
+  // Editing an asset: its creator or an org owner/admin (#218).
+  if (Object.keys(fields).length > 0 && !canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
   // Designating the primary logo is an organization decision (#206): owners
   // and admins (or a platform admin), whoever uploaded the asset.
   if (isPrimary !== undefined) {
-    if (!isPlatformAdmin && req.orgRole !== "owner" && req.orgRole !== "admin") {
+    if (!isOrgManager(req)) {
       res.status(403).json({ error: "Only organization owners and admins can set the primary logo" });
       return;
     }
@@ -217,7 +217,7 @@ router.delete("/assets/:id", requireOrgAuth, async (req, res): Promise<void> => 
     res.status(404).json({ error: "Asset not found" });
     return;
   }
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

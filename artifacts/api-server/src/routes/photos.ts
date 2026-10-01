@@ -54,6 +54,7 @@ import { assertUploadAllowed } from "../lib/billing/subscriptions";
 import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions } from "../lib/photoHelpers";
 import { parseSearchFilters } from "../lib/searchFilters";
 import { retrievalNeighbors } from "../lib/photoRetrieval";
+import { canManageItem, canSeeHiddenPhotos, isOrgManager } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -286,7 +287,7 @@ router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<vo
     .select({ id: photosTable.id, albumId: photosTable.albumId, isHidden: photosTable.isHidden })
     .from(photosTable)
     .where(and(eq(photosTable.id, id), eq(photosTable.organizationId, req.org!.id)));
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   if (!photo || (photo.isHidden && !isAdmin)) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -331,7 +332,7 @@ router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void>
   }
 
   const view = parseAlbumView(req.query as Record<string, unknown>);
-  const canSeeHidden = req.dbUser!.role === "admin" && view.includeHidden;
+  const canSeeHidden = canSeeHiddenPhotos(req) && view.includeHidden;
 
   const DEFAULT_LIMIT = 50;
   const MAX_LIMIT = 200;
@@ -364,7 +365,7 @@ router.get("/photos", requireOrgAuth, async (req, res): Promise<void> => {
   }
 
   const includeHidden = req.query.includeHidden === "true";
-  const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
+  const canSeeHidden = canSeeHiddenPhotos(req) && includeHidden;
 
   const { search, tag, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId } = query.data;
   // Parsed from req.query directly: the generated zod.coerce.boolean() turns
@@ -400,7 +401,7 @@ router.get("/photos", requireOrgAuth, async (req, res): Promise<void> => {
 });
 
 router.patch("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => {
-  if (req.dbUser!.role !== "admin") {
+  if (!isOrgManager(req)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -423,7 +424,7 @@ router.patch("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => 
 });
 
 router.delete("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => {
-  if (req.dbUser!.role !== "admin") {
+  if (!isOrgManager(req)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -460,7 +461,8 @@ router.get("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => {
   }
 
   const photo = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
-  if (!photo) {
+  // Hidden photos are for org owners/admins (#218), here as in every list.
+  if (!photo || (photo.isHidden && !canSeeHiddenPhotos(req))) {
     res.status(404).json({ error: "Photo not found" });
     return;
   }
@@ -488,7 +490,7 @@ router.patch("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (existing.uploaderId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.uploaderId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -526,7 +528,7 @@ router.delete("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (existing.uploaderId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.uploaderId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -614,7 +616,7 @@ router.post("/photos/:id/suggestions/:collectionId/accept", requireOrgAuth, asyn
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id || collection.createdById === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -673,7 +675,7 @@ router.post("/photos/:id/suggestions/:collectionId/dismiss", requireOrgAuth, asy
   }
 
   const [collection] = await db.select({ createdById: collectionsTable.createdById }).from(collectionsTable).where(and(eq(collectionsTable.id, params.data.collectionId), eq(collectionsTable.organizationId, req.org!.id)));
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id || (collection && collection.createdById === req.dbUser!.id);
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -729,7 +731,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/accept", requi
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -802,7 +804,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/dismiss", requ
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -850,7 +852,7 @@ router.post("/photos/:id/rerun-analysis", requireOrgAuth, async (req, res): Prom
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isUploader = existing.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isUploader) {
     res.status(403).json({ error: "Forbidden" });
@@ -891,7 +893,7 @@ router.get("/photos/:id/similar", requireOrgAuth, async (req, res): Promise<void
   }
   const vecLiteral = `[${self.embedding.join(",")}]`;
 
-  const canSeeHidden = req.dbUser!.role === "admin";
+  const canSeeHidden = canSeeHiddenPhotos(req);
   const rows = await withIterativeVectorScan((tx) =>
     tx
       .select({ id: photoEmbeddingsTable.photoId })

@@ -49,6 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, FolderOpen, Pencil, Trash2, Star, Tag, X, Plus, ImageIcon } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 function RenameCollectionDialog({
   collectionId,
@@ -316,6 +317,7 @@ export default function CollectionDetail() {
     query: { enabled: !!collectionId, queryKey: getGetCollectionQueryKey(collectionId) },
   });
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
   const { mutate: deleteCollection, isPending: deletingCollection } = useDeleteCollection();
   const { mutate: updateCollection } = useUpdateCollection();
   const { mutate: removePhoto } = useRemovePhotoFromCollection();
@@ -339,8 +341,7 @@ export default function CollectionDetail() {
     );
   }
 
-  const canManage =
-    me && collection && (me.id === collection.createdById || me.role === "admin");
+  const canManage = !!collection && caps.canManageItem(collection.createdById);
 
   const photos = collection?.photos ?? [];
   const selectedIndex = selectedPhoto ? photos.findIndex((p) => p.id === selectedPhoto.id) : -1;

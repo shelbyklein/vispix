@@ -48,6 +48,7 @@ import {
 import { Camera, Search, SlidersHorizontal, X, Star, ChevronLeft, ChevronRight, Sparkles, EyeOff, Eye, Bot, Check, AlertCircle, FolderOpen, Loader2, Trash2, CheckSquare, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 const PAGE_SIZE = 48;
 
@@ -150,6 +151,8 @@ export default function PhotosPage() {
   }
 
   const { data: me } = useGetMe();
+
+  const caps = useCapabilities();
   const { data: users } = useListUsers({ query: { enabled: me?.role === "admin", queryKey: getListUsersQueryKey() } });
   const { data: albums } = useListAlbums();
   const { data: attributionTagList } = useListAttributionTags();
@@ -322,7 +325,7 @@ export default function PhotosPage() {
               {isInitialLoading
                 ? "Loading…"
                 : `${allPhotos.length.toLocaleString()}${hasMore ? "+" : ""} photo${allPhotos.length !== 1 ? "s" : ""}${hasMore ? " loaded" : ""}`}
-              {me?.role === "admin" && !isInitialLoading && (
+              {caps.canSeeHidden && !isInitialLoading && (
                 <button
                   type="button"
                   onClick={() => setShowHidden((v) => !v)}
@@ -337,7 +340,7 @@ export default function PhotosPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            {me?.role === "admin" && (
+            {caps.isOrgManager && (
               <Button
                 variant={isSelectMode ? "default" : "outline"}
                 size="sm"
@@ -814,7 +817,7 @@ export default function PhotosPage() {
             {selectedIds.size} photo{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
           <div className="flex items-center gap-2">
-            {me?.role === "admin" && selectedIds.size > 0 && (
+            {caps.isOrgManager && selectedIds.size > 0 && (
               <Button
                 variant="destructive"
                 size="sm"

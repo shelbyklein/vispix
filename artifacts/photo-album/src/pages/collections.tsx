@@ -27,6 +27,7 @@ import {
 import { Plus, FolderOpen, Camera, Tag, X, Pencil } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useGetMe } from "@workspace/api-client-react";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 function CreateCollectionDialog({ onCreated, testId = "create-collection-btn" }: { onCreated: () => void; testId?: string }) {
   const [open, setOpen] = useState(false);
@@ -210,6 +211,7 @@ export default function Collections() {
   const qc = useQueryClient();
   const { data: collections, isLoading } = useListCollections();
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
   const [activeTag, setActiveTag] = useState<string | null>(null);
 
   const allTags = Array.from(
@@ -292,7 +294,7 @@ export default function Collections() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4" data-testid="collections-grid">
             {reorder.arrange(filtered, (c) => c.id).map((collection) => {
               const tags = collection.tags ?? [];
-              const canManage = me && (me.id === collection.createdById || me.role === "admin");
+              const canManage = caps.canManageItem(collection.createdById);
               return (
                 <div
                   key={collection.id}

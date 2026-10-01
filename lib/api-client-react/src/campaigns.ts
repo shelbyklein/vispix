@@ -12,6 +12,8 @@ export interface CampaignSummary {
   /** Bumped on every brief change (#216); send it back as `expectedRevision`. */
   briefRevision: number;
   sessionId: number | null;
+  /** Its creator; with org owners/admins, the only ones who can change it (#218). */
+  createdById: number;
   createdAt: string;
   updatedAt: string;
 }

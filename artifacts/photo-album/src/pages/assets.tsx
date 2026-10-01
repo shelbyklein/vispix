@@ -51,6 +51,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { collectFolders, FolderCard, FolderBreadcrumb } from "@/components/FolderBrowser";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 // The asset library holds non-photo files pulled into deliverables: brand
 // assets (logos/marks to embed) and reference works (past output to match).
@@ -680,6 +681,9 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
   const { toast } = useToast();
   const { activeOrg } = useOrg();
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
+  // Move/edit/delete: the asset's creator or an org owner/admin (#218).
+  const canManage = caps.canManageItem(asset.createdById);
   const fileUrl = `/api/storage${asset.storageKey}`;
   // The primary logo (#206) is an org decision: owners/admins, brand images only.
   const canSetPrimary =
@@ -757,6 +761,7 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
         {asset.notes && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{asset.notes}</p>}
         <div className="flex items-center justify-end gap-1 mt-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
           {/* Quick "move to folder" without opening the edit dialog (#198). */}
+          {canManage && (
           <Button
             size="icon"
             variant="ghost"
@@ -768,6 +773,7 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
           >
             <Folder className="h-3.5 w-3.5" />
           </Button>
+          )}
           {canSetPrimary && (
             <Button
               size="icon"
@@ -788,7 +794,8 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
               <Download className="h-3.5 w-3.5" />
             </a>
           </Button>
-          <EditAssetDialog asset={asset} onSaved={onChanged} />
+          {canManage && <EditAssetDialog asset={asset} onSaved={onChanged} />}
+          {canManage && (
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button size="icon" variant="ghost" className="h-8 w-8" disabled={deleting} aria-label={`Delete ${asset.name}`} data-testid={`delete-asset-${asset.id}`}>
@@ -814,6 +821,7 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
+          )}
         </div>
       </div>
     </div>

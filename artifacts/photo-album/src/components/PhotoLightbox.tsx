@@ -16,6 +16,7 @@ import { PhotoSidebarContent } from "@/components/photo-lightbox/PhotoSidebarCon
 import { LightboxImageArea } from "@/components/photo-lightbox/LightboxImageArea";
 import { LightboxNavControls } from "@/components/photo-lightbox/LightboxNavControls";
 import type { LightboxPhoto } from "@/components/photo-lightbox/types";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 export type { LightboxPhoto };
 
@@ -78,6 +79,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
 
   const { mutate: updatePhotoKb } = useUpdatePhoto();
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
   const { toast: toastKb } = useToast();
   // Shares the cache with the sidebar's useGetPhoto (same query key) — no extra
   // request. Used to show the AI description directly under the photo.
@@ -88,7 +90,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
   // Stable refs so keydown listeners always call the latest version
   const hideAndAdvanceRef = useRef<() => void>(() => {});
   hideAndAdvanceRef.current = useCallback(() => {
-    if (!photo || me?.role !== "admin") return;
+    if (!photo || !caps.isOrgManager) return;
     updatePhotoKb(
       { id: photo.id, data: { isHidden: true } },
       {
@@ -137,7 +139,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
       } else if (e.key === "ArrowRight" && hasNext && onNext) {
         e.preventDefault();
         onNext();
-      } else if ((e.key === "h" || e.key === "H") && me?.role === "admin") {
+      } else if ((e.key === "h" || e.key === "H") && caps.isOrgManager) {
         e.preventDefault();
         hideAndAdvanceRef.current();
       } else {

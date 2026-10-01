@@ -31,6 +31,7 @@ import {
 import { PhotoLightbox, type LightboxPhoto } from "@/components/PhotoLightbox";
 import { Search, SlidersHorizontal, X, Star, Images, EyeOff, Eye, Sparkles, Loader2, AlertTriangle, RotateCw, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 const PAGE_SIZE = 48;
 
@@ -146,8 +147,10 @@ export default function SearchPage() {
   }, [q]);
 
   const { data: me } = useGetMe();
+
+  const caps = useCapabilities();
   // In the URL (#205) so mode switches and Back/Forward keep it; admin-only.
-  const showHidden = hidden === "1" && me?.role === "admin";
+  const showHidden = hidden === "1" && caps.canSeeHidden;
   const { data: users } = useListUsers({ query: { enabled: me?.role === "admin", queryKey: getListUsersQueryKey() } });
 
   const hasActiveFilters =
@@ -333,7 +336,7 @@ export default function SearchPage() {
           <h1 className="text-2xl font-bold text-foreground">Search Photos</h1>
           <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
             Describe what you're looking for, or enter a filename or photo ID.
-            {me?.role === "admin" && (
+            {caps.canSeeHidden && (
               <button
                 type="button"
                 onClick={() => navigate({ hidden: showHidden ? "" : "1" })}

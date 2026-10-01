@@ -50,6 +50,7 @@ import {
   ConfirmNewCollectionDialog,
   type ConfirmNewCollectionState,
 } from "@/components/photo-detail/ConfirmNewCollectionDialog";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 export default function PhotoDetail() {
   const { id } = useParams<{ id: string }>();
@@ -72,6 +73,7 @@ export default function PhotoDetail() {
     },
   });
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
   const { data: allCollections } = useListCollections();
   const { data: allProjects } = useListProjects();
   const { mutate: addToCollection } = useAddPhotoToCollection();
@@ -341,10 +343,12 @@ export default function PhotoDetail() {
     (col) => !photo?.photoCollections?.some((c) => c.id === col.id)
   );
 
-  const canDelete = me && photo && (me.id === photo.uploaderId || me.role === "admin");
-  const canRerunAnalysis = me && photo && (me.id === photo.uploaderId || me.role === "admin");
-  const canEditDescription = me && photo && (me.id === photo.uploaderId || me.role === "admin");
-  const canToggleHidden = me && photo && (me.id === photo.uploaderId || me.role === "admin");
+  // Uploader or org owner/admin (#218).
+  const canManagePhoto = !!photo && caps.canManageItem(photo.uploaderId);
+  const canDelete = canManagePhoto;
+  const canRerunAnalysis = canManagePhoto;
+  const canEditDescription = canManagePhoto;
+  const canToggleHidden = canManagePhoto;
 
   function handleToggleHidden() {
     if (!photo) return;

@@ -3,6 +3,7 @@ import { and, eq } from "drizzle-orm";
 import { db, collectionsTable, tagsTable, collectionTagsTable } from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { z } from "zod";
+import { canManageItem } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -60,7 +61,7 @@ router.post("/collections/:id/tags", requireOrgAuth, async (req, res): Promise<v
     return;
   }
 
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -114,7 +115,7 @@ router.delete("/collections/:id/tags/:tagName", requireOrgAuth, async (req, res)
     return;
   }
 
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
