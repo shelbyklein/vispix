@@ -76,7 +76,7 @@ export const auth = betterAuth({
               : [];
             if (!invite) {
               throw new APIError("FORBIDDEN", {
-                message: "Registration is currently disabled",
+                message: "Vispix is invite-only right now. Sign up with the email address your invite was sent to.",
               });
             }
           }

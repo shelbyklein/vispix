@@ -47,7 +47,10 @@ function SignUpGuard() {
       </div>
     );
   }
-  if (data && !data.registrationEnabled) {
+  // Invite links (?email=) still reach the form when registration is off: the
+  // server lets an invited address sign up and refuses anyone else.
+  const invited = new URLSearchParams(window.location.search).has("email");
+  if (data && !data.registrationEnabled && !invited) {
     return <Redirect to="/" />;
   }
   return <SignUpPage />;
