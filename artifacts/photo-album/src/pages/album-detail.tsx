@@ -95,6 +95,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 type SortOption = "newest" | "oldest" | "top-rated";
 
@@ -302,12 +303,9 @@ export default function AlbumDetail() {
   const { mutate: setCover } = useSetAlbumCover();
   const { data: me } = useGetMe();
   const { activeOrg } = useOrg();
-  // Mirrors the server rule: album creator, org owner/admin, or platform admin.
-  const canManageAlbum =
-    me?.role === "admin" ||
-    activeOrg?.role === "owner" ||
-    activeOrg?.role === "admin" ||
-    (album != null && album.ownerId === me?.id);
+  // Mirrors the server rule (#218): album creator, org owner/admin, or platform admin.
+  const caps = useCapabilities();
+  const canManageAlbum = album != null && caps.canManageItem(album.ownerId);
   const { mutate: deleteAlbum, isPending: deletingAlbum } = useDeleteAlbum();
   const { mutate: acceptSuggestion } = useAcceptPhotoSuggestion();
   const { mutate: dismissSuggestion } = useDismissPhotoSuggestion();
@@ -584,7 +582,7 @@ export default function AlbumDetail() {
                     label={`${album.nearDuplicateCount} near-dup${album.nearDuplicateCount !== 1 ? "s" : ""}`}
                   />
                 )}
-                {me?.role === "admin" && !!album.hiddenCount && (
+                {caps.canSeeHidden && !!album.hiddenCount && (
                   <span className="flex items-center gap-1 text-muted-foreground/70 whitespace-nowrap">
                     <EyeOff className="h-3 w-3" />
                     {album.hiddenCount} hidden
@@ -612,7 +610,7 @@ export default function AlbumDetail() {
           <TooltipProvider delayDuration={500}>
           {/* Phones: 2x2 grid of compact actions; sm and up: single row. */}
           <div className="grid grid-cols-2 gap-2 shrink-0 sm:flex sm:items-center">
-            {me?.role === "admin" && (
+            {caps.isOrgManager && (
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Button
@@ -714,7 +712,7 @@ export default function AlbumDetail() {
               const total = attributionSummary.photoCount;
               const all = total > 0 && tag.count === total;
               const partial = tag.count > 0 && !all;
-              const clickable = me?.role === "admin";
+              const clickable = caps.canSeeHidden;
               return (
                 <button
                   key={tag.id}
@@ -1136,7 +1134,7 @@ export default function AlbumDetail() {
             {selectedIds.size} photo{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {me?.role === "admin" && selectedIds.size > 0 && (
+            {caps.isOrgManager && selectedIds.size > 0 && (
               <Button
                 variant="destructive"
                 size="sm"

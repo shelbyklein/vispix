@@ -40,6 +40,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { suggestCollections } from "@/lib/aiSuggestions";
 import { LightboxStarRating } from "./LightboxStarRating";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 export function PhotoSidebarContent({
   photoId,
@@ -86,6 +87,7 @@ export function PhotoSidebarContent({
   const { mutate: addToProject, isPending: addingToProject } = useAddPhotoToProject();
   const { mutate: removeFromProject, isPending: removingFromProject } = useRemovePhotoFromProject();
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
 
   const [showNewForm, setShowNewForm] = useState(false);
   const [newTitle, setNewTitle] = useState("");
@@ -256,7 +258,7 @@ export function PhotoSidebarContent({
   const currentProjects = fullPhoto?.photoProjects ?? [];
   const currentAttributionTags = fullPhoto?.attributionTags ?? [];
   const isHidden = fullPhoto?.isHidden ?? false;
-  const canDelete = me && fullPhoto && (me.id === fullPhoto.uploaderId || me.role === "admin");
+  const canDelete = !!fullPhoto && caps.canManageItem(fullPhoto.uploaderId);
 
   if (photoLoading || collectionsLoading) {
     return (
@@ -277,7 +279,7 @@ export function PhotoSidebarContent({
 
   return (
     <div className="space-y-4" data-testid="lightbox-collection-manager">
-      {(topActions || coverAlbumId != null || me?.role === "admin" || canDelete) && (
+      {(topActions || coverAlbumId != null || caps.isOrgManager || canDelete) && (
         <div className="flex flex-wrap gap-2" data-testid="lightbox-photo-actions">
       {topActions}
       {coverAlbumId != null && (
@@ -303,7 +305,7 @@ export function PhotoSidebarContent({
         </button>
       )}
 
-      {me?.role === "admin" && (
+      {caps.isOrgManager && (
         <button
           type="button"
           onClick={handleToggleHidden}

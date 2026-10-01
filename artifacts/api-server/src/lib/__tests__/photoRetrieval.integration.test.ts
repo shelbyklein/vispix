@@ -24,6 +24,7 @@ import { db, pool, photosTable, photoEmbeddingsTable, photoAiEvaluationsTable, a
 import { resetDb, createUser, createOrganization, createAlbum, createPhoto } from "./testDb";
 import {
   retrievePhotos,
+  retrievalNeighbors,
   clearQueryEmbeddingCache,
   RetrievalError,
   MAX_CONCEPT_DEPTH,
@@ -342,3 +343,31 @@ describe("keyword mode", () => {
     expect(one).toEqual(all);
   });
 });
+
+describe("neighbors follow the result order (#210 NAV-03)", () => {
+  async function checkWalk(req: RetrievalRequest) {
+    const list = (await retrievePhotos({ ...req, limit: 200 })).items.map((i) => i.photoId);
+    const total = (await retrievePhotos({ ...req, limit: 1 })).total;
+    expect(list.length).toBeGreaterThan(2);
+    for (const idx of [...new Set([0, 1, Math.min(57, list.length - 2), list.length - 1])]) {
+      const n = await retrievalNeighbors(req, list[idx]);
+      // The last loaded item's next is the 201st result when there are more.
+      const expectedNext = idx < list.length - 1 ? list[idx + 1] : total! > list.length ? n.nextId : null;
+      expect(n).toEqual({ status: "ok", inContext: true, previousId: idx > 0 ? list[idx - 1] : null, nextId: expectedNext, position: idx + 1, total });
+    }
+  }
+  it("concept", async () => {
+    await checkWalk(base({ filters: { minQuality: 0 } }));
+    await checkWalk(base({}));
+  });
+  it("keyword", async () => {
+    await checkWalk(base({ mode: "keyword", text: "archer" }));
+  });
+  it("a photo outside the results, a hidden photo and another org's photo are not in context", async () => {
+    const r = base({ filters: { minQuality: 9 } });
+    expect((await retrievalNeighbors(r, library[0].id)).inContext).toBe(false);
+    expect((await retrievalNeighbors(base({}), hiddenTop.id)).inContext).toBe(false);
+    expect((await retrievalNeighbors(base({}), foreignTop)).inContext).toBe(false);
+  });
+});
+

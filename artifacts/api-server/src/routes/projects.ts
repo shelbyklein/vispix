@@ -21,6 +21,7 @@ import { buildPhotosResponse } from "../lib/photoHelpers";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
+import { canManageItem } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -238,7 +239,7 @@ router.patch("/projects/:id", requireOrgAuth, async (req, res): Promise<void> =>
     return;
   }
 
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -266,7 +267,7 @@ router.delete("/projects/:id", requireOrgAuth, async (req, res): Promise<void> =
     return;
   }
 
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -295,7 +296,7 @@ router.post("/projects/:id/photos", requireOrgAuth, async (req, res): Promise<vo
     return;
   }
 
-  if (project.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, project.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -338,7 +339,7 @@ router.delete("/projects/:id/photos/:photoId", requireOrgAuth, async (req, res):
     return;
   }
 
-  if (project.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, project.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

@@ -340,25 +340,178 @@ async function exactMatches(text: string, conditions: SQL[]): Promise<{ photoId:
   }));
 }
 
+// ---------------------------------------------------------------------------
+// Shared ranking SQL: the results pages and the neighbors lookup run exactly
+// these, so a photo's Previous/Next always matches the order on screen.
+
+const CONCEPT_ORDER = "score desc, id asc";
+const KEYWORD_ORDER = "tier desc, created_at desc, id desc";
+
+/** The concept query vector, steered away from exclusions — or why it couldn't be built. */
+async function conceptVector(
+  text: string,
+  exclude: string[],
+  signal?: AbortSignal,
+): Promise<{ ok: true; vec: number[]; degraded: RetrievalResult["degraded"] } | { ok: false; reason: EmbedFailure }> {
+  const pos = await embedCached(text, signal);
+  if (!pos.ok) return pos;
+  if (exclude.length === 0) return { ok: true, vec: pos.vec, degraded: null };
+  const neg = await embedCached(exclude.join(", "), signal);
+  if (!neg.ok) return { ok: true, vec: pos.vec, degraded: { reason: neg.reason, affects: "exclusions" } };
+  const p = normalizeVec(pos.vec);
+  const n = normalizeVec(neg.vec);
+  return { ok: true, vec: p.map((x, i) => x - NEGATIVE_LAMBDA * n[i]), degraded: null };
+}
+
+/**
+ * One row per ranked photo (id, dist, q, score). The inner query computes each
+ * photo's distance once (OFFSET 0 keeps it from being inlined into outer
+ * expressions); order by CONCEPT_ORDER.
+ */
+function conceptRankedSql(vec: number[], where: SQL | undefined): SQL {
+  const vecLiteral = `[${vec.join(",")}]`;
+  const score = sql`((1 - r.dist) * ${sql.raw(String(1 - W))} + coalesce(r.q, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))}) / 10 * ${sql.raw(String(W))})`;
+  return sql`select r.id, r.dist, r.q, ${score} as score from (
+    select ${photosTable.id} as id,
+           ${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector as dist,
+           ${photoAiEvaluationsTable.overallScore}::float8 as q
+    from ${photoEmbeddingsTable}
+    join ${photosTable} on ${photosTable.id} = ${photoEmbeddingsTable.photoId}
+    left join ${photoAiEvaluationsTable} on ${photoAiEvaluationsTable.photoId} = ${photoEmbeddingsTable.photoId}
+    where ${where}
+    offset 0
+  ) r`;
+}
+
+/** One row per keyword match (id, tier, created_at, created, m_*); order by KEYWORD_ORDER. */
+function keywordRankedSql(text: string, exclude: string[], conditions: SQL[], excludeIds: number[]): SQL {
+  // A literal substring: `%` and `_` in the query are not wildcards.
+  const pattern = containsPattern(text);
+  const inAlbum = sql`${albumsTable.title} ilike ${pattern}`;
+  const byUploader = sql`${usersTable.name} ilike ${pattern}`;
+  const inDescription = sql`coalesce(${photosTable.aiDescription} ilike ${pattern}, false)`;
+  const inFilename = sql`coalesce(${photosTable.filename} ilike ${pattern}, false)`;
+  // Keyword exclusions are hard: drop photos whose AI description mentions any term.
+  const where = and(
+    ...conditions,
+    sql`(${inAlbum} or ${byUploader} or ${inDescription} or ${inFilename})`,
+    ...exclude.map((t) => sql`coalesce(${photosTable.aiDescription}, '') not ilike ${containsPattern(t)}`),
+    ...(excludeIds.length ? [notInArray(photosTable.id, excludeIds)] : []),
+  );
+  return sql`select ${photosTable.id} as id,
+         round(coalesce(${photoAiEvaluationsTable.overallScore}::float8, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))})) as tier,
+         ${photosTable.createdAt} as created_at,
+         ${photosTable.createdAt}::text as created,
+         ${inAlbum} as m_album, ${byUploader} as m_uploader, ${inDescription} as m_desc, ${inFilename} as m_file
+    from ${photosTable}
+    join ${albumsTable} on ${albumsTable.id} = ${photosTable.albumId}
+    join ${usersTable} on ${usersTable.id} = ${photosTable.uploaderId}
+    left join ${photoAiEvaluationsTable} on ${photoAiEvaluationsTable.photoId} = ${photosTable.id}
+    where ${where}`;
+}
+
+export interface RetrievalNeighbors {
+  /** "unavailable": concept ranking couldn't run (concept mode only). */
+  status: "ok" | "unavailable";
+  /** Whether the photo is in this search's results at all. */
+  inContext: boolean;
+  previousId: number | null;
+  nextId: number | null;
+  /** 1-based position in the results, or null when not in context. */
+  position: number | null;
+  total: number | null;
+}
+
+/**
+ * Previous/Next of one photo within a search's results (#210 NAV-03): the
+ * same scope, filters, exact matches and ranking as retrievePhotos, so the
+ * details page steps through results in the order the search page shows.
+ */
+export async function retrievalNeighbors(req: Omit<RetrievalRequest, "limit" | "cursor" | "offset">, photoId: number): Promise<RetrievalNeighbors> {
+  if (!Number.isSafeInteger(req.organizationId) || req.organizationId <= 0) {
+    throw new RetrievalError("invalid_scope", "Photo retrieval requires an organization scope.");
+  }
+  const outside = (total: number | null, status: RetrievalNeighbors["status"] = "ok"): RetrievalNeighbors => ({
+    status,
+    inContext: false,
+    previousId: null,
+    nextId: null,
+    position: null,
+    total,
+  });
+  const text = req.text.trim();
+  if (!text) return outside(0);
+  const exclude = (req.exclude ?? []).map((t) => t.trim()).filter(Boolean);
+  const conditions = photoFilterConditions(
+    { ...(req.filters ?? {}), includeHidden: req.canSeeHidden, exclude: [] },
+    { organizationId: req.organizationId, canSeeHidden: req.canSeeHidden },
+  );
+
+  const exact = req.mode === "concept" ? [] : (await exactMatches(text, conditions)).map((e) => e.photoId);
+  let ranked: SQL;
+  let order: string;
+  const concept = req.mode === "keyword" ? null : await conceptVector(text, exclude, req.signal);
+  if (concept?.ok) {
+    ranked = conceptRankedSql(concept.vec, and(...conditions, ...(exact.length ? [notInArray(photosTable.id, exact)] : [])));
+    order = CONCEPT_ORDER;
+  } else if (req.mode === "concept") {
+    return outside(null, "unavailable");
+  } else {
+    // keyword mode, or combined falling back to literal matches like retrievePhotos.
+    ranked = keywordRankedSql(text, exclude, conditions, exact);
+    order = KEYWORD_ORDER;
+  }
+
+  const rows = await withStatementTimeout(async (tx) =>
+    (
+      await tx.execute<{ id: number; rn: number; prev_id: number | null; next_id: number | null; total: number }>(sql`
+        select id, rn, prev_id, next_id, total from (
+          select id,
+                 row_number() over w as rn,
+                 lag(id) over w as prev_id,
+                 lead(id) over w as next_id,
+                 count(*) over () as total
+          from (${ranked}) x
+          window w as (order by ${sql.raw(order)})
+        ) y
+        where id = ${photoId} or rn = 1
+      `)
+    ).rows,
+  );
+  const current = rows.find((r) => Number(r.id) === photoId);
+  const first = rows.find((r) => Number(r.rn) === 1);
+  const rankedTotal = first ? Number(first.total) : 0;
+  const total = exact.length + rankedTotal;
+  const i = exact.indexOf(photoId);
+  if (i >= 0) {
+    return {
+      status: "ok",
+      inContext: true,
+      previousId: i > 0 ? exact[i - 1] : null,
+      nextId: i < exact.length - 1 ? exact[i + 1] : first ? Number(first.id) : null,
+      position: i + 1,
+      total,
+    };
+  }
+  if (!current) return outside(total);
+  return {
+    status: "ok",
+    inContext: true,
+    previousId: current.prev_id != null ? Number(current.prev_id) : exact.length ? exact[exact.length - 1] : null,
+    nextId: current.next_id != null ? Number(current.next_id) : null,
+    position: exact.length + Number(current.rn),
+    total,
+  };
+}
+
 async function concept({ req, text, exclude, conditions, normalized, limit, cursor, excludeIds }: ModeArgs): Promise<RetrievalResult> {
   const retrieval = { version: RETRIEVAL_VERSION, mode: "concept" as RetrievalMode, embeddingModel: EMBEDDING_MODEL_TAG, ranking: CONCEPT_RANKING };
 
-  const pos = await embedCached(text, req.signal);
-  if (!pos.ok) {
-    return { status: "unavailable", items: [], page: emptyPage(false), total: null, coverage: null, degraded: { reason: pos.reason, affects: "query" }, retrieval };
+  const qv = await conceptVector(text, exclude, req.signal);
+  if (!qv.ok) {
+    return { status: "unavailable", items: [], page: emptyPage(false), total: null, coverage: null, degraded: { reason: qv.reason, affects: "query" }, retrieval };
   }
-  let vec = pos.vec;
-  let degraded: RetrievalResult["degraded"] = null;
-  if (exclude.length > 0) {
-    const neg = await embedCached(exclude.join(", "), req.signal);
-    if (neg.ok) {
-      const p = normalizeVec(pos.vec);
-      const n = normalizeVec(neg.vec);
-      vec = p.map((x, i) => x - NEGATIVE_LAMBDA * n[i]);
-    } else {
-      degraded = { reason: neg.reason, affects: "exclusions" };
-    }
-  }
+  const { vec, degraded } = qv;
 
   const h = hashOf({ ...normalized, s: "concept", model: EMBEDDING_MODEL_TAG, vec: hashOf(vec) });
   if (cursor && cursor.h !== h) {
@@ -367,8 +520,6 @@ async function concept({ req, text, exclude, conditions, normalized, limit, curs
   const n = startPosition(req, cursor);
   const take = Math.min(limit, MAX_CONCEPT_DEPTH - n);
   const where = and(...conditions, ...(excludeIds.length ? [notInArray(photosTable.id, excludeIds)] : []));
-  const vecLiteral = `[${vec.join(",")}]`;
-  const score = sql`((1 - r.dist) * ${sql.raw(String(1 - W))} + coalesce(r.q, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))}) / 10 * ${sql.raw(String(W))})`;
 
   const { rows, total, notEmbedded } = await withStatementTimeout(async (tx) => {
     const counts = await tx.execute<{ ranked: number; not_embedded: number }>(sql`
@@ -377,23 +528,10 @@ async function concept({ req, text, exclude, conditions, normalized, limit, curs
         (select count(*)::int from ${photosTable} where ${where} and not exists (select 1 from ${photoEmbeddingsTable} where ${photoEmbeddingsTable.photoId} = ${photosTable.id})) as not_embedded
     `);
     if (take <= 0) return { rows: [], total: counts.rows[0].ranked, notEmbedded: counts.rows[0].not_embedded };
-    // The inner query computes each photo's distance once (OFFSET 0 keeps it
-    // from being inlined into the outer expressions); the outer query ranks.
     const result = await tx.execute<{ id: number; dist: number; q: number | null; score: number }>(sql`
-      select s.id, s.dist, s.q, s.score from (
-        select r.id, r.dist, r.q, ${score} as score from (
-          select ${photosTable.id} as id,
-                 ${photoEmbeddingsTable.embedding} <=> ${vecLiteral}::vector as dist,
-                 ${photoAiEvaluationsTable.overallScore}::float8 as q
-          from ${photoEmbeddingsTable}
-          join ${photosTable} on ${photosTable.id} = ${photoEmbeddingsTable.photoId}
-          left join ${photoAiEvaluationsTable} on ${photoAiEvaluationsTable.photoId} = ${photoEmbeddingsTable.photoId}
-          where ${where}
-          offset 0
-        ) r
-      ) s
+      select s.id, s.dist, s.q, s.score from (${conceptRankedSql(vec, where)}) s
       ${cursor ? sql`where s.score < ${cursor.k[0]}::float8 or (s.score = ${cursor.k[0]}::float8 and s.id > ${cursor.k[1]})` : sql``}
-      order by s.score desc, s.id asc
+      order by ${sql.raw(CONCEPT_ORDER.replace(/(\w+) (asc|desc)/g, "s.$1 $2"))}
       limit ${take + 1}
       ${cursor ? sql`` : sql`offset ${n}`}
     `);
@@ -429,36 +567,12 @@ async function keyword({ req, text, exclude, conditions, normalized, limit, curs
     throw new RetrievalError("cursor_mismatch", "The search changed since this page; restart from the first page.");
   }
   const n = startPosition(req, cursor);
-  // A literal substring: `%` and `_` in the query are not wildcards.
-  const pattern = containsPattern(text);
-  const inAlbum = sql`${albumsTable.title} ilike ${pattern}`;
-  const byUploader = sql`${usersTable.name} ilike ${pattern}`;
-  const inDescription = sql`coalesce(${photosTable.aiDescription} ilike ${pattern}, false)`;
-  const inFilename = sql`coalesce(${photosTable.filename} ilike ${pattern}, false)`;
-  // Keyword exclusions are hard: drop photos whose AI description mentions any term.
-  const where = and(
-    ...conditions,
-    sql`(${inAlbum} or ${byUploader} or ${inDescription} or ${inFilename})`,
-    ...exclude.map((t) => sql`coalesce(${photosTable.aiDescription}, '') not ilike ${containsPattern(t)}`),
-    ...(excludeIds.length ? [notInArray(photosTable.id, excludeIds)] : []),
-  );
-  const from = sql`${photosTable}
-    join ${albumsTable} on ${albumsTable.id} = ${photosTable.albumId}
-    join ${usersTable} on ${usersTable.id} = ${photosTable.uploaderId}
-    left join ${photoAiEvaluationsTable} on ${photoAiEvaluationsTable.photoId} = ${photosTable.id}`;
+  const ranked = keywordRankedSql(text, exclude, conditions, excludeIds);
 
   const { rows, total } = await withStatementTimeout(async (tx) => {
-    const counts = await tx.execute<{ total: number }>(sql`select count(*)::int as total from ${from} where ${where}`);
+    const counts = await tx.execute<{ total: number }>(sql`select count(*)::int as total from (${ranked}) c`);
     const result = await tx.execute<{ id: number; tier: number; created_at: string; created: string; m_album: boolean; m_uploader: boolean; m_desc: boolean; m_file: boolean }>(sql`
-      select s.* from (
-        select ${photosTable.id} as id,
-               round(coalesce(${photoAiEvaluationsTable.overallScore}::float8, ${sql.raw(String(NEUTRAL_QUALITY_SCORE))})) as tier,
-               ${photosTable.createdAt} as created_at,
-               ${photosTable.createdAt}::text as created,
-               ${inAlbum} as m_album, ${byUploader} as m_uploader, ${inDescription} as m_desc, ${inFilename} as m_file
-        from ${from}
-        where ${where}
-      ) s
+      select s.* from (${ranked}) s
       ${
         cursor
           ? sql`where s.tier < ${cursor.k[0]}::float8
@@ -466,7 +580,7 @@ async function keyword({ req, text, exclude, conditions, normalized, limit, curs
               or (s.tier = ${cursor.k[0]}::float8 and s.created_at = ${cursor.k[1]}::timestamptz and s.id < ${cursor.k[2]})`
           : sql``
       }
-      order by s.tier desc, s.created_at desc, s.id desc
+      order by ${sql.raw(KEYWORD_ORDER.replace(/(\w+) (asc|desc)/g, "s.$1 $2"))}
       limit ${limit + 1}
       ${cursor ? sql`` : sql`offset ${n}`}
     `);

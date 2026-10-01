@@ -18,6 +18,13 @@ export const auth = betterAuth({
   secret: process.env.BETTER_AUTH_SECRET,
   baseURL: process.env.BETTER_AUTH_URL,
   basePath: "/api/auth",
+  // Rate limiting keys on the visitor's address (#230). Behind Cloudflare →
+  // cloudflared → nginx, X-Forwarded-For's first entry is client-supplied
+  // (spoofable) and the socket is our proxy, so use the header Cloudflare sets
+  // and clients can't override. The origin is only reachable through the tunnel.
+  advanced: {
+    ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
+  },
   // Account switching (#191): keep up to 5 signed-in sessions per browser and
   // switch between them without re-authenticating (Google-style).
   plugins: [multiSession({ maximumSessions: 5 })],

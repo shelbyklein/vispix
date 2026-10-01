@@ -5,7 +5,20 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+/**
+ * Whether neighbours follow an album view or search results.
+ */
+export type PhotoNeighborsContext =
+  (typeof PhotoNeighborsContext)[keyof typeof PhotoNeighborsContext];
+
+export const PhotoNeighborsContext = {
+  album: "album",
+  search: "search",
+} as const;
+
 export interface PhotoNeighbors {
+  /** Whether neighbours follow an album view or search results. */
+  context?: PhotoNeighborsContext;
   albumId: number;
   /** Whether the photo is part of this album view at all. */
   inContext: boolean;
@@ -1116,6 +1129,21 @@ export type GetPhotoNeighborsParams = {
    * Album filter — photos with (true) / without (false) any attribution tag.
    */
   hasAttribution?: boolean;
+  /**
+   * Search context (#210) — when set, neighbours follow this search's result order (same as GET /search/photos) instead of an album view.
+   */
+  q?: string;
+  /**
+   * Search mode for q — combined (default), keyword or concept.
+   */
+  mode?: GetPhotoNeighborsMode;
+  ratingMin?: number;
+  ratingMax?: number;
+  minQuality?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  uploaderId?: number;
+  exclude?: string[];
 };
 
 export type GetPhotoNeighborsAiStatus =
@@ -1125,6 +1153,15 @@ export const GetPhotoNeighborsAiStatus = {
   has_description: "has_description",
   failed: "failed",
   not_analysed: "not_analysed",
+} as const;
+
+export type GetPhotoNeighborsMode =
+  (typeof GetPhotoNeighborsMode)[keyof typeof GetPhotoNeighborsMode];
+
+export const GetPhotoNeighborsMode = {
+  combined: "combined",
+  keyword: "keyword",
+  concept: "concept",
 } as const;
 
 export type ListPhotosParams = {

@@ -1478,9 +1478,30 @@ export const GetPhotoNeighborsQueryParams = zod.object({
     .describe(
       "Album filter — photos with (true) \/ without (false) any attribution tag.",
     ),
+  q: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Search context (#210) — when set, neighbours follow this search's result order (same as GET \/search\/photos) instead of an album view.",
+    ),
+  mode: zod
+    .enum(["combined", "keyword", "concept"])
+    .optional()
+    .describe("Search mode for q — combined (default), keyword or concept."),
+  ratingMin: zod.coerce.number().optional(),
+  ratingMax: zod.coerce.number().optional(),
+  minQuality: zod.coerce.number().optional(),
+  dateFrom: zod.coerce.string().optional(),
+  dateTo: zod.coerce.string().optional(),
+  uploaderId: zod.coerce.number().optional(),
+  exclude: zod.array(zod.coerce.string()).optional(),
 });
 
 export const GetPhotoNeighborsResponse = zod.object({
+  context: zod
+    .enum(["album", "search"])
+    .optional()
+    .describe("Whether neighbours follow an album view or search results."),
   albumId: zod.number(),
   inContext: zod
     .boolean()

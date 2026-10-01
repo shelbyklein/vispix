@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { sendEmail, adminAlertEmail } from "../lib/email";
 import { logger } from "../lib/logger";
+import { clientIp } from "../lib/clientIp";
 
 const router: IRouter = Router();
 
@@ -25,9 +26,8 @@ const hits = new Map<string, number[]>();
 
 function rateLimited(ip: string): boolean {
   const now = Date.now();
-  // Opportunistic sweep so the Map can't grow unbounded once req.ip is a real
-  // per-client value (trust proxy is set in app.ts): drop buckets whose every
-  // hit has aged out of the window.
+  // Opportunistic sweep so the Map can't grow unbounded (keys are per-client
+  // addresses, see lib/clientIp): drop buckets whose every hit has aged out.
   if (hits.size > 5000) {
     for (const [key, times] of hits) {
       if (times.every((t) => now - t >= WINDOW_MS)) hits.delete(key);
@@ -51,7 +51,7 @@ router.post("/contact", async (req, res): Promise<void> => {
     return;
   }
 
-  const ip = (req.ip ?? "unknown").toString();
+  const ip = clientIp(req);
   if (rateLimited(ip)) {
     res.status(429).json({ error: "Too many messages. Please try again later." });
     return;

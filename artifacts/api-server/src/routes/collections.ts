@@ -28,6 +28,7 @@ import {
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse } from "../lib/photoHelpers";
 import { resolveSmartCollectionPhotoIds } from "../lib/smartCollectionPhotos";
+import { canManageItem } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -228,7 +229,7 @@ router.patch("/collections/:id", requireOrgAuth, async (req, res): Promise<void>
     return;
   }
 
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -252,7 +253,7 @@ router.delete("/collections/:id", requireOrgAuth, async (req, res): Promise<void
     return;
   }
 
-  if (existing.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -281,7 +282,7 @@ router.post("/collections/:id/photos", requireOrgAuth, async (req, res): Promise
     return;
   }
 
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -322,7 +323,7 @@ router.delete("/collections/:id/photos/:photoId", requireOrgAuth, async (req, re
     return;
   }
 
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -366,7 +367,7 @@ router.patch("/collections/:id/cover", requireOrgAuth, async (req, res): Promise
     return;
   }
 
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -445,7 +446,7 @@ router.post("/collections/:id/negative-photos", requireOrgAuth, async (req, res)
     res.status(404).json({ error: "Collection not found" });
     return;
   }
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -478,7 +479,7 @@ router.delete("/collections/:id/negative-photos/:photoId", requireOrgAuth, async
     res.status(404).json({ error: "Collection not found" });
     return;
   }
-  if (collection.createdById !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, collection.createdById)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }

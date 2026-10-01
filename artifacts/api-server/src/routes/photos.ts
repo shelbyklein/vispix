@@ -51,8 +51,10 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
-import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects } from "../lib/photoHelpers";
-import { applyFiltersAndFetchIds } from "./search";
+import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions } from "../lib/photoHelpers";
+import { parseSearchFilters } from "../lib/searchFilters";
+import { retrievalNeighbors } from "../lib/photoRetrieval";
+import { canManageItem, canSeeHiddenPhotos, isOrgManager } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -285,11 +287,30 @@ router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<vo
     .select({ id: photosTable.id, albumId: photosTable.albumId, isHidden: photosTable.isHidden })
     .from(photosTable)
     .where(and(eq(photosTable.id, id), eq(photosTable.organizationId, req.org!.id)));
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   if (!photo || (photo.isHidden && !isAdmin)) {
     res.status(404).json({ error: "Photo not found" });
     return;
   }
+  // Opened from search (#210 NAV-03): step through the search's results in
+  // the order the search page shows them.
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q) {
+    const parsed = parseSearchFilters(req.query as Record<string, unknown>);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    const { includeHidden, exclude, ...filters } = parsed.filters;
+    const mode = req.query.mode === "keyword" || req.query.mode === "concept" ? req.query.mode : "combined";
+    const r = await retrievalNeighbors(
+      { organizationId: req.org!.id, canSeeHidden: isAdmin && includeHidden, mode, text: q, exclude, filters },
+      photo.id,
+    );
+    res.json({ context: "search", albumId: photo.albumId, inContext: r.inContext, previousId: r.previousId, nextId: r.nextId, position: r.position, total: r.total ?? 0 });
+    return;
+  }
+
   const view = parseAlbumView(req.query as Record<string, unknown>);
   const albumId = albumIdRaw ?? photo.albumId;
   const result = await fetchAlbumPhotoNeighbors(albumId, photo.id, {
@@ -299,7 +320,7 @@ router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<vo
     canSeeHidden: isAdmin && (view.includeHidden || photo.isHidden),
     ...view.filters,
   });
-  res.json({ albumId, ...result });
+  res.json({ context: "album", albumId, ...result });
 });
 
 router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void> => {
@@ -311,7 +332,7 @@ router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void>
   }
 
   const view = parseAlbumView(req.query as Record<string, unknown>);
-  const canSeeHidden = req.dbUser!.role === "admin" && view.includeHidden;
+  const canSeeHidden = canSeeHiddenPhotos(req) && view.includeHidden;
 
   const DEFAULT_LIMIT = 50;
   const MAX_LIMIT = 200;
@@ -344,54 +365,43 @@ router.get("/photos", requireOrgAuth, async (req, res): Promise<void> => {
   }
 
   const includeHidden = req.query.includeHidden === "true";
-  const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
+  const canSeeHidden = canSeeHiddenPhotos(req) && includeHidden;
 
-  const allPhotos = await db
-    .select({ id: photosTable.id })
-    .from(photosTable)
-    .where(
-      and(
-        eq(photosTable.organizationId, req.org!.id),
-        canSeeHidden ? undefined : eq(photosTable.isHidden, false),
-      ),
-    )
-    // createdAt DESC, id DESC for a stable order across pages (ties on createdAt).
-    .orderBy(desc(photosTable.createdAt), desc(photosTable.id));
-
-  const allIds = allPhotos.map((p) => p.id);
-  const { search, tag, categoryId, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId } = query.data;
+  const { search, tag, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId } = query.data;
   // Parsed from req.query directly: the generated zod.coerce.boolean() turns
   // the string "false" into true (JS truthiness), which would invert the
   // untagged filter. Same treatment includeHidden gets above.
   const hasAttributionStr = req.query.hasAttribution;
   const hasAttribution = hasAttributionStr === "true" ? true : hasAttributionStr === "false" ? false : undefined;
 
-  const filteredIds = await applyFiltersAndFetchIds(allIds, {
-    search,
-    tag,
-    categoryId,
-    ratingMin,
-    ratingMax,
-    dateFrom,
-    dateTo,
-    uploaderId,
-    albumId,
-    aiStatus,
-    attributionTagId,
-    hasAttribution,
-  }, req.org!.id);
-
+  // Every filter and the paging run in SQL with the shared predicates
+  // (#205 FILTER-04); only the requested page leaves the database.
   const limit = Math.min(Math.max(query.data.limit ?? 48, 1), 200);
   const offset = Math.max(query.data.offset ?? 0, 0);
-  const pageIds = filteredIds.slice(offset, offset + limit);
-  const hasMore = filteredIds.length > offset + limit;
+  const rows = await db
+    .select({ id: photosTable.id })
+    .from(photosTable)
+    .where(
+      and(
+        ...libraryPhotoConditions(
+          { search, tag, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId, hasAttribution },
+          { organizationId: req.org!.id, canSeeHidden },
+        ),
+      ),
+    )
+    // createdAt DESC, id DESC for a stable order across pages (ties on createdAt).
+    .orderBy(desc(photosTable.createdAt), desc(photosTable.id))
+    .limit(limit + 1)
+    .offset(offset);
+  const pageIds = rows.slice(0, limit).map((r) => r.id);
+  const hasMore = rows.length > limit;
 
   const photos = await buildPhotosResponse(pageIds, req.org!.id, req.dbUser?.id);
   res.json(ListPhotosPagedResponse.parse({ photos, hasMore }));
 });
 
 router.patch("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => {
-  if (req.dbUser!.role !== "admin") {
+  if (!isOrgManager(req)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -414,7 +424,7 @@ router.patch("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => 
 });
 
 router.delete("/photos/bulk", requireOrgAuth, async (req, res): Promise<void> => {
-  if (req.dbUser!.role !== "admin") {
+  if (!isOrgManager(req)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -451,7 +461,8 @@ router.get("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => {
   }
 
   const photo = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
-  if (!photo) {
+  // Hidden photos are for org owners/admins (#218), here as in every list.
+  if (!photo || (photo.isHidden && !canSeeHiddenPhotos(req))) {
     res.status(404).json({ error: "Photo not found" });
     return;
   }
@@ -479,7 +490,7 @@ router.patch("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  if (existing.uploaderId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.uploaderId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -517,7 +528,7 @@ router.delete("/photos/:id", requireOrgAuth, async (req, res): Promise<void> => 
     return;
   }
 
-  if (existing.uploaderId !== req.dbUser!.id && req.dbUser!.role !== "admin") {
+  if (!canManageItem(req, existing.uploaderId)) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
@@ -605,7 +616,7 @@ router.post("/photos/:id/suggestions/:collectionId/accept", requireOrgAuth, asyn
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id || collection.createdById === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -664,7 +675,7 @@ router.post("/photos/:id/suggestions/:collectionId/dismiss", requireOrgAuth, asy
   }
 
   const [collection] = await db.select({ createdById: collectionsTable.createdById }).from(collectionsTable).where(and(eq(collectionsTable.id, params.data.collectionId), eq(collectionsTable.organizationId, req.org!.id)));
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id || (collection && collection.createdById === req.dbUser!.id);
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -720,7 +731,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/accept", requi
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -793,7 +804,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/dismiss", requ
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isOwner = photoExists.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
@@ -841,7 +852,7 @@ router.post("/photos/:id/rerun-analysis", requireOrgAuth, async (req, res): Prom
     return;
   }
 
-  const isAdmin = req.dbUser!.role === "admin";
+  const isAdmin = isOrgManager(req);
   const isUploader = existing.uploaderId === req.dbUser!.id;
   if (!isAdmin && !isUploader) {
     res.status(403).json({ error: "Forbidden" });
@@ -882,7 +893,7 @@ router.get("/photos/:id/similar", requireOrgAuth, async (req, res): Promise<void
   }
   const vecLiteral = `[${self.embedding.join(",")}]`;
 
-  const canSeeHidden = req.dbUser!.role === "admin";
+  const canSeeHidden = canSeeHiddenPhotos(req);
   const rows = await withIterativeVectorScan((tx) =>
     tx
       .select({ id: photoEmbeddingsTable.photoId })

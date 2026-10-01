@@ -191,6 +191,45 @@ describe("deleteUserAccount", () => {
     expect(await db.select().from(albumsTable).where(eq(albumsTable.id, album.id))).toHaveLength(1);
   });
 
+  it("keeps content in organizations the user has already left (#227)", async () => {
+    const admin = await createUser({ role: "admin" });
+    const owner = await createUser({ name: "Owner" });
+    const colleague = await createUser({ name: "Colleague" });
+    const leaver = await createUser({ name: "Leaver" });
+    await createAuthUser(leaver.authUserId, leaver.email);
+    const former = await createOrganization({ slug: "former" });
+    await addOrganizationMember(former.id, owner.id, "owner");
+    await addOrganizationMember(former.id, colleague.id, "member");
+    await addOrganizationMember(former.id, leaver.id, "member");
+    // The leaver's album holds a colleague's photo too.
+    const album = await createAlbum(leaver.id, "Leaver's album", former.id);
+    const theirs = await createPhoto(album.id, leaver.id, { organizationId: former.id });
+    const colleagues = await createPhoto(album.id, colleague.id, { organizationId: former.id });
+    const project = await createProject(leaver.id, "Leaver's project", former.id);
+    // Removed from the org (DELETE /organizations/members/:id), content stays behind.
+    await db.delete(organizationMembersTable).where(eq(organizationMembersTable.userId, leaver.id));
+
+    const summary = await deleteUserAccount(leaver.id, { actingUserId: admin.id });
+
+    expect(summary.reassignedTo).toEqual([expect.objectContaining({ organizationId: former.id, userId: owner.id })]);
+    const [keptAlbum] = await db.select().from(albumsTable).where(eq(albumsTable.id, album.id));
+    expect(keptAlbum?.ownerId).toBe(owner.id);
+    expect((await db.select().from(photosTable).where(eq(photosTable.albumId, album.id))).map((p) => [p.id, p.uploaderId]).sort()).toEqual(
+      [[theirs.id, owner.id], [colleagues.id, colleague.id]].sort(),
+    );
+    expect((await db.select().from(projectsTable).where(eq(projectsTable.id, project.id)))[0]?.createdById).toBe(owner.id);
+  });
+
+  it("refuses rather than wipe content in a former organization with nobody left to inherit it (#227)", async () => {
+    const admin = await createUser({ role: "admin" });
+    const leaver = await createUser({ name: "Leaver" });
+    const empty = await createOrganization({ slug: "emptied" });
+    const album = await createAlbum(leaver.id, "Orphaned album", empty.id);
+    await createPhoto(album.id, leaver.id, { organizationId: empty.id });
+    await expect(deleteUserAccount(leaver.id, { actingUserId: admin.id })).rejects.toBeInstanceOf(DeletionBlockedError);
+    expect(await db.select().from(albumsTable).where(eq(albumsTable.id, album.id))).toHaveLength(1);
+  });
+
   it("refuses to delete the caller's own account", async () => {
     const admin = await createUser({ role: "admin" });
     await expect(deleteUserAccount(admin.id, { actingUserId: admin.id })).rejects.toMatchObject({

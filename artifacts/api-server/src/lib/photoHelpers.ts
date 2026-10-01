@@ -1,5 +1,6 @@
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
-import { eq, and, asc, avg, count, desc, inArray, isNotNull, sql, type SQL } from "drizzle-orm";
+import { eq, and, asc, avg, count, desc, ilike, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
+import { photoFilterConditions } from "./searchFilters";
 import { ObjectStorageService } from "./objectStorage";
 import { ownedKeys } from "./storageKeys";
 import { logger } from "./logger";
@@ -54,7 +55,14 @@ export function albumPhotoConditions(albumId: number, opts: AlbumPhotoViewOption
     eq(photosTable.organizationId, opts.organizationId),
   ];
   if (!opts.canSeeHidden) conditions.push(eq(photosTable.isHidden, false));
+  return [...conditions, ...photoStatusConditions(opts)];
+}
 
+/** Collection, rating, AI-analysis and rights-tag filters — shared by the album and Photos pages. */
+export function photoStatusConditions(
+  opts: Pick<AlbumPhotoViewOptions, "inCollection" | "hasRating" | "aiStatus" | "attributionTagId" | "hasAttribution">,
+): SQL[] {
+  const conditions: SQL[] = [];
   if (opts.inCollection === true) {
     conditions.push(sql`EXISTS (SELECT 1 FROM photo_collections pc WHERE pc.photo_id = ${photosTable.id})`);
   } else if (opts.inCollection === false) {
@@ -86,6 +94,54 @@ export function albumPhotoConditions(albumId: number, opts: AlbumPhotoViewOption
   } else if (opts.hasAttribution === false) {
     conditions.push(sql`NOT EXISTS (SELECT 1 FROM photo_attribution_tags pat WHERE pat.photo_id = ${photosTable.id})`);
   }
+  return conditions;
+}
+
+/** The Photos page's filters (GET /photos). */
+export interface LibraryFilters {
+  search?: string;
+  tag?: string;
+  ratingMin?: number;
+  ratingMax?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  uploaderId?: number;
+  albumId?: number;
+  aiStatus?: AiStatusFilter;
+  attributionTagId?: number;
+  hasAttribution?: boolean;
+}
+
+/**
+ * SQL conditions for the Photos page (#205 FILTER-04): tenant, visibility and
+ * the shared search predicates (rating, capture dates, uploader) from
+ * searchFilters, plus the page's own text search, collection tag, album and
+ * status filters — one implementation of each filter, applied before paging.
+ */
+export function libraryPhotoConditions(f: LibraryFilters, opts: { organizationId: number; canSeeHidden: boolean }): SQL[] {
+  const conditions = photoFilterConditions(
+    { ratingMin: f.ratingMin, ratingMax: f.ratingMax, dateFrom: f.dateFrom, dateTo: f.dateTo, uploaderId: f.uploaderId, includeHidden: opts.canSeeHidden, exclude: [] },
+    opts,
+  );
+  if (f.albumId != null) conditions.push(eq(photosTable.albumId, f.albumId));
+  const search = f.search?.trim();
+  if (search) {
+    // Album title or uploader name containing the phrase, or a description
+    // containing any of its words.
+    const pattern = `%${search}%`;
+    const words = search.split(/\s+/).filter(Boolean);
+    conditions.push(sql`(
+      exists (select 1 from ${albumsTable} where ${albumsTable.id} = ${photosTable.albumId} and ${albumsTable.title} ilike ${pattern})
+      or exists (select 1 from ${usersTable} where ${usersTable.id} = ${photosTable.uploaderId} and ${usersTable.name} ilike ${pattern})
+      or ${or(...words.map((w) => ilike(photosTable.aiDescription, `%${w}%`)))}
+    )`);
+  }
+  if (f.tag?.trim()) {
+    conditions.push(
+      sql`exists (select 1 from photo_collections pc join collection_tags ct on ct.collection_id = pc.collection_id join tags t on t.id = ct.tag_id where pc.photo_id = ${photosTable.id} and t.name = ${f.tag.trim().toLowerCase()})`,
+    );
+  }
+  conditions.push(...photoStatusConditions(f));
   return conditions;
 }
 

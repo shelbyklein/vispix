@@ -16,6 +16,7 @@ import {
   SetAlbumAttributionResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth, requireOrgRole } from "../middlewares/requireOrg";
+import { canSetPhotoRights } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -275,9 +276,17 @@ router.post("/photos/:id/attribution-tags", requireOrgAuth, async (req, res): Pr
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, photoId), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db
+    .select({ id: photosTable.id, uploaderId: photosTable.uploaderId })
+    .from(photosTable)
+    .where(and(eq(photosTable.id, photoId), eq(photosTable.organizationId, req.org!.id)));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+  // Usage rights: org owners/admins, or the photo's uploader (#218).
+  if (!canSetPhotoRights(req, photo.uploaderId)) {
+    res.status(403).json({ error: "Only the photo's uploader or an organization owner/admin can set its usage rights" });
     return;
   }
   const [tag] = await db.select().from(attributionTagsTable).where(and(eq(attributionTagsTable.id, body.data.tagId), eq(attributionTagsTable.organizationId, req.org!.id)));
@@ -304,11 +313,15 @@ router.delete("/photos/:id/attribution-tags/:tagId", requireOrgAuth, async (req,
   // Only touch a photo in this org — otherwise a foreign (photo, tag) link could
   // be removed by id alone.
   const [photo] = await db
-    .select({ id: photosTable.id })
+    .select({ id: photosTable.id, uploaderId: photosTable.uploaderId })
     .from(photosTable)
     .where(and(eq(photosTable.id, photoId), eq(photosTable.organizationId, req.org!.id)));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
+    return;
+  }
+  if (!canSetPhotoRights(req, photo.uploaderId)) {
+    res.status(403).json({ error: "Only the photo's uploader or an organization owner/admin can set its usage rights" });
     return;
   }
   await db

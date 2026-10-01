@@ -31,6 +31,7 @@ import {
 import { PhotoLightbox, type LightboxPhoto } from "@/components/PhotoLightbox";
 import { Search, SlidersHorizontal, X, Star, Images, EyeOff, Eye, Sparkles, Loader2, AlertTriangle, RotateCw, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 const PAGE_SIZE = 48;
 
@@ -146,8 +147,10 @@ export default function SearchPage() {
   }, [q]);
 
   const { data: me } = useGetMe();
+
+  const caps = useCapabilities();
   // In the URL (#205) so mode switches and Back/Forward keep it; admin-only.
-  const showHidden = hidden === "1" && me?.role === "admin";
+  const showHidden = hidden === "1" && caps.canSeeHidden;
   const { data: users } = useListUsers({ query: { enabled: me?.role === "admin", queryKey: getListUsersQueryKey() } });
 
   const hasActiveFilters =
@@ -225,9 +228,39 @@ export default function SearchPage() {
     if (!isFetching) void fetchNextPage();
   }, hasMore);
 
+  // Coming back from a photo's details page (#210): return to that photo.
+  const FOCUS_KEY = "vispix:search-focus";
+  useEffect(() => {
+    if (!photos.length) return;
+    let focus: { search: string; id: number } | null = null;
+    try {
+      focus = JSON.parse(sessionStorage.getItem(FOCUS_KEY) ?? "null");
+    } catch {
+      /* storage unavailable */
+    }
+    if (!focus || focus.search !== searchString) return;
+    const el = document.querySelector(`[data-testid="search-result-item"][data-photo-id="${focus.id}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center" });
+      try {
+        sessionStorage.removeItem(FOCUS_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [photos.length, searchString]);
+
   // Open results in the lightbox (like the dashboard) instead of navigating to
   // the detail page, so the user stays in their search results.
   const [selectedPhoto, setSelectedPhoto] = useState<LightboxPhoto | null>(null);
+  useEffect(() => {
+    if (!selectedPhoto) return;
+    try {
+      sessionStorage.setItem("vispix:search-focus", JSON.stringify({ search: searchString, id: selectedPhoto.id }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [selectedPhoto, searchString]);
   const { zoom, setZoom } = useGridZoom();
   const [pendingAdvance, setPendingAdvance] = useState(false);
   const selectedIndex = selectedPhoto ? photos.findIndex((p) => p.id === selectedPhoto.id) : -1;
@@ -303,7 +336,7 @@ export default function SearchPage() {
           <h1 className="text-2xl font-bold text-foreground">Search Photos</h1>
           <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
             Describe what you're looking for, or enter a filename or photo ID.
-            {me?.role === "admin" && (
+            {caps.canSeeHidden && (
               <button
                 type="button"
                 onClick={() => navigate({ hidden: showHidden ? "" : "1" })}
@@ -871,6 +904,7 @@ export default function SearchPage() {
 
       <PhotoLightbox
         photo={selectedPhoto}
+        detailsQuery={searchString.replace(/^\?/, "")}
         onClose={() => setSelectedPhoto(null)}
         hasPrev={hasPrev}
         hasNext={hasNext}

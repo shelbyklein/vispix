@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ArrowLeft, FolderKanban, Pencil, Trash2, Star, X, CalendarDays, Download } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useCapabilities } from "@/hooks/useCapabilities";
 
 function toLight(photo: Photo): LightboxPhoto {
   return {
@@ -163,6 +164,7 @@ export default function ProjectDetail() {
     query: { enabled: !!projectId, queryKey: getGetProjectQueryKey(projectId) },
   });
   const { data: me } = useGetMe();
+  const caps = useCapabilities();
   const { mutate: deleteProject, isPending: deletingProject } = useDeleteProject();
   const { mutate: removePhoto } = useRemovePhotoFromProject();
 
@@ -186,7 +188,7 @@ export default function ProjectDetail() {
   }
 
   const canManage =
-    me && project && (me.id === project.createdById || me.role === "admin");
+    !!project && caps.canManageItem(project.createdById);
 
   const photos = project?.photos ?? [];
   const selectedIndex = selectedPhoto ? photos.findIndex((p) => p.id === selectedPhoto.id) : -1;
