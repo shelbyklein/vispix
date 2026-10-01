@@ -1,356 +1,384 @@
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import {
-  Upload,
-  Sparkles,
-  Star,
-  FolderOpen,
-  Search,
-  CopyCheck,
-  Users,
-  Tag,
-  Bot,
-  ArrowRight,
-  ShieldCheck,
-  Check,
-  X,
-  Zap,
-} from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
+import { ArrowRight, Bot, Check, CopyCheck, Search, ShieldCheck, Star, Users, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useGetRegistrationSettings } from "@workspace/api-client-react";
 import { PLAN_CARDS, PLAN_ORDER, ENTERPRISE_CONTACT } from "@/lib/planDisplay";
 
-// The pitch, in the order a visitor needs it: the transformation (hero + a
-// product mock so they SEE it), how it works, the superpowers (each led by the
-// pain it kills), why not a shared drive, and what it costs. Pricing is pulled
-// from the shared plan display so marketing can't drift from billing. Copy
-// stays honest to the shipped feature set.
+// Marketing home for signed-out visitors. The pitch, in the order a visitor
+// needs it: the outcome (find the shot), the search itself, what the library
+// does for a team, how photos flow through it, why a shared drive falls short,
+// and what it costs. Pricing comes from the shared plan display so marketing
+// can't drift from billing. Copy stays honest to the shipped feature set.
+//
+// Photography: placeholder images (picsum, seeded so they're stable). Replace
+// with licensed photos from a customer library before this ships widely; the
+// review screenshots show real athletes and stay private.
+const photo = (seed: string, w: number, h: number) => `https://picsum.photos/seed/vispix-${seed}/${w}/${h}`;
 
-const STEPS = [
-  { icon: Upload, title: "Upload", text: "Drag in photos — thousands at a time." },
-  { icon: Sparkles, title: "AI triages", text: "Every photo described; duplicates and near-duplicates flagged automatically." },
-  { icon: Star, title: "Rate together", text: "Your whole team scores candidates, so the best shots rise." },
-  { icon: FolderOpen, title: "Ship collections", text: "Shortlist into collections and hand off to design." },
+const QUERIES = [
+  "athletes celebrating on the podium",
+  "close-up of hands nocking an arrow",
+  "Fri-pm (146).webp",
+  "team huddle before the final, cleared for social",
 ];
 
-// Each superpower leads with the win and the pain it removes — not the mechanism.
-const SUPERPOWERS = [
-  {
-    icon: Search,
-    title: "Search by describing it",
-    text: "“Celebrating in the rain” finds the shot. AI writes a description for every photo, so you search in plain language.",
-    pain: "No more scrubbing thousands of thumbnails.",
-  },
-  {
-    icon: Sparkles,
-    title: "AI triages every upload",
-    text: "Descriptions written, byte-identical copies and look-alikes flagged, before you lift a finger.",
-    pain: "The busywork is done before you start.",
-  },
-  {
-    icon: Star,
-    title: "Decide as a team",
-    text: "Everyone scores candidates in place and the best rise to the top — one decision, made together.",
-    pain: "No more endless “which one?” email threads.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Rights you can trust",
-    text: "Attribution tags track exactly what each photo is cleared for — web, print, social.",
-    pain: "Never ship a photo you’re not licensed to use.",
-  },
-  {
-    icon: Users,
-    title: "Find anyone instantly",
-    text: "Tag the people in your photos and pull up every shot of someone in one click.",
-    pain: "Stop hunting for “that one photo of them”.",
-  },
-  {
-    icon: CopyCheck,
-    title: "Clean, organized library",
-    text: "Group shortlists into collections and projects; near-duplicates get side-by-side review to clear fast.",
-    pain: "Your dumping ground becomes an asset library.",
-  },
-];
+const ease = [0.16, 1, 0.3, 1] as const;
 
-// A mock of the product for the hero — pure CSS/JSX, theme-aware, no screenshot
-// needed. It reads left-to-right as: search a pile of photos → get ranked,
-// rated, rights-tagged results.
-function AppMock() {
-  const tiles = [
-    "from-violet-400 to-fuchsia-500",
-    "from-sky-400 to-indigo-500",
-    "from-amber-300 to-orange-500",
-    "from-emerald-400 to-teal-500",
-    "from-rose-400 to-pink-500",
-    "from-cyan-400 to-blue-500",
-    "from-lime-400 to-green-500",
-    "from-fuchsia-400 to-purple-500",
-  ];
+// Titles on tinted cards use role="heading" text, not <h3>: the global heading
+// colour is !important in the base layer and would override their contrast.
+
+function Reveal({ children, delay = 0, className }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const reduce = useReducedMotion();
   return (
-    <div className="mx-auto mt-14 w-full max-w-3xl rounded-2xl border border-border bg-card shadow-xl overflow-hidden" aria-hidden>
-      {/* window chrome */}
-      <div className="flex items-center gap-2 border-b border-border px-4 py-3">
-        <span className="h-2.5 w-2.5 rounded-full bg-red-400" />
-        <span className="h-2.5 w-2.5 rounded-full bg-amber-400" />
-        <span className="h-2.5 w-2.5 rounded-full bg-emerald-400" />
-        <div className="ml-3 flex flex-1 items-center gap-2 rounded-md bg-muted/60 px-3 py-1.5 text-sm text-muted-foreground">
-          <Search className="h-3.5 w-3.5" />
-          <span className="text-foreground">celebrating in the rain</span>
-          <span className="ml-auto text-xs">8 results</span>
-        </div>
-      </div>
-      {/* results grid */}
-      <div className="grid grid-cols-4 gap-3 p-4">
-        {tiles.map((t, i) => (
-          <div key={i} className={`relative aspect-square rounded-lg bg-gradient-to-br ${t}`}>
-            {i === 0 && (
-              <span className="absolute left-1.5 top-1.5 flex items-center gap-0.5 rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-                <Star className="h-2.5 w-2.5 fill-current" /> 4.8
-              </span>
-            )}
-            {i === 2 && (
-              <span className="absolute bottom-1.5 left-1.5 rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-                Cleared · Social
-              </span>
-            )}
-            {i === 5 && (
-              <span className="absolute left-1.5 top-1.5 rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-medium text-white backdrop-blur">
-                Near-dup
-              </span>
-            )}
-          </div>
-        ))}
+    <motion.div
+      className={className}
+      initial={reduce ? false : { opacity: 0, y: 24 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.25 }}
+      transition={{ duration: 0.7, delay, ease }}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+// The search box cycles through real kinds of request (a description, a
+// filename, a rights-aware ask) to show what "describe it" means. Static under
+// reduced motion.
+function CyclingQuery() {
+  const reduce = useReducedMotion();
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    if (reduce) return;
+    const t = setInterval(() => setI((n) => (n + 1) % QUERIES.length), 3200);
+    return () => clearInterval(t);
+  }, [reduce]);
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-border bg-card px-5 py-4 shadow-[0_20px_60px_-30px_hsl(var(--primary)/0.45)]">
+      <Search className="h-5 w-5 shrink-0 text-primary" aria-hidden />
+      <div className="relative h-7 flex-1 overflow-hidden text-lg text-foreground" aria-live="off">
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.span
+            key={QUERIES[i]}
+            className="absolute inset-0 truncate"
+            initial={reduce ? false : { y: 18, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={reduce ? undefined : { y: -18, opacity: 0 }}
+            transition={{ duration: 0.45, ease }}
+          >
+            {QUERIES[i]}
+          </motion.span>
+        </AnimatePresence>
       </div>
     </div>
   );
 }
 
-const COMPARISON: { label: string; drive: string; vispix: string }[] = [
-  { label: "Find a photo", drive: "Scroll endlessly through folders", vispix: "Describe it in plain language" },
-  { label: "Duplicates", drive: "Pile up unnoticed", vispix: "Flagged automatically" },
-  { label: "Picking the best", drive: "Endless email threads", vispix: "Team ratings, decided in place" },
-  { label: "Usage rights", drive: "Hope someone remembers", vispix: "Tracked per photo" },
-  { label: "Your AI tools", drive: "—", vispix: "Ask Claude directly (MCP)" },
+const DRIVE_VS: { drive: string; vispix: string }[] = [
+  { drive: "Scroll folders until something looks right", vispix: "Describe the photo, or paste its filename" },
+  { drive: "Duplicates pile up unnoticed", vispix: "Exact and near-duplicates flagged on upload" },
+  { drive: "Pick favourites over email", vispix: "The team rates in place and the best rise" },
+  { drive: "Hope someone remembers the usage rights", vispix: "Rights tracked on every photo" },
+  { drive: "Download, resize, rebuild the graphic", vispix: "Generate on-brand graphics with your logo" },
 ];
 
 export default function Home() {
   const { data: regSettings } = useGetRegistrationSettings();
   const registrationEnabled = regSettings?.registrationEnabled ?? true;
+  const reduce = useReducedMotion();
+
+  const startFree = (testId: string, size: "lg" | "default" = "lg") =>
+    registrationEnabled ? (
+      <Link href="/sign-up">
+        <Button size={size} data-testid={testId} className="gap-1.5 rounded-full px-7 active:scale-[0.98]">
+          Start free <ArrowRight className="h-4 w-4" />
+        </Button>
+      </Link>
+    ) : null;
 
   return (
-    <div className="min-h-screen bg-background" data-testid="home-page">
-      <header className="border-b border-border px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <img src="/vispix.png" alt="Vispix" className="h-8 w-8 rounded" />
-          <span className="text-xl font-semibold tracking-tight text-foreground">Vispix</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <ThemeToggle />
-          <Link href="/sign-in">
-            <Button variant="outline" data-testid="sign-in-btn">Sign In</Button>
+    <div className="min-h-[100dvh] bg-background text-foreground" data-testid="home-page">
+      <header className="sticky top-0 z-40 border-b border-border/60 bg-background/85 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="flex items-center gap-2.5">
+            <img src="/vispix.png" alt="" className="h-8 w-8 rounded-lg" />
+            <span className="text-lg font-semibold tracking-tight">Vispix</span>
           </Link>
-          {registrationEnabled && (
-            <Link href="/sign-up">
-              <Button data-testid="sign-up-btn">Sign Up</Button>
+          <nav className="flex items-center gap-2 sm:gap-3">
+            <a href="#pricing" className="hidden px-2 text-sm text-muted-foreground hover:text-foreground sm:inline">
+              Pricing
+            </a>
+            <ThemeToggle />
+            <Link href="/sign-in">
+              <Button variant="ghost" className="rounded-full" data-testid="sign-in-btn">Sign in</Button>
             </Link>
-          )}
+            {registrationEnabled && (
+              <Link href="/sign-up">
+                <Button className="rounded-full" data-testid="sign-up-btn">Start free</Button>
+              </Link>
+            )}
+          </nav>
         </div>
       </header>
 
       <main>
-        {/* Hero */}
-        <section className="max-w-5xl mx-auto px-6 pt-16 pb-8 text-center">
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
-            <Zap className="h-3.5 w-3.5 text-primary" />
-            Marketing asset library with superpowers
-          </span>
-          <h1 className="mt-6 text-4xl sm:text-5xl font-bold tracking-tight text-foreground leading-tight">
-            Give your marketing photos<br />superpowers.
-          </h1>
-          <p className="text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto mt-6 leading-relaxed">
-            Drop in thousands of raw event photos and get back an intelligent, searchable,
-            rights-aware library: AI describes and de-duplicates every shot, plain-language search
-            finds it, your team rates the best, and even your AI tools can pull photos on demand.
-          </p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3 mt-9">
-            {registrationEnabled ? (
-              <Link href="/sign-up">
-                <Button size="lg" data-testid="home-sign-up-btn" className="px-8 gap-1.5">
-                  Start free <ArrowRight className="h-4 w-4" />
+        {/* Hero: asymmetric split, copy left, a wall of event photography right. */}
+        <section className="mx-auto grid max-w-7xl items-center gap-12 px-4 pb-16 pt-12 sm:px-6 md:pt-20 lg:grid-cols-[1.05fr_1fr] lg:gap-16 lg:pb-24">
+          <Reveal>
+            <h1 className="font-heading pb-1 text-5xl font-bold leading-[1.1] tracking-tight md:text-6xl">
+              Every event photo,
+              <br />
+              <span className="italic text-primary">ready when you are.</span>
+            </h1>
+            <p className="mt-6 max-w-[34ch] text-lg leading-relaxed text-muted-foreground">
+              Upload the whole shoot. Find any shot by describing it, clear rights, and build graphics your team can post.
+            </p>
+            <div className="mt-9 flex flex-wrap items-center gap-3">
+              {startFree("home-sign-up-btn") ?? (
+                <p className="text-sm text-muted-foreground" data-testid="registration-disabled-msg">
+                  Registration is by invitation only. Contact your administrator to get access.
+                </p>
+              )}
+              <Link href="/sign-in">
+                <Button size="lg" variant="outline" className="rounded-full px-7" data-testid="home-sign-in-btn">
+                  Sign in
                 </Button>
               </Link>
-            ) : (
-              <p className="text-sm text-muted-foreground" data-testid="registration-disabled-msg">
-                Registration is by invitation only. Contact your administrator to get access.
-              </p>
-            )}
-            <Link href="/sign-in">
-              <Button size="lg" variant="outline" data-testid="home-sign-in-btn" className="px-8">
-                Sign In
-              </Button>
-            </Link>
-          </div>
-          {registrationEnabled && (
-            <p className="mt-3 text-xs text-muted-foreground">2 GB free · no card required</p>
-          )}
-
-          <AppMock />
-        </section>
-
-        {/* How it works */}
-        <section className="border-y border-border bg-card/50">
-          <div className="max-w-5xl mx-auto px-6 py-14">
-            <h2 className="text-center text-sm font-semibold uppercase tracking-wide text-muted-foreground mb-8">
-              From dump to done, in four steps
-            </h2>
-            <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-              {STEPS.map((step, i) => (
-                <div key={step.title} className="text-center space-y-2">
-                  <div className="mx-auto h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                    <step.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <h3 className="font-semibold text-foreground">
-                    <span className="text-primary mr-1.5">{i + 1}.</span>
-                    {step.title}
-                  </h3>
-                  <p className="text-sm text-muted-foreground leading-relaxed">{step.text}</p>
-                </div>
-              ))}
             </div>
+          </Reveal>
+
+          {/* Explicit placement: one large frame, two tall, one wide. */}
+          <div
+            className="grid aspect-square gap-3 sm:gap-4"
+            style={{
+              gridTemplateColumns: "repeat(6, minmax(0, 1fr))",
+              gridTemplateRows: "repeat(6, minmax(0, 1fr))",
+              gridTemplateAreas: '"a a a a b b" "a a a a b b" "a a a a b b" "a a a a c c" "d d d d c c" "d d d d c c"',
+            }}
+          >
+            {[
+              { seed: "hero-podium", area: "a", w: 900, h: 900, d: 0.05 },
+              { seed: "hero-draw", area: "b", w: 450, h: 680, d: 0.15 },
+              { seed: "hero-crowd", area: "c", w: 450, h: 680, d: 0.25 },
+              { seed: "hero-team", area: "d", w: 900, h: 450, d: 0.35 },
+            ].map((p) => (
+              <motion.img
+                key={p.seed}
+                src={photo(p.seed, p.w, p.h)}
+                alt=""
+                width={p.w}
+                height={p.h}
+                loading={p.d < 0.1 ? "eager" : "lazy"}
+                style={{ gridArea: p.area }}
+                className="h-full w-full rounded-2xl object-cover"
+                initial={reduce ? false : { opacity: 0, scale: 0.96 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.8, delay: p.d, ease }}
+              />
+            ))}
           </div>
         </section>
 
-        {/* Superpowers */}
-        <section className="max-w-5xl mx-auto px-6 py-16">
-          <div className="text-center mb-10">
-            <h2 className="text-2xl font-bold text-foreground">Six superpowers for your photo library</h2>
-            <p className="text-sm text-muted-foreground mt-2">Every one removes a chore you do today.</p>
+        {/* The search, shown rather than described. */}
+        <section className="border-y border-border bg-card/40">
+          <div className="mx-auto max-w-4xl px-4 py-20 sm:px-6 md:py-24">
+            <Reveal>
+              <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">Describe it. Vispix finds it.</h2>
+              <p className="mt-4 max-w-[60ch] text-muted-foreground">
+                Every upload gets an AI description, so plain language works. Exact filenames and photo IDs come up first.
+              </p>
+            </Reveal>
+            <Reveal delay={0.1} className="mt-10">
+              <CyclingQuery />
+              <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
+                {["r1", "r2", "r3", "r4", "r5", "r6"].map((s, i) => (
+                  <img
+                    key={s}
+                    src={photo(`result-${s}`, 300, 300)}
+                    alt=""
+                    width={300}
+                    height={300}
+                    loading="lazy"
+                    className={`aspect-square w-full rounded-xl object-cover ${i === 0 ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
+                  />
+                ))}
+              </div>
+            </Reveal>
           </div>
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 text-left">
-            {SUPERPOWERS.map((f) => (
-              <div key={f.title} className="rounded-xl border border-border bg-card p-5 space-y-3">
-                <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                  <f.icon className="h-5 w-5 text-primary" />
+        </section>
+
+        {/* What the library does for a team: five capabilities, five cells. */}
+        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+          <Reveal>
+            <h2 className="max-w-[18ch] font-heading text-3xl font-bold tracking-tight md:text-4xl">
+              A library that does the busywork.
+            </h2>
+          </Reveal>
+          <div className="mt-12 grid gap-4 md:grid-cols-6 md:grid-rows-[auto_auto]">
+            <Reveal className="md:col-span-4">
+              <div className="relative h-full min-h-[320px] overflow-hidden rounded-3xl">
+                <img src={photo("bento-triage", 1200, 700)} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/35 to-transparent" />
+                <div className="relative flex h-full flex-col justify-end p-7 text-white">
+                  <CopyCheck className="h-6 w-6" aria-hidden />
+                  <p role="heading" aria-level={3} className="mt-3 font-heading text-xl font-semibold text-white">Triage happens on upload</p>
+                  <p className="mt-1.5 max-w-[46ch] text-sm text-white/80">
+                    Descriptions written, quality scored, and duplicates or look-alikes flagged before anyone opens the album.
+                  </p>
                 </div>
-                <h3 className="font-semibold text-foreground">{f.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{f.text}</p>
-                <p className="flex items-start gap-1.5 text-sm font-medium text-foreground">
-                  <Check className="h-4 w-4 mt-0.5 shrink-0 text-emerald-500" />
-                  {f.pain}
+              </div>
+            </Reveal>
+            <Reveal delay={0.08} className="md:col-span-2">
+              <div className="flex h-full flex-col justify-between rounded-3xl bg-primary p-7 text-primary-foreground">
+                <Star className="h-6 w-6" aria-hidden />
+                <div className="mt-10">
+                  <p role="heading" aria-level={3} className="font-heading text-xl font-semibold text-primary-foreground">Decide together</p>
+                  <p className="mt-1.5 text-sm text-primary-foreground/85">Everyone rates in place. The best shots rise without a single email thread.</p>
+                </div>
+              </div>
+            </Reveal>
+            <Reveal delay={0.04} className="md:col-span-2">
+              <div className="h-full rounded-3xl border border-border bg-card p-7">
+                <ShieldCheck className="h-6 w-6 text-primary" aria-hidden />
+                <h3 className="mt-3 text-xl font-semibold">Rights on every photo</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">Tag what each photo is cleared for, then search only what you can use.</p>
+              </div>
+            </Reveal>
+            <Reveal delay={0.08} className="md:col-span-2">
+              <div className="h-full rounded-3xl border border-border bg-card p-7">
+                <Users className="h-6 w-6 text-primary" aria-hidden />
+                <h3 className="mt-3 text-xl font-semibold">Every shot of someone</h3>
+                <p className="mt-1.5 text-sm text-muted-foreground">Tag people once and pull up every photo of an athlete in one click.</p>
+              </div>
+            </Reveal>
+            <Reveal delay={0.12} className="md:col-span-2">
+              <div className="h-full rounded-3xl bg-foreground p-7 text-background">
+                <Bot className="h-6 w-6" aria-hidden />
+                <p role="heading" aria-level={3} className="mt-3 font-heading text-xl font-semibold text-background">Ask from Claude</p>
+                <p className="mt-1.5 text-sm text-background/75">
+                  Connect your AI tools over MCP: “three hero shots from nationals, cleared for social.”
                 </p>
               </div>
-            ))}
+            </Reveal>
           </div>
         </section>
 
-        {/* MCP — the differentiator, given room */}
-        <section className="border-y border-border bg-card/50">
-          <div className="max-w-4xl mx-auto px-6 py-14 grid gap-8 md:grid-cols-[auto,1fr] md:items-center">
-            <div className="mx-auto h-16 w-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-              <Bot className="h-8 w-8 text-primary" />
-            </div>
-            <div className="text-center md:text-left">
-              <h2 className="text-2xl font-bold text-foreground">Your library, answerable by AI</h2>
-              <p className="text-muted-foreground mt-2 leading-relaxed">
-                Connect Claude or other AI tools straight to your photo library over MCP, then ask for
-                photos in plain language from anywhere — “find three hero shots from the spring event
-                cleared for social.” Your assets stop being a folder and start being an assistant.
+        {/* Create: from photo to post. Split, image right. */}
+        <section className="border-y border-border bg-card/40">
+          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 md:grid-cols-2 md:py-24">
+            <Reveal>
+              <Wand2 className="h-7 w-7 text-primary" aria-hidden />
+              <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight md:text-4xl">From the shoot to the post.</h2>
+              <p className="mt-4 max-w-[48ch] text-muted-foreground">
+                Write the brief, and Create pulls the right photo and your primary logo into ready-to-post graphics.
               </p>
-            </div>
+            </Reveal>
+            <Reveal delay={0.1}>
+              <img src={photo("create-graphic", 1100, 820)} alt="" loading="lazy" className="aspect-[4/3] w-full rounded-3xl object-cover" />
+            </Reveal>
           </div>
         </section>
 
-        {/* Why not a shared drive */}
-        <section className="max-w-3xl mx-auto px-6 py-16">
-          <h2 className="text-center text-2xl font-bold text-foreground mb-8">Why not just a shared drive?</h2>
-          <div className="overflow-hidden rounded-xl border border-border">
-            <div className="grid grid-cols-[1fr,1fr,1fr] bg-card text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              <div className="px-4 py-3" />
-              <div className="px-4 py-3 border-l border-border">Shared drive</div>
-              <div className="px-4 py-3 border-l border-border text-primary">Vispix</div>
-            </div>
-            {COMPARISON.map((row, i) => (
-              <div key={row.label} className={`grid grid-cols-[1fr,1fr,1fr] text-sm ${i % 2 ? "bg-card/50" : "bg-background"}`}>
-                <div className="px-4 py-3 font-medium text-foreground">{row.label}</div>
-                <div className="px-4 py-3 border-l border-border text-muted-foreground flex items-center gap-1.5">
-                  {row.drive === "—" ? <X className="h-3.5 w-3.5 text-muted-foreground/60" /> : null}
+        {/* Shared drive vs Vispix: two columns, no table rules. */}
+        <section className="mx-auto max-w-5xl px-4 py-20 sm:px-6 md:py-28">
+          <Reveal>
+            <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">Why not just a shared drive?</h2>
+          </Reveal>
+          <div className="mt-12 grid gap-10 md:grid-cols-2">
+            <Reveal className="space-y-5">
+              <p className="text-sm font-medium text-muted-foreground">On a shared drive</p>
+              {DRIVE_VS.map((row) => (
+                <p key={row.drive} className="flex items-start gap-3 text-muted-foreground">
+                  <X className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/60" aria-hidden />
                   {row.drive}
-                </div>
-                <div className="px-4 py-3 border-l border-border text-foreground flex items-center gap-1.5">
-                  <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                </p>
+              ))}
+            </Reveal>
+            <Reveal delay={0.1} className="space-y-5 rounded-3xl bg-primary/5 p-7 md:-my-7">
+              <p className="text-sm font-medium text-primary">In Vispix</p>
+              {DRIVE_VS.map((row) => (
+                <p key={row.vispix} className="flex items-start gap-3 font-medium">
+                  <Check className="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden />
                   {row.vispix}
-                </div>
-              </div>
-            ))}
+                </p>
+              ))}
+            </Reveal>
           </div>
         </section>
 
-        {/* Pricing */}
-        <section className="border-t border-border bg-card/50">
-          <div className="max-w-5xl mx-auto px-6 py-16">
-            <h2 className="text-center text-2xl font-bold text-foreground mb-2">Simple pricing</h2>
-            <p className="text-center text-sm text-muted-foreground mb-10">
-              Priced by storage, not seats — invite your whole team on any plan.
-            </p>
-            <div className="grid gap-4 sm:grid-cols-3 max-w-3xl mx-auto">
-              {PLAN_ORDER.map((id) => {
+        {/* Pricing, from the shared plan display. */}
+        <section id="pricing" className="scroll-mt-20 border-t border-border bg-card/40">
+          <div className="mx-auto max-w-6xl px-4 py-20 sm:px-6 md:py-24">
+            <Reveal>
+              <h2 className="font-heading text-3xl font-bold tracking-tight md:text-4xl">Priced by storage, not seats.</h2>
+              <p className="mt-3 text-muted-foreground">Invite your whole team on any plan. Every plan includes AI descriptions, search, ratings and collections.</p>
+            </Reveal>
+            <div className="mt-12 grid items-stretch gap-4 md:grid-cols-[1fr_1.2fr_1fr]">
+              {PLAN_ORDER.map((id, i) => {
                 const plan = PLAN_CARDS[id];
                 const highlight = id === "pro";
                 return (
-                  <div
-                    key={id}
-                    className={`rounded-xl border p-5 flex flex-col ${highlight ? "border-primary bg-primary/5" : "border-border bg-card"}`}
-                    data-testid={`home-plan-${id}`}
-                  >
-                    <h3 className="font-semibold text-foreground">{plan.label}</h3>
-                    <p className="mt-1 text-2xl font-bold text-foreground">{plan.priceDisplay}</p>
-                    <p className="mt-2 text-sm text-muted-foreground flex-1">{plan.blurb}</p>
-                    <div className="mt-4">
-                      {id === "enterprise" ? (
-                        <a href={ENTERPRISE_CONTACT}>
-                          <Button variant="outline" size="sm" className="w-full">Contact us</Button>
-                        </a>
-                      ) : registrationEnabled ? (
-                        <Link href="/sign-up">
-                          <Button size="sm" variant={highlight ? "default" : "outline"} className="w-full">
-                            {id === "free" ? "Start free" : "Start with Pro"}
+                  <Reveal key={id} delay={i * 0.06}>
+                    <div
+                      className={`flex h-full flex-col rounded-3xl p-7 ${highlight ? "bg-primary text-primary-foreground" : "border border-border bg-background"}`}
+                      data-testid={`home-plan-${id}`}
+                    >
+                      <p role="heading" aria-level={3} className={`font-heading font-semibold ${highlight ? "text-primary-foreground" : "text-foreground"}`}>{plan.label}</p>
+                      <p className="mt-2 text-3xl font-bold tracking-tight">{plan.priceDisplay}</p>
+                      <p className={`mt-3 flex-1 text-sm ${highlight ? "text-primary-foreground/85" : "text-muted-foreground"}`}>{plan.blurb}</p>
+                      <div className="mt-6">
+                        {id === "enterprise" ? (
+                          <a href={ENTERPRISE_CONTACT}>
+                            <Button variant="outline" className="w-full rounded-full">Contact us</Button>
+                          </a>
+                        ) : registrationEnabled ? (
+                          <Link href="/sign-up">
+                            <Button variant={highlight ? "secondary" : "outline"} className="w-full rounded-full">
+                              Start free
+                            </Button>
+                          </Link>
+                        ) : (
+                          <Button variant="outline" className="w-full rounded-full" disabled>
+                            By invitation
                           </Button>
-                        </Link>
-                      ) : (
-                        <Button size="sm" variant="outline" className="w-full" disabled>
-                          By invitation
-                        </Button>
-                      )}
+                        )}
+                      </div>
                     </div>
-                  </div>
+                  </Reveal>
                 );
               })}
             </div>
-            <p className="text-center text-xs text-muted-foreground mt-6 inline-flex w-full justify-center items-center gap-1">
-              <Tag className="h-3 w-3" /> Every plan includes AI descriptions, search, ratings, and collections.
-            </p>
           </div>
         </section>
 
-        {/* Final CTA */}
         {registrationEnabled && (
-          <section className="max-w-3xl mx-auto px-6 py-20 text-center">
-            <h2 className="text-3xl font-bold text-foreground">Give your photos superpowers</h2>
-            <p className="text-muted-foreground mt-3">Start free with 2 GB — no card required.</p>
-            <Link href="/sign-up">
-              <Button size="lg" className="mt-6 px-8 gap-1.5">
-                Start free <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+          <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 md:py-28">
+            <Reveal className="flex flex-col items-start justify-between gap-8 md:flex-row md:items-end">
+              <h2 className="max-w-[16ch] font-heading text-4xl font-bold leading-[1.1] tracking-tight md:text-5xl">
+                Bring this season’s photos in.
+              </h2>
+              <div className="flex flex-col items-start gap-3">
+                {startFree("home-final-sign-up-btn")}
+                <p className="text-sm text-muted-foreground">2 GB free, no card required.</p>
+              </div>
+            </Reveal>
           </section>
         )}
       </main>
 
-      <footer className="border-t border-border py-8 text-sm text-muted-foreground">
-        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between">
-          <span>© {new Date().getFullYear()} Vispix</span>
-          <a href={ENTERPRISE_CONTACT} className="hover:text-foreground">Contact us</a>
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <div className="flex items-center gap-2">
+            <img src="/vispix.png" alt="" className="h-5 w-5 rounded" />
+            <span>© {new Date().getFullYear()} Vispix</span>
+          </div>
+          <div className="flex items-center gap-5">
+            <a href="#pricing" className="hover:text-foreground">Pricing</a>
+            <a href={ENTERPRISE_CONTACT} className="hover:text-foreground">Contact us</a>
+          </div>
         </div>
       </footer>
     </div>
