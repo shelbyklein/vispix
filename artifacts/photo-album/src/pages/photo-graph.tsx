@@ -177,8 +177,11 @@ export default function PhotoGraphPage() {
         style={{ height: "calc(100svh - 3.5rem)" }}
         data-testid="photo-graph"
       >
-        {view === "3d" && !notFound && (
+        {/* Stays mounted in List view (hidden and paused): rebuilding the renderer on
+            every switch churns GPU contexts faster than the browser frees them. */}
+        {webglAvailable() && !notFound && (
           <GraphCanvas
+            hidden={view !== "3d"}
             key={glKey}
             onLost={() => setGlLost(true)}
             nodes={nodesRef.current}
@@ -395,7 +398,7 @@ function ListView({
 }
 
 function GraphCanvas({
-  nodes, links, version, centreId, hoverId, onHover, onSelect, onLost, label, inset,
+  nodes, links, version, centreId, hoverId, onHover, onSelect, onLost, label, inset, hidden,
 }: {
   nodes: Map<number, GNode>;
   links: Map<string, GLink>;
@@ -409,6 +412,8 @@ function GraphCanvas({
   label: string;
   /** Leave room for the photo card on wide screens. */
   inset: boolean;
+  /** List view is showing: keep the scene but stop drawing. */
+  hidden: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const fg = useRef<ForceGraph3DInstance | null>(null);
@@ -507,9 +512,10 @@ function GraphCanvas({
     // If the browser drops the WebGL context (GPU memory, driver reset), say so
     // and offer a restart instead of leaving a blank canvas.
     const canvas = graph.renderer().domElement;
+    let tearingDown = false;
     const lost = (e: Event) => {
       e.preventDefault();
-      state.current.onLost();
+      if (!tearingDown) state.current.onLost();
     };
     canvas.addEventListener("webglcontextlost", lost);
     if (import.meta.env.DEV) (window as unknown as { __vispixGraph?: unknown }).__vispixGraph = graph;
@@ -529,6 +535,7 @@ function GraphCanvas({
     };
     raf = requestAnimationFrame(follow);
     return () => {
+      tearingDown = true;
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener("webglcontextlost", lost);
@@ -587,6 +594,16 @@ function GraphCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [centreId, version > 0 && nodes.has(centreId)]);
 
+  useEffect(() => {
+    const graph = fg.current;
+    if (!graph) return;
+    if (hidden) graph.pauseAnimation();
+    else {
+      graph.width(box.current!.clientWidth).height(box.current!.clientHeight);
+      graph.resumeAnimation();
+    }
+  }, [hidden]);
+
   // Re-evaluate link widths/particles on hover.
   useEffect(() => {
     const graph = fg.current;
@@ -594,5 +611,5 @@ function GraphCanvas({
     graph.linkColor(graph.linkColor()).linkDirectionalParticles(graph.linkDirectionalParticles());
   }, [hoverId]);
 
-  return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px] lg:[mask-image:linear-gradient(to_right,transparent,black_72px)]")} role="img" aria-label={label} data-testid="graph-canvas" />;
+  return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px] lg:[mask-image:linear-gradient(to_right,transparent,black_72px)]", hidden && "invisible")} aria-hidden={hidden || undefined} role="img" aria-label={label} data-testid="graph-canvas" />;
 }
