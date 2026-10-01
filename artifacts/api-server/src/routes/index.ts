@@ -4,6 +4,7 @@ import usersRouter from "./users";
 import organizationsRouter from "./organizations";
 import albumsRouter from "./albums";
 import photosRouter from "./photos";
+import photoGraphRouter from "./photoGraph";
 import searchRouter from "./search";
 import tagsCategoriesRouter from "./tagsCategories";
 import statsRouter from "./stats";
@@ -32,6 +33,7 @@ router.use(organizationsRouter);
 router.use(albumsRouter);
 // Before photosRouter so its /photos/... routes are never shadowed.
 router.use(attributionTagsRouter);
+router.use(photoGraphRouter);
 router.use(photosRouter);
 router.use(searchRouter);
 router.use(tagsCategoriesRouter);
