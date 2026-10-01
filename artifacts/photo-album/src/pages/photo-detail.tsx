@@ -102,6 +102,29 @@ export default function PhotoDetail() {
       return Number.isInteger(n) ? n : undefined;
     };
     const bool = (k: string) => (p.get(k) === "true" ? true : p.get(k) === "false" ? false : undefined);
+    // Opened from search (#210 NAV-03): follow the search's result order. The
+    // URL carries the search page's own parameters.
+    const q = p.get("q")?.trim();
+    if (q) {
+      const num = (k: string) => {
+        const n = Number(p.get(k));
+        return p.get(k) && Number.isFinite(n) ? n : undefined;
+      };
+      const exclude = (p.get("exclude") ?? "").split(",").map((t) => t.trim()).filter(Boolean);
+      const s: GetPhotoNeighborsParams = {
+        q,
+        mode: p.get("mode") === "keyword" ? "keyword" : "combined",
+        ratingMin: num("ratingMin"),
+        ratingMax: num("ratingMax"),
+        minQuality: num("minQuality"),
+        dateFrom: p.get("dateFrom") || undefined,
+        dateTo: p.get("dateTo") || undefined,
+        uploaderId: int("uploaderId"),
+        includeHidden: p.get("hidden") === "1" ? true : undefined,
+        ...(exclude.length ? { exclude } : {}),
+      };
+      return Object.fromEntries(Object.entries(s).filter(([, v]) => v !== undefined)) as GetPhotoNeighborsParams;
+    }
     const aiStatus = p.get("aiStatus");
     const out: GetPhotoNeighborsParams = {
       albumId: int("albumId"),
@@ -115,6 +138,11 @@ export default function PhotoDetail() {
     return Object.fromEntries(Object.entries(out).filter(([, v]) => v !== undefined)) as GetPhotoNeighborsParams;
   }, [search]);
   const photoHref = (id: number) => `/photos/${id}${search ? `?${search}` : ""}`;
+  const searchBack = useMemo(() => {
+    const p = new URLSearchParams(search);
+    const q = p.get("q")?.trim();
+    return q ? { href: `/search?${p.toString()}`, label: `Search: “${q.length > 30 ? `${q.slice(0, 30)}…` : q}”` } : null;
+  }, [search]);
   const neighbors = useGetPhotoNeighbors(photoId, neighborParams, {
     query: { enabled: !!photo, queryKey: getGetPhotoNeighborsQueryKey(photoId, neighborParams), retry: 1 },
   });
@@ -372,6 +400,7 @@ export default function PhotoDetail() {
           onNavigate={(pid) => navigate(photoHref(pid))}
           onRetry={() => void neighbors.refetch()}
           fallbackHref={search ? `/photos/${photoId}` : null}
+          back={searchBack}
         />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-8">

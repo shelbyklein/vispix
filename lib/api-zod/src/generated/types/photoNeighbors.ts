@@ -5,8 +5,11 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+import type { PhotoNeighborsContext } from "./photoNeighborsContext";
 
 export interface PhotoNeighbors {
+  /** Whether neighbours follow an album view or search results. */
+  context?: PhotoNeighborsContext;
   albumId: number;
   /** Whether the photo is part of this album view at all. */
   inContext: boolean;

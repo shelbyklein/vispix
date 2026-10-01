@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { GetPhotoNeighborsAiStatus } from "./getPhotoNeighborsAiStatus";
+import type { GetPhotoNeighborsMode } from "./getPhotoNeighborsMode";
 
 export type GetPhotoNeighborsParams = {
   /**
@@ -30,4 +31,19 @@ export type GetPhotoNeighborsParams = {
    * Album filter — photos with (true) / without (false) any attribution tag.
    */
   hasAttribution?: boolean;
+  /**
+   * Search context (#210) — when set, neighbours follow this search's result order (same as GET /search/photos) instead of an album view.
+   */
+  q?: string;
+  /**
+   * Search mode for q — combined (default), keyword or concept.
+   */
+  mode?: GetPhotoNeighborsMode;
+  ratingMin?: number;
+  ratingMax?: number;
+  minQuality?: number;
+  dateFrom?: string;
+  dateTo?: string;
+  uploaderId?: number;
+  exclude?: string[];
 };

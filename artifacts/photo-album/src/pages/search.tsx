@@ -225,9 +225,39 @@ export default function SearchPage() {
     if (!isFetching) void fetchNextPage();
   }, hasMore);
 
+  // Coming back from a photo's details page (#210): return to that photo.
+  const FOCUS_KEY = "vispix:search-focus";
+  useEffect(() => {
+    if (!photos.length) return;
+    let focus: { search: string; id: number } | null = null;
+    try {
+      focus = JSON.parse(sessionStorage.getItem(FOCUS_KEY) ?? "null");
+    } catch {
+      /* storage unavailable */
+    }
+    if (!focus || focus.search !== searchString) return;
+    const el = document.querySelector(`[data-testid="search-result-item"][data-photo-id="${focus.id}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center" });
+      try {
+        sessionStorage.removeItem(FOCUS_KEY);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [photos.length, searchString]);
+
   // Open results in the lightbox (like the dashboard) instead of navigating to
   // the detail page, so the user stays in their search results.
   const [selectedPhoto, setSelectedPhoto] = useState<LightboxPhoto | null>(null);
+  useEffect(() => {
+    if (!selectedPhoto) return;
+    try {
+      sessionStorage.setItem("vispix:search-focus", JSON.stringify({ search: searchString, id: selectedPhoto.id }));
+    } catch {
+      /* storage unavailable */
+    }
+  }, [selectedPhoto, searchString]);
   const { zoom, setZoom } = useGridZoom();
   const [pendingAdvance, setPendingAdvance] = useState(false);
   const selectedIndex = selectedPhoto ? photos.findIndex((p) => p.id === selectedPhoto.id) : -1;
@@ -871,6 +901,7 @@ export default function SearchPage() {
 
       <PhotoLightbox
         photo={selectedPhoto}
+        detailsQuery={searchString.replace(/^\?/, "")}
         onClose={() => setSelectedPhoto(null)}
         hasPrev={hasPrev}
         hasNext={hasNext}

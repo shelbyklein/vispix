@@ -18,7 +18,7 @@ vi.mock("../aiEmbedding", async (importOriginal) => ({
 
 import { db, pool, photosTable, photoEmbeddingsTable, photoAiEvaluationsTable } from "@workspace/db";
 import { resetDb, createUser, createOrganization, createAlbum } from "./testDb";
-import { retrievePhotos, parseExactQuery, clearQueryEmbeddingCache, type RetrievalRequest } from "../photoRetrieval";
+import { retrievePhotos, retrievalNeighbors, parseExactQuery, clearQueryEmbeddingCache, type RetrievalRequest } from "../photoRetrieval";
 
 let orgA: number;
 let orgB: number;
@@ -212,3 +212,23 @@ describe("keyword is literal (TT-VPX-FIND-02)", () => {
     expect(r.items.filter((i) => i.photoId === P.friPm146)).toHaveLength(1);
   });
 });
+
+describe("neighbors across exact matches and ranked results (#210 NAV-03)", () => {
+  it("steps from the exact matches into the ranked results and back", async () => {
+    const r = req({ text: "IMG_0001.jpg" });
+    const list = (await retrievePhotos({ ...r, limit: 50 })).items.map((i) => i.photoId);
+    expect(list.slice(0, 2)).toEqual([P.img1Fri, P.img1Sat]);
+    expect(await retrievalNeighbors(r, P.img1Fri)).toMatchObject({ previousId: null, nextId: P.img1Sat, position: 1, total: 33 });
+    expect(await retrievalNeighbors(r, P.img1Sat)).toMatchObject({ previousId: P.img1Fri, nextId: list[2], position: 2 });
+    expect(await retrievalNeighbors(r, list[2])).toMatchObject({ previousId: P.img1Sat, nextId: list[3], position: 3 });
+    expect(await retrievalNeighbors(r, list[32])).toMatchObject({ nextId: null, position: 33 });
+  });
+
+  it("follows the literal fallback when concept ranking is down", async () => {
+    provider.down = true;
+    const r = req({ text: "Fri-pm" });
+    const list = (await retrievePhotos({ ...r, limit: 50 })).items.map((i) => i.photoId);
+    expect(await retrievalNeighbors(r, list[0])).toMatchObject({ inContext: true, nextId: list[1] ?? null, position: 1, total: list.length });
+  });
+});
+

@@ -52,6 +52,8 @@ import {
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
 import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions } from "../lib/photoHelpers";
+import { parseSearchFilters } from "../lib/searchFilters";
+import { retrievalNeighbors } from "../lib/photoRetrieval";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -289,6 +291,25 @@ router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<vo
     res.status(404).json({ error: "Photo not found" });
     return;
   }
+  // Opened from search (#210 NAV-03): step through the search's results in
+  // the order the search page shows them.
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+  if (q) {
+    const parsed = parseSearchFilters(req.query as Record<string, unknown>);
+    if (!parsed.ok) {
+      res.status(400).json({ error: parsed.error });
+      return;
+    }
+    const { includeHidden, exclude, ...filters } = parsed.filters;
+    const mode = req.query.mode === "keyword" || req.query.mode === "concept" ? req.query.mode : "combined";
+    const r = await retrievalNeighbors(
+      { organizationId: req.org!.id, canSeeHidden: isAdmin && includeHidden, mode, text: q, exclude, filters },
+      photo.id,
+    );
+    res.json({ context: "search", albumId: photo.albumId, inContext: r.inContext, previousId: r.previousId, nextId: r.nextId, position: r.position, total: r.total ?? 0 });
+    return;
+  }
+
   const view = parseAlbumView(req.query as Record<string, unknown>);
   const albumId = albumIdRaw ?? photo.albumId;
   const result = await fetchAlbumPhotoNeighbors(albumId, photo.id, {
@@ -298,7 +319,7 @@ router.get("/photos/:id/neighbors", requireOrgAuth, async (req, res): Promise<vo
     canSeeHidden: isAdmin && (view.includeHidden || photo.isHidden),
     ...view.filters,
   });
-  res.json({ albumId, ...result });
+  res.json({ context: "album", albumId, ...result });
 });
 
 router.get("/albums/:id/photos", requireOrgAuth, async (req, res): Promise<void> => {

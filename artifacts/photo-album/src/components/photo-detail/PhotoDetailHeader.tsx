@@ -16,6 +16,7 @@ export function PhotoDetailHeader({
   onNavigate,
   onRetry,
   fallbackHref,
+  back,
 }: {
   albumId: number;
   albumTitle?: string | null;
@@ -28,18 +29,28 @@ export function PhotoDetailHeader({
   onRetry: () => void;
   /** The same photo without the browsing context (direct-link fallback). */
   fallbackHref: string | null;
+  /** Opened from search results (#210): back to them instead of the album. */
+  back?: { href: string; label: string } | null;
 }) {
+  const fromSearch = !!back;
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
-        {albumId && (
+        {back ? (
+          <Link href={back.href}>
+            <Button variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-search">
+              <ArrowLeft className="h-4 w-4" />
+              {back.label}
+            </Button>
+          </Link>
+        ) : albumId ? (
           <Link href={`/albums/${albumId}`}>
             <Button variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-album">
               <ArrowLeft className="h-4 w-4" />
               {albumTitle ?? "Album"}
             </Button>
           </Link>
-        )}
+        ) : null}
       </div>
       {albumId && (
         <div className="flex items-center gap-1" data-testid="photo-nav">
@@ -73,7 +84,7 @@ export function PhotoDetailHeader({
           )}
           {navState === "outside" && (
             <span className="text-xs text-muted-foreground px-1" data-testid="photo-nav-outside">
-              Not in this album view
+              {fromSearch ? "Not in these search results" : "Not in this album view"}
               {fallbackHref && (
                 <>
                   {" · "}
