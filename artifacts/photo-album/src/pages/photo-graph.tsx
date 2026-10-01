@@ -202,7 +202,7 @@ export default function PhotoGraphPage() {
                   {backLabel(from)}
                 </Link>
               )}
-              <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-0.5 text-xs" role="group" aria-label="View">
+              {!notFound && <div className="inline-flex rounded-full border border-white/10 bg-white/5 p-0.5 text-xs" role="group" aria-label="View">
                 <button type="button" onClick={() => setView("3d")} aria-pressed={view === "3d"} disabled={!webglAvailable()}
                   className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1", view === "3d" ? "bg-white/15" : "opacity-70 hover:opacity-100")} data-testid="graph-view-3d">
                   <Orbit className="h-3.5 w-3.5" /> 3D
@@ -211,7 +211,7 @@ export default function PhotoGraphPage() {
                   className={cn("inline-flex items-center gap-1 rounded-full px-2.5 py-1", view === "list" ? "bg-white/15" : "opacity-70 hover:opacity-100")} data-testid="graph-view-list">
                   <List className="h-3.5 w-3.5" /> List
                 </button>
-              </div>
+              </div>}
             </div>
             {/* Not an <h1>: global heading colours in index.css are !important. */}
             <p role="heading" aria-level={1} className="mt-1 max-w-[min(560px,calc(100vw-2rem))] truncate text-base font-semibold tracking-tight text-[#e8ecf2]" data-testid="graph-title">
