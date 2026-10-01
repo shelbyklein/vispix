@@ -51,8 +51,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
-import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects } from "../lib/photoHelpers";
-import { applyFiltersAndFetchIds } from "./search";
+import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions } from "../lib/photoHelpers";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -346,45 +345,34 @@ router.get("/photos", requireOrgAuth, async (req, res): Promise<void> => {
   const includeHidden = req.query.includeHidden === "true";
   const canSeeHidden = req.dbUser!.role === "admin" && includeHidden;
 
-  const allPhotos = await db
-    .select({ id: photosTable.id })
-    .from(photosTable)
-    .where(
-      and(
-        eq(photosTable.organizationId, req.org!.id),
-        canSeeHidden ? undefined : eq(photosTable.isHidden, false),
-      ),
-    )
-    // createdAt DESC, id DESC for a stable order across pages (ties on createdAt).
-    .orderBy(desc(photosTable.createdAt), desc(photosTable.id));
-
-  const allIds = allPhotos.map((p) => p.id);
-  const { search, tag, categoryId, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId } = query.data;
+  const { search, tag, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId } = query.data;
   // Parsed from req.query directly: the generated zod.coerce.boolean() turns
   // the string "false" into true (JS truthiness), which would invert the
   // untagged filter. Same treatment includeHidden gets above.
   const hasAttributionStr = req.query.hasAttribution;
   const hasAttribution = hasAttributionStr === "true" ? true : hasAttributionStr === "false" ? false : undefined;
 
-  const filteredIds = await applyFiltersAndFetchIds(allIds, {
-    search,
-    tag,
-    categoryId,
-    ratingMin,
-    ratingMax,
-    dateFrom,
-    dateTo,
-    uploaderId,
-    albumId,
-    aiStatus,
-    attributionTagId,
-    hasAttribution,
-  }, req.org!.id);
-
+  // Every filter and the paging run in SQL with the shared predicates
+  // (#205 FILTER-04); only the requested page leaves the database.
   const limit = Math.min(Math.max(query.data.limit ?? 48, 1), 200);
   const offset = Math.max(query.data.offset ?? 0, 0);
-  const pageIds = filteredIds.slice(offset, offset + limit);
-  const hasMore = filteredIds.length > offset + limit;
+  const rows = await db
+    .select({ id: photosTable.id })
+    .from(photosTable)
+    .where(
+      and(
+        ...libraryPhotoConditions(
+          { search, tag, ratingMin, ratingMax, dateFrom, dateTo, uploaderId, albumId, aiStatus, attributionTagId, hasAttribution },
+          { organizationId: req.org!.id, canSeeHidden },
+        ),
+      ),
+    )
+    // createdAt DESC, id DESC for a stable order across pages (ties on createdAt).
+    .orderBy(desc(photosTable.createdAt), desc(photosTable.id))
+    .limit(limit + 1)
+    .offset(offset);
+  const pageIds = rows.slice(0, limit).map((r) => r.id);
+  const hasMore = rows.length > limit;
 
   const photos = await buildPhotosResponse(pageIds, req.org!.id, req.dbUser?.id);
   res.json(ListPhotosPagedResponse.parse({ photos, hasMore }));
