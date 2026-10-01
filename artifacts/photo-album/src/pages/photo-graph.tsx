@@ -184,6 +184,7 @@ export default function PhotoGraphPage() {
             hidden={view !== "3d"}
             key={glKey}
             onLost={() => setGlLost(true)}
+            onRestored={() => setGlLost(false)}
             nodes={nodesRef.current}
             links={linksRef.current}
             version={version}
@@ -398,7 +399,7 @@ function ListView({
 }
 
 function GraphCanvas({
-  nodes, links, version, centreId, hoverId, onHover, onSelect, onLost, label, inset, hidden,
+  nodes, links, version, centreId, hoverId, onHover, onSelect, onLost, onRestored, label, inset, hidden,
 }: {
   nodes: Map<number, GNode>;
   links: Map<string, GLink>;
@@ -409,6 +410,7 @@ function GraphCanvas({
   onSelect: (id: number) => void;
   /** The browser dropped the WebGL context. */
   onLost: () => void;
+  onRestored: () => void;
   label: string;
   /** Leave room for the photo card on wide screens. */
   inset: boolean;
@@ -422,8 +424,8 @@ function GraphCanvas({
   // One material per photo, reused; sprites tracked so sizes can change without rebuilding.
   const materials = useRef(new Map<number, THREE.SpriteMaterial>());
   const sprites = useRef(new Map<number, THREE.Sprite>());
-  const state = useRef({ centreId, hoverId, onHover, onSelect, onLost });
-  state.current = { centreId, hoverId, onHover, onSelect, onLost };
+  const state = useRef({ centreId, hoverId, onHover, onSelect, onLost, onRestored });
+  state.current = { centreId, hoverId, onHover, onSelect, onLost, onRestored };
   const reduced = prefersReducedMotion();
 
   const sizeSprite = (obj: THREE.Sprite, id: number) => {
@@ -475,11 +477,14 @@ function GraphCanvas({
       })
       .linkOpacity(1)
       .linkCurvature(0.22)
+      .linkResolution(4)
       .linkWidth((l) => {
         // Width follows the centre only: changing it rebuilds every curved thread's geometry.
         const h = state.current.centreId;
         const L = l as GLink;
-        return endId(L.source) === h || endId(L.target) === h ? 1.1 : 0.35;
+        // Tubes only for the centre's threads; the rest are 1px lines, which
+        // cost a fraction to draw (hundreds of tubes stall weaker GPUs).
+        return endId(L.source) === h || endId(L.target) === h ? 1.1 : 0;
       })
       .linkDirectionalParticles((l) => {
         const h = state.current.hoverId;
@@ -511,13 +516,18 @@ function GraphCanvas({
 
     // If the browser drops the WebGL context (GPU memory, driver reset), say so
     // and offer a restart instead of leaving a blank canvas.
-    const canvas = graph.renderer().domElement;
+    const renderer = graph.renderer() as THREE.WebGLRenderer;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+    const canvas = renderer.domElement;
     let tearingDown = false;
     const lost = (e: Event) => {
       e.preventDefault();
       if (!tearingDown) state.current.onLost();
     };
+    // The browser often restores the context by itself; clear the message then.
+    const restored = () => state.current.onRestored();
     canvas.addEventListener("webglcontextlost", lost);
+    canvas.addEventListener("webglcontextrestored", restored);
     if (import.meta.env.DEV) (window as unknown as { __vispixGraph?: unknown }).__vispixGraph = graph;
 
     const ro = new ResizeObserver(() => graph.width(el.clientWidth).height(el.clientHeight));
@@ -539,6 +549,7 @@ function GraphCanvas({
       cancelAnimationFrame(raf);
       ro.disconnect();
       canvas.removeEventListener("webglcontextlost", lost);
+      canvas.removeEventListener("webglcontextrestored", restored);
       for (const m of materials.current.values()) m.dispose();
       for (const t of textures.current.values()) t.dispose();
       materials.current.clear();
