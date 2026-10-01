@@ -208,10 +208,28 @@ export async function deleteUserAccount(
     }
   }
 
-  const memberships = await db
+  const current = await db
     .select({ organizationId: organizationMembersTable.organizationId, role: organizationMembersTable.role })
     .from(organizationMembersTable)
     .where(eq(organizationMembersTable.userId, userId));
+  // Content the user left behind in orgs they're no longer a member of (#227):
+  // those rows cascade with the user too, so each such org needs an heir as
+  // well — otherwise deleting the person silently wipes, e.g., an album that
+  // holds other members' photos.
+  const withContent = await db.execute<{ organization_id: number }>(sql`
+    select organization_id from ${photosTable} where ${photosTable.uploaderId} = ${userId}
+    union select organization_id from ${albumsTable} where ${albumsTable.ownerId} = ${userId}
+    union select organization_id from ${collectionsTable} where ${collectionsTable.createdById} = ${userId}
+    union select organization_id from ${projectsTable} where ${projectsTable.createdById} = ${userId}
+    union select organization_id from ${campaignsTable} where ${campaignsTable.createdById} = ${userId}
+    union select organization_id from ${bulkUploadBatchesTable} where ${bulkUploadBatchesTable.userId} = ${userId}
+    union select organization_id from ${imageGenerationSessionsTable} where ${imageGenerationSessionsTable.userId} = ${userId}
+  `);
+  const memberships: { organizationId: number; role: string | null }[] = [...current];
+  for (const { organization_id } of withContent.rows) {
+    const orgId = Number(organization_id);
+    if (!memberships.some((m) => m.organizationId === orgId)) memberships.push({ organizationId: orgId, role: null });
+  }
 
   // Resolve a successor per org up front, so a blocked org fails the whole
   // delete before anything has been reassigned.
@@ -248,7 +266,9 @@ export async function deleteUserAccount(
     const heir = [...candidates].sort((a, b) => rank(a.role) - rank(b.role))[0];
     if (!heir) {
       throw new DeletionBlockedError(
-        `${target.name} is the only member of "${org?.name ?? "an organization"}". Delete that organization first, or add another member to inherit its content.`,
+        membership.role == null
+          ? `"${org?.name ?? "An organization"}" has no members left to inherit ${target.name}'s content. Add a member or delete that organization first.`
+          : `${target.name} is the only member of "${org?.name ?? "an organization"}". Delete that organization first, or add another member to inherit its content.`,
       );
     }
 
