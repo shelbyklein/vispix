@@ -36,6 +36,10 @@ function safeFrom(raw: string | null): string | null {
 function backLabel(from: string) {
   return from.startsWith("/search") ? "Back to search" : from.startsWith("/photos/") ? "Back to photo" : "Back";
 }
+function rgba(hex: string, a: number) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
 function webglAvailable() {
@@ -88,13 +92,13 @@ export default function PhotoGraphPage() {
   const [enabled, setEnabled] = useState<PhotoGraphThreadKind[]>(DEFAULT_ON);
   const [view, setView] = useState<"3d" | "list">(() => (webglAvailable() ? "3d" : "list"));
   const [hoverId, setHoverId] = useState<number | null>(null);
-  const firstLoad = useRef(true);
+  // The photo the view was (re)started around gets two rings; photos you
+  // re-centre on add one ring each.
+  const [root, setRoot] = useState(centreId);
 
   const params = useMemo(
-    () => ({ threads: enabled.join(","), depth: firstLoad.current ? 2 : 1, perThread: 6, limit: 120 }),
-    // depth is decided once per centre: a fresh visit gets two rings, later re-centres one.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enabled, centreId],
+    () => ({ threads: enabled.join(","), depth: centreId === root ? 2 : 1, perThread: 6, limit: 120 }),
+    [enabled, centreId, root],
   );
   const query = useGetPhotoGraph(centreId, params, {
     query: { enabled: Number.isInteger(centreId) && centreId > 0, queryKey: getGetPhotoGraphQueryKey(centreId, params), retry: 1, staleTime: 60_000 },
@@ -114,7 +118,6 @@ export default function PhotoGraphPage() {
   useEffect(() => {
     const g: PhotoGraph | undefined = query.data;
     if (!g) return;
-    firstLoad.current = false;
     const nodes = nodesRef.current;
     const links = linksRef.current;
     let overflow = false;
@@ -156,8 +159,10 @@ export default function PhotoGraphPage() {
   }, [version, centreId]);
 
   const go = (photoId: number) => navigate(`/photos/${photoId}/graph${from ? `?from=${encodeURIComponent(from)}` : ""}`);
-  const toggle = (k: PhotoGraphThreadKind) =>
+  const toggle = (k: PhotoGraphThreadKind) => {
+    setRoot(centreId);
     setEnabled((cur) => (cur.includes(k) ? (cur.length > 1 ? cur.filter((x) => x !== k) : cur) : KINDS.map((x) => x.kind).filter((x) => x === k || cur.includes(x))));
+  };
 
   const err = query.error as unknown;
   const notFound = err instanceof ApiError && err.status === 404;
@@ -179,6 +184,7 @@ export default function PhotoGraphPage() {
             hoverId={hoverId}
             onHover={setHoverId}
             onSelect={go}
+            inset={!!centre}
             label={`3D graph of ${photoCount} photos connected to ${centre?.filename ?? `photo ${centreId}`}. The list view shows the same connections.`}
           />
         )}
@@ -187,7 +193,7 @@ export default function PhotoGraphPage() {
         )}
 
         {/* Top bar */}
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-3 p-4">
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex flex-wrap items-start justify-between gap-3 bg-gradient-to-b from-[#07090d] via-[#07090d]/80 to-transparent p-4 pb-10">
           <div className="pointer-events-auto flex min-w-0 flex-col gap-1">
             <div className="flex items-center gap-2">
               {from && (
@@ -207,17 +213,18 @@ export default function PhotoGraphPage() {
                 </button>
               </div>
             </div>
-            <h1 className="mt-1 truncate text-base font-semibold tracking-tight" data-testid="graph-title">
-              Connections around {centre?.filename ?? `photo ${centreId}`}
-            </h1>
-            <p className="text-xs text-white/55" data-testid="graph-status" aria-live="polite">
+            {/* Not an <h1>: global heading colours in index.css are !important. */}
+            <p role="heading" aria-level={1} className="mt-1 max-w-[min(560px,calc(100vw-2rem))] truncate text-base font-semibold tracking-tight text-[#e8ecf2]" data-testid="graph-title">
+              {notFound ? "Photo not available" : `Connections around ${centre?.filename ?? `photo ${centreId}`}`}
+            </p>
+            {!notFound && <p className="text-xs text-white/55" data-testid="graph-status" aria-live="polite">
               {query.isLoading ? "Mapping connections…" : `${photoCount} photos · ${linksRef.current.size} threads`}
               {query.data?.truncated ? " · more connections exist than shown" : ""}
               {restarted ? " · view restarted around this photo" : ""}
               {query.data?.unavailable.some((u) => u.photoId === centreId) ? " · this photo isn't analysed yet, so no look-alikes" : ""}
-            </p>
+            </p>}
           </div>
-          <div className="pointer-events-auto flex max-w-full flex-wrap justify-end gap-1.5" role="group" aria-label="Thread kinds">
+          {!notFound && <div className="pointer-events-auto -mx-4 flex w-[calc(100%+2rem)] flex-nowrap gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:w-auto sm:max-w-full sm:flex-wrap sm:justify-end sm:overflow-visible sm:px-0 [scrollbar-width:none]" role="group" aria-label="Thread kinds">
             {KINDS.map((k) => (
               <button
                 key={k.kind}
@@ -225,7 +232,7 @@ export default function PhotoGraphPage() {
                 onClick={() => toggle(k.kind)}
                 aria-pressed={enabled.includes(k.kind)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-[rgba(16,20,28,0.86)] px-2.5 py-1.5 text-xs backdrop-blur",
+                  "inline-flex shrink-0 items-center gap-1.5 rounded-full border border-white/10 bg-[rgba(16,20,28,0.86)] px-2.5 py-1.5 text-xs backdrop-blur",
                   !enabled.includes(k.kind) && "opacity-45",
                 )}
                 data-testid={`graph-kind-${k.kind}`}
@@ -234,7 +241,7 @@ export default function PhotoGraphPage() {
                 {k.label}
               </button>
             ))}
-          </div>
+          </div>}
         </div>
 
         {/* Loading / error / not found */}
@@ -266,7 +273,7 @@ export default function PhotoGraphPage() {
         {/* The centre photo's card */}
         {centre && view === "3d" && (
           <aside
-            className="absolute inset-x-3 bottom-3 max-h-[45%] overflow-hidden rounded-2xl border border-white/10 bg-[rgba(16,20,28,0.9)] backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:left-4 sm:top-auto sm:w-[340px] sm:max-h-[60%] flex flex-col"
+            className="absolute inset-x-3 bottom-3 max-h-[38%] overflow-hidden rounded-2xl border border-white/10 bg-[rgba(16,20,28,0.9)] backdrop-blur-md sm:inset-x-auto sm:bottom-4 sm:left-4 sm:top-auto sm:w-[340px] sm:max-h-[60%] flex flex-col"
             aria-label="Selected photo"
             data-testid="graph-card"
           >
@@ -339,16 +346,16 @@ function ListView({
   loading: boolean;
 }) {
   return (
-    <div className="absolute inset-0 overflow-y-auto px-4 pb-8 pt-36 sm:px-6" data-testid="graph-list-view">
+    <div className="absolute inset-0 overflow-y-auto px-4 pb-8 pt-44 sm:px-6 sm:pt-36" data-testid="graph-list-view">
       {!loading && threads.length === 0 && <p className="text-sm text-white/60">No connections with the selected threads.</p>}
       {KINDS.map((k) => {
         const items = threads.filter((t) => t.kind === k.kind);
         if (items.length === 0) return null;
         return (
           <section key={k.kind} className="mb-6">
-            <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold">
+            <p role="heading" aria-level={2} className="mb-2 flex items-center gap-2 text-sm font-semibold text-[#e8ecf2]">
               <span className="h-2 w-2 rounded-full" style={{ background: k.color }} /> {k.label}
-            </h2>
+            </p>
             <ul className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-6">
               {items.map((t) => (
                 <li key={t.other.id}>
@@ -372,7 +379,7 @@ function ListView({
 }
 
 function GraphCanvas({
-  nodes, links, version, centreId, hoverId, onHover, onSelect, label,
+  nodes, links, version, centreId, hoverId, onHover, onSelect, label, inset,
 }: {
   nodes: Map<number, GNode>;
   links: Map<string, GLink>;
@@ -382,6 +389,8 @@ function GraphCanvas({
   onHover: (id: number | null) => void;
   onSelect: (id: number) => void;
   label: string;
+  /** Leave room for the photo card on wide screens. */
+  inset: boolean;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const fg = useRef<ForceGraph3DInstance | null>(null);
@@ -421,8 +430,13 @@ function GraphCanvas({
       .nodeId("id")
       .nodeLabel(() => "")
       .nodeThreeObject((n) => sprite(n as GNode))
-      .linkColor((l) => KIND[(l as GLink).kind].color)
-      .linkOpacity(0.45)
+      .linkColor((l) => {
+        const L = l as GLink;
+        const h = state.current.hoverId ?? state.current.centreId;
+        const near = endId(L.source) === h || endId(L.target) === h;
+        return rgba(KIND[L.kind].color, near ? 0.9 : 0.22);
+      })
+      .linkOpacity(1)
       .linkCurvature(0.22)
       .linkWidth((l) => {
         const h = state.current.hoverId ?? state.current.centreId;
@@ -448,7 +462,7 @@ function GraphCanvas({
     const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
     glow.scale.set(130, 130, 1);
     const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTexture(), transparent: true, depthWrite: false }));
-    ring.scale.set(320, 320, 1);
+    ring.scale.set(210, 210, 1);
     graph.scene().add(glow, ring);
     deco.current = { glow, ring };
 
@@ -515,8 +529,8 @@ function GraphCanvas({
   useEffect(() => {
     const graph = fg.current;
     if (!graph) return;
-    graph.linkWidth(graph.linkWidth()).linkDirectionalParticles(graph.linkDirectionalParticles());
+    graph.linkColor(graph.linkColor()).linkWidth(graph.linkWidth()).linkDirectionalParticles(graph.linkDirectionalParticles());
   }, [hoverId, centreId]);
 
-  return <div ref={box} className="absolute inset-0" role="img" aria-label={label} data-testid="graph-canvas" />;
+  return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px]")} role="img" aria-label={label} data-testid="graph-canvas" />;
 }
