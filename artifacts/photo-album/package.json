@@ -44,6 +44,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "@workspace/object-storage-web": "workspace:*",
@@ -73,6 +74,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "better-auth": "1.6.23"
+    "3d-force-graph": "^1.80.1",
+    "better-auth": "1.6.23",
+    "three": "^0.186.1"
   }
 }

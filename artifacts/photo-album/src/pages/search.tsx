@@ -6,7 +6,7 @@ import { GridZoomControl } from "@/components/GridZoomControl";
 import { useGridZoom } from "@/hooks/useGridZoom";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { startPhotoDrag } from "@/lib/photoDrag";
-import { useLocation, useSearch } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import type { Photo, PhotoRetrievalMatch, PhotoRetrievalResponse, RetrievePhotosParams } from "@workspace/api-client-react";
 import {
   ApiError,
@@ -29,7 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { PhotoLightbox, type LightboxPhoto } from "@/components/PhotoLightbox";
-import { Search, SlidersHorizontal, X, Star, Images, EyeOff, Eye, Sparkles, Loader2, AlertTriangle, RotateCw, Info } from "lucide-react";
+import { Search, SlidersHorizontal, X, Star, Images, EyeOff, Eye, Sparkles, Loader2, AlertTriangle, RotateCw, Info, Orbit } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
@@ -819,8 +819,8 @@ export default function SearchPage() {
                 renderItem={(photo) => {
                   const label = matchLabel(matchById.get(photo.id));
                   return (
+                  <div key={photo.id} className="group/tile relative h-full">
                   <button
-                    key={photo.id}
                     type="button"
                     draggable
                     onDragStart={(e) => startPhotoDrag(e, photo.id)}
@@ -876,6 +876,16 @@ export default function SearchPage() {
                       )}
                     </div>
                   </button>
+                  <Link
+                    href={`/photos/${photo.id}/graph?from=${encodeURIComponent(`/search${searchString ? `?${searchString}` : ""}`)}`}
+                    className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity group-hover/tile:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+                    aria-label={`Explore connections from photo ${photo.filename ?? photo.id}`}
+                    title="Explore connections"
+                    data-testid="search-explore-connections"
+                  >
+                    <Orbit className="h-3.5 w-3.5" />
+                  </Link>
+                  </div>
                   );
                 }}
               />

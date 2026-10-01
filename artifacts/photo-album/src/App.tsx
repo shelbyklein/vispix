@@ -148,6 +148,18 @@ function AppRoutes() {
             </>
           )}
         </Route>
+        <Route path="/photos/:id/graph">
+          {() => (
+            <>
+              <AuthGate when="signed-in">
+                <LazyPage load={() => import("@/pages/photo-graph")} />
+              </AuthGate>
+              <AuthGate when="signed-out">
+                <Redirect to="/sign-in" />
+              </AuthGate>
+            </>
+          )}
+        </Route>
         <Route path="/photos/:id">
           {() => (
             <>
