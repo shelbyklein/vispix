@@ -23,7 +23,7 @@ const KINDS: { kind: PhotoGraphThreadKind; label: string; color: string }[] = [
 const KIND = Object.fromEntries(KINDS.map((k) => [k.kind, k])) as Record<PhotoGraphThreadKind, (typeof KINDS)[number]>;
 const DEFAULT_ON: PhotoGraphThreadKind[] = ["similar", "duplicate", "person", "event"];
 /** Past this many photos the merged view starts over around the current centre. */
-const MAX_MERGED = 400;
+const MAX_MERGED = 250;
 
 type GNode = PhotoGraphNode & { x?: number; y?: number; z?: number; fx?: number; fy?: number; fz?: number };
 type GLink = { key: string; source: number | GNode; target: number | GNode; kind: PhotoGraphThreadKind; weight: number; label: string };
@@ -109,6 +109,8 @@ export default function PhotoGraphPage() {
   const linksRef = useRef(new Map<string, GLink>());
   const [version, setVersion] = useState(0);
   const [restarted, setRestarted] = useState(false);
+  const [glLost, setGlLost] = useState(false);
+  const [glKey, setGlKey] = useState(0);
   useEffect(() => {
     // Changing which thread kinds are shown starts over.
     nodesRef.current.clear();
@@ -177,6 +179,8 @@ export default function PhotoGraphPage() {
       >
         {view === "3d" && !notFound && (
           <GraphCanvas
+            key={glKey}
+            onLost={() => setGlLost(true)}
             nodes={nodesRef.current}
             links={linksRef.current}
             version={version}
@@ -243,6 +247,18 @@ export default function PhotoGraphPage() {
             ))}
           </div>}
         </div>
+
+        {glLost && view === "3d" && (
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-[#07090d]/90 p-6 text-center" role="alert" data-testid="graph-gl-lost">
+            <p className="max-w-sm text-sm text-white/80">The 3D view stopped. Your browser ran short of graphics memory or reset its graphics.</p>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setGlLost(false); setGlKey((k) => k + 1); }} className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-xs font-medium hover:bg-white/25" data-testid="graph-gl-restart">
+                <RotateCw className="h-3.5 w-3.5" /> Restart 3D view
+              </button>
+              <button type="button" onClick={() => { setGlLost(false); setView("list"); }} className="rounded-full border border-white/15 px-3 py-1.5 text-xs hover:bg-white/10">Use list view</button>
+            </div>
+          </div>
+        )}
 
         {/* Loading / error / not found */}
         {query.isLoading && photoCount === 0 && (
@@ -379,7 +395,7 @@ function ListView({
 }
 
 function GraphCanvas({
-  nodes, links, version, centreId, hoverId, onHover, onSelect, label, inset,
+  nodes, links, version, centreId, hoverId, onHover, onSelect, onLost, label, inset,
 }: {
   nodes: Map<number, GNode>;
   links: Map<string, GLink>;
@@ -388,6 +404,8 @@ function GraphCanvas({
   hoverId: number | null;
   onHover: (id: number | null) => void;
   onSelect: (id: number) => void;
+  /** The browser dropped the WebGL context. */
+  onLost: () => void;
   label: string;
   /** Leave room for the photo card on wide screens. */
   inset: boolean;
@@ -396,31 +414,45 @@ function GraphCanvas({
   const fg = useRef<ForceGraph3DInstance | null>(null);
   const deco = useRef<{ glow: THREE.Sprite; ring: THREE.Sprite } | null>(null);
   const textures = useRef(new Map<number, THREE.Texture>());
-  const state = useRef({ centreId, hoverId, onHover, onSelect });
-  state.current = { centreId, hoverId, onHover, onSelect };
+  // One material per photo, reused; sprites tracked so sizes can change without rebuilding.
+  const materials = useRef(new Map<number, THREE.SpriteMaterial>());
+  const sprites = useRef(new Map<number, THREE.Sprite>());
+  const state = useRef({ centreId, hoverId, onHover, onSelect, onLost });
+  state.current = { centreId, hoverId, onHover, onSelect, onLost };
   const reduced = prefersReducedMotion();
+
+  const sizeSprite = (obj: THREE.Sprite, id: number) => {
+    const n = nodes.get(id);
+    const h = id === state.current.centreId ? 22 : (n?.ring ?? 1) >= 2 ? 9 : 13;
+    const img = textures.current.get(id)?.image as HTMLImageElement | undefined;
+    obj.scale.set(img?.width && img?.height ? h * (img.width / img.height) : h * 1.33, h, 1);
+  };
 
   // Create the scene once.
   useEffect(() => {
     const el = box.current!;
     const loader = new THREE.TextureLoader();
     const sprite = (n: GNode) => {
-      let tex = textures.current.get(n.id);
-      if (!tex && n.thumbnailUrl) {
-        tex = loader.load(n.thumbnailUrl, (t) => {
-          const img = t.image as HTMLImageElement;
-          const s = obj.scale;
-          if (img?.width && img?.height) obj.scale.set(s.y * (img.width / img.height), s.y, 1);
-          fg.current?.refresh();
-        });
-        tex.colorSpace = THREE.SRGBColorSpace;
-        textures.current.set(n.id, tex);
+      let mat = materials.current.get(n.id);
+      if (!mat) {
+        let tex: THREE.Texture | null = null;
+        if (n.thumbnailUrl) {
+          tex = loader.load(n.thumbnailUrl, () => {
+            const s = sprites.current.get(n.id);
+            if (s) sizeSprite(s, n.id);
+          });
+          tex.colorSpace = THREE.SRGBColorSpace;
+          // Thumbnails are small on screen: skip mipmaps (a third less GPU memory each).
+          tex.generateMipmaps = false;
+          tex.minFilter = THREE.LinearFilter;
+          textures.current.set(n.id, tex);
+        }
+        mat = new THREE.SpriteMaterial({ map: tex, color: tex ? 0xffffff : 0x334155, transparent: true });
+        materials.current.set(n.id, mat);
       }
-      const mat = new THREE.SpriteMaterial({ map: tex ?? null, color: tex ? 0xffffff : 0x334155, transparent: true });
       const obj = new THREE.Sprite(mat);
-      const h = n.id === state.current.centreId ? 22 : n.ring >= 2 ? 9 : 13;
-      const img = tex?.image as HTMLImageElement | undefined;
-      obj.scale.set(img?.width && img?.height ? h * (img.width / img.height) : h * 1.33, h, 1);
+      sprites.current.set(n.id, obj);
+      sizeSprite(obj, n.id);
       return obj;
     };
 
@@ -439,7 +471,8 @@ function GraphCanvas({
       .linkOpacity(1)
       .linkCurvature(0.22)
       .linkWidth((l) => {
-        const h = state.current.hoverId ?? state.current.centreId;
+        // Width follows the centre only: changing it rebuilds every curved thread's geometry.
+        const h = state.current.centreId;
         const L = l as GLink;
         return endId(L.source) === h || endId(L.target) === h ? 1.1 : 0.35;
       })
@@ -471,6 +504,16 @@ function GraphCanvas({
     controls.autoRotateSpeed = 0.35;
     graph.cameraPosition({ x: 0, y: 30, z: 260 });
 
+    // If the browser drops the WebGL context (GPU memory, driver reset), say so
+    // and offer a restart instead of leaving a blank canvas.
+    const canvas = graph.renderer().domElement;
+    const lost = (e: Event) => {
+      e.preventDefault();
+      state.current.onLost();
+    };
+    canvas.addEventListener("webglcontextlost", lost);
+    if (import.meta.env.DEV) (window as unknown as { __vispixGraph?: unknown }).__vispixGraph = graph;
+
     const ro = new ResizeObserver(() => graph.width(el.clientWidth).height(el.clientHeight));
     ro.observe(el);
     fg.current = graph;
@@ -488,9 +531,18 @@ function GraphCanvas({
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
-      graph._destructor();
+      canvas.removeEventListener("webglcontextlost", lost);
+      for (const m of materials.current.values()) m.dispose();
       for (const t of textures.current.values()) t.dispose();
+      materials.current.clear();
       textures.current.clear();
+      sprites.current.clear();
+      graph._destructor();
+      // Release the GPU context now rather than whenever it's garbage-collected
+      // (switching 3D/List repeatedly would otherwise pile up contexts).
+      const r = graph.renderer() as THREE.WebGLRenderer;
+      r.dispose();
+      r.forceContextLoss();
       fg.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -507,9 +559,19 @@ function GraphCanvas({
         delete n.fx; delete n.fy; delete n.fz;
       }
     }
+    // Free photos that left the view (the merged view restarted).
+    for (const id of [...materials.current.keys()]) {
+      if (nodes.has(id)) continue;
+      materials.current.get(id)?.dispose();
+      textures.current.get(id)?.dispose();
+      materials.current.delete(id);
+      textures.current.delete(id);
+      sprites.current.delete(id);
+    }
     graph.graphData({ nodes: [...nodes.values()], links: [...links.values()] as never });
-    // Rebuild sprites so sizes follow the new centre.
-    graph.nodeThreeObject(graph.nodeThreeObject());
+    // Sizes follow the centre; existing sprites are resized, not rebuilt.
+    for (const [id, obj] of sprites.current) sizeSprite(obj, id);
+    graph.linkWidth(graph.linkWidth()).linkColor(graph.linkColor());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, centreId]);
 
@@ -529,8 +591,8 @@ function GraphCanvas({
   useEffect(() => {
     const graph = fg.current;
     if (!graph) return;
-    graph.linkColor(graph.linkColor()).linkWidth(graph.linkWidth()).linkDirectionalParticles(graph.linkDirectionalParticles());
-  }, [hoverId, centreId]);
+    graph.linkColor(graph.linkColor()).linkDirectionalParticles(graph.linkDirectionalParticles());
+  }, [hoverId]);
 
   return <div ref={box} className={cn("absolute inset-0", inset && "lg:left-[372px] lg:[mask-image:linear-gradient(to_right,transparent,black_72px)]")} role="img" aria-label={label} data-testid="graph-canvas" />;
 }
