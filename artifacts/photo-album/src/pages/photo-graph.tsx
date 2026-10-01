@@ -42,13 +42,21 @@ function rgba(hex: string, a: number) {
 }
 const prefersReducedMotion = () => typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
+// Checked once per page load. Each probe creates a real WebGL context and the
+// browser caps live contexts (~16, oldest dropped first), so probing on every
+// render evicted the graph's own context and blanked the view.
+let webglSupport: boolean | null = null;
 function webglAvailable() {
+  if (webglSupport !== null) return webglSupport;
   try {
     const c = document.createElement("canvas");
-    return !!(c.getContext("webgl2") || c.getContext("webgl"));
+    const gl = (c.getContext("webgl2") || c.getContext("webgl")) as WebGLRenderingContext | null;
+    webglSupport = !!gl;
+    gl?.getExtension("WEBGL_lose_context")?.loseContext();
   } catch {
-    return false;
+    webglSupport = false;
   }
+  return webglSupport;
 }
 
 /** A soft radial glow (the graph's core) drawn once into a texture. */
