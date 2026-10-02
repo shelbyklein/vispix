@@ -6,6 +6,7 @@ import {
   useUpdateCampaign,
   useDeleteCampaign,
   useGenerateCampaignSuggestions,
+  getGenerationLimit,
   useGenerationSession,
   generationDownloadUrl,
   getCampaignBriefConflict,
@@ -180,6 +181,11 @@ export default function CampaignDetailPage() {
         onError: (err) => {
           unansweredRequest.current = isCampaignRequestUnanswered(err) ? request : null;
           if (handleConflict(err)) return;
+          const limit = getGenerationLimit(err);
+          if (limit) {
+            toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
+            return;
+          }
           toast({
             title: "Suggestion generation failed",
             description: err instanceof Error ? err.message : undefined,

@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useGenerateImages,
+  getGenerationLimit,
   useGenerationSessions,
   useGenerationSession,
   usePlanGeneration,
@@ -598,6 +599,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
         },
         onError: (err) => {
+          const limit = getGenerationLimit(err);
+          if (limit) {
+            toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
+            return;
+          }
           toast({
             title: "Planning failed",
             description: err instanceof Error ? err.message : undefined,
@@ -632,6 +638,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           resetExchange();
         },
         onError: (err) => {
+          const limit = getGenerationLimit(err);
+          if (limit) {
+            toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
+            return;
+          }
           toast({
             title: "Generation failed",
             description: err instanceof Error ? err.message : undefined,
