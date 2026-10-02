@@ -7,6 +7,7 @@ import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
 import { planGeneration } from "../lib/imageGeneration/plan";
+import { generationRateLimit, sendGenerationError, GENERIC_GENERATION_ERROR } from "../lib/imageGeneration/limits";
 
 // AI image generation — the Create workspace backend (#167). All routes are
 // org-scoped; generation itself runs on the org's own OpenAI key.
@@ -64,7 +65,7 @@ const PlanBody = z.object({
 
 // Collaborative planning (#167 §3–4): analyze the prompt, propose library
 // candidates and clarifying questions. Read-only — generates nothing.
-router.post("/image-generation/plan", requireOrgAuth, async (req: Request, res: Response) => {
+router.post("/image-generation/plan", requireOrgAuth, generationRateLimit, async (req: Request, res: Response) => {
   const body = PlanBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: "Invalid plan request" });
@@ -74,16 +75,13 @@ router.post("/image-generation/plan", requireOrgAuth, async (req: Request, res: 
     const plan = await planGeneration(req.org!.id, body.data.prompt, body.data.attachedNames);
     res.json(plan);
   } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode ?? 500;
-    const message = error instanceof Error ? error.message : "Planning failed";
-    if (status >= 500) req.log.error({ err: error }, "Generation planning failed");
-    res.status(status).json({ error: message });
+    sendGenerationError(req, res, error, "Planning failed — try again or generate directly.", "Generation planning failed");
   }
 });
 
 // Generate one or more variants (or revise an earlier output). Synchronous:
 // the client waits — an image call takes roughly 15–60s per variant.
-router.post("/image-generation/generate", requireOrgAuth, async (req: Request, res: Response) => {
+router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, async (req: Request, res: Response) => {
   const body = GenerateBody.safeParse(req.body);
   if (!body.success) {
     res.status(400).json({ error: "Invalid generation request" });
@@ -105,10 +103,7 @@ router.post("/image-generation/generate", requireOrgAuth, async (req: Request, r
       generations: result.generations.map(serializeGeneration),
     });
   } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode ?? 500;
-    const message = error instanceof Error ? error.message : "Generation failed";
-    if (status >= 500) req.log.error({ err: error }, "Image generation request failed");
-    res.status(status).json({ error: message });
+    sendGenerationError(req, res, error, GENERIC_GENERATION_ERROR, "Image generation request failed");
   }
 });
 
