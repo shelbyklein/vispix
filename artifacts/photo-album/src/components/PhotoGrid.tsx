@@ -1,5 +1,6 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { buildJustifiedRows, effectiveColumns, FALLBACK_ASPECT } from "@/lib/grid-layout";
 
 /**
  * Responsive density counts keyed by Tailwind breakpoint, kept for call sites
@@ -16,9 +17,6 @@ const DEFAULT_DENSITY: PhotoGridDensity = { base: 2, sm: 3, lg: 4 };
 
 /** Horizontal and vertical gap between photos, matching the old `gap-3`. */
 const GAP = 12;
-
-/** Aspect ratio assumed for photos whose dimensions aren't (yet) known. */
-const FALLBACK_ASPECT = 3 / 2;
 
 /**
  * Tracks the active density against the Tailwind `sm`/`lg` breakpoints so the
@@ -128,48 +126,23 @@ export function PhotoGrid<T>({
   "data-testid": testId,
 }: PhotoGridProps<T>) {
   const responsiveDensity = useDensity(density);
-  const perRow = densityOverride && densityOverride > 0 ? densityOverride : responsiveDensity;
+  const preferred = densityOverride && densityOverride > 0 ? densityOverride : responsiveDensity;
   const [containerRef, containerWidth] = useContainerWidth();
+  // The preference is a ceiling: narrow containers (small windows, the docked
+  // Create panel) get fewer columns so tiles stay legible. Recomputed on every
+  // resize; the stored zoom is never touched.
+  const perRow = containerWidth ? effectiveColumns(preferred, containerWidth, GAP) : preferred;
 
   const rows: Row<T>[] = React.useMemo(() => {
     if (!containerWidth || containerWidth <= 0 || items.length === 0) return [];
-
-    // Target row height: what a row of `perRow` nominal-3:2 photos would get.
-    const targetHeight = (containerWidth - GAP * (perRow - 1)) / (perRow * FALLBACK_ASPECT);
-
-    const aspectOf = (item: T) => {
+    const aspects = items.map((item) => {
       const a = (getAspectRatio ?? defaultAspectRatio)(item);
       return a && a > 0 ? a : FALLBACK_ASPECT;
-    };
-
-    const built: Row<T>[] = [];
-    let current: { item: T; index: number; aspect: number }[] = [];
-    let aspectSum = 0;
-
-    const closeRow = (justify: boolean) => {
-      if (current.length === 0) return;
-      const gaps = GAP * (current.length - 1);
-      const height = justify
-        ? (containerWidth - gaps) / aspectSum
-        : Math.min(targetHeight, (containerWidth - gaps) / aspectSum);
-      built.push({
-        cells: current.map(({ item, index, aspect }) => ({ item, index, width: aspect * height })),
-        height,
-      });
-      current = [];
-      aspectSum = 0;
-    };
-
-    items.forEach((item, index) => {
-      const aspect = aspectOf(item);
-      current.push({ item, index, aspect });
-      aspectSum += aspect;
-      const widthAtTarget = aspectSum * targetHeight + GAP * (current.length - 1);
-      if (widthAtTarget >= containerWidth) closeRow(true);
     });
-    closeRow(false); // remainder: render at target height, don't stretch
-
-    return built;
+    return buildJustifiedRows(aspects, containerWidth, perRow, GAP).map((row) => ({
+      height: row.height,
+      cells: row.cells.map(({ index, width }) => ({ item: items[index], index, width })),
+    }));
   }, [items, containerWidth, perRow, getAspectRatio]);
 
   return (
