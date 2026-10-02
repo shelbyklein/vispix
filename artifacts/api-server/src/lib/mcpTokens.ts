@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { and, desc, eq } from "drizzle-orm";
-import { db, mcpTokensTable, usersTable } from "@workspace/db";
+import { db, mcpTokensTable, organizationMembersTable, usersTable } from "@workspace/db";
 
 // Raw tokens look like `tvmcp_<40 hex>`; the prefix stored for display is the
 // first 12 chars (`tvmcp_1a2b3`), which leaks nothing useful.
@@ -94,9 +94,21 @@ export async function deleteMcpToken(id: number, organizationId: number): Promis
 const LAST_USED_WRITE_INTERVAL_MS = 60_000;
 const lastUsedWrites = new Map<number, number>();
 
+// A token acts with its creator's standing in the org: once the creator is no
+// longer a member (removed) or the user is deleted (created_by is nulled by the
+// FK), the token stops working. Joined at use time so no revocation sweep is
+// needed. The break-glass env token has no DB row and is unaffected.
+function creatorIsMember() {
+  return and(
+    eq(organizationMembersTable.organizationId, mcpTokensTable.organizationId),
+    eq(organizationMembersTable.userId, mcpTokensTable.createdById),
+  );
+}
+
 /**
  * Verify a candidate token against the DB. Returns the token's id + the org it
- * grants access to on success (null otherwise), and best-effort stamps
+ * grants access to on success (null otherwise; also null when its creator has
+ * left the org or been deleted), and best-effort stamps
  * last_used_at (throttled). `nowMs` is injected so the gateway avoids importing
  * Date.now() in hot paths; callers pass Date.now().
  */
@@ -108,6 +120,7 @@ export async function verifyMcpToken(
   const [row] = await db
     .select({ id: mcpTokensTable.id, organizationId: mcpTokensTable.organizationId })
     .from(mcpTokensTable)
+    .innerJoin(organizationMembersTable, creatorIsMember())
     .where(eq(mcpTokensTable.tokenHash, hashToken(raw)))
     .limit(1);
   if (!row) return null;
@@ -128,12 +141,14 @@ export async function verifyMcpToken(
  * Whether the token that minted an MCP media grant (#204) still exists, still
  * belongs to the grant's org, and is the same credential (fingerprint = first 16
  * hex of its SHA-256, i.e. of `token_hash`). Revoking a token therefore kills
- * its outstanding media links on the next fetch.
+ * its outstanding media links on the next fetch. Like verifyMcpToken, a token
+ * whose creator left the org or was deleted is no longer live.
  */
 export async function isMcpTokenLive(id: number, organizationId: number, fingerprint: string): Promise<boolean> {
   const [row] = await db
     .select({ organizationId: mcpTokensTable.organizationId, tokenHash: mcpTokensTable.tokenHash })
     .from(mcpTokensTable)
+    .innerJoin(organizationMembersTable, creatorIsMember())
     .where(eq(mcpTokensTable.id, id))
     .limit(1);
   return !!row && row.organizationId === organizationId && row.tokenHash.slice(0, 16) === fingerprint;
