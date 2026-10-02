@@ -5,6 +5,67 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+export type PhotoGraphThreadKind =
+  (typeof PhotoGraphThreadKind)[keyof typeof PhotoGraphThreadKind];
+
+export const PhotoGraphThreadKind = {
+  similar: "similar",
+  duplicate: "duplicate",
+  person: "person",
+  event: "event",
+  rights: "rights",
+} as const;
+
+export interface PhotoGraphNode {
+  id: number;
+  /** 0 for the centre photo, 1 for its direct threads, 2 for the second ring. */
+  ring: number;
+  /** @nullable */
+  filename: string | null;
+  /** @nullable */
+  thumbnailUrl: string | null;
+  albumId: number;
+  /** @nullable */
+  albumTitle: string | null;
+  /** @nullable */
+  takenAt: string | null;
+  embedded: boolean;
+}
+
+export interface PhotoGraphEdge {
+  source: number;
+  target: number;
+  kind: PhotoGraphThreadKind;
+  /** Thread strength, 0-1. */
+  weight: number;
+  /** Why these photos are linked (e.g. a person's name or album title). */
+  label: string;
+}
+
+export type PhotoGraphUnavailableItemReason =
+  (typeof PhotoGraphUnavailableItemReason)[keyof typeof PhotoGraphUnavailableItemReason];
+
+export const PhotoGraphUnavailableItemReason = {
+  not_embedded: "not_embedded",
+} as const;
+
+export type PhotoGraphUnavailableItem = {
+  photoId: number;
+  kind: PhotoGraphThreadKind;
+  reason: PhotoGraphUnavailableItemReason;
+};
+
+export interface PhotoGraph {
+  seedId: number;
+  depth: number;
+  threads: PhotoGraphThreadKind[];
+  nodes: PhotoGraphNode[];
+  edges: PhotoGraphEdge[];
+  /** True when more connected photos existed than the limit allowed. */
+  truncated: boolean;
+  unavailable: PhotoGraphUnavailableItem[];
+}
+
 /**
  * Whether neighbours follow an album view or search results.
  */
@@ -1104,6 +1165,31 @@ export const RetrievePhotosMode = {
 
 export type ListSimilarPhotosParams = {
   topK?: number;
+};
+
+export type GetPhotoGraphParams = {
+  /**
+   * Comma-separated thread kinds (similar, duplicate, person, event, rights). Default similar,duplicate,person,event.
+   */
+  threads?: string;
+  /**
+   * Neighbours per thread kind for each expanded photo (1-12, default 6).
+   * @minimum 1
+   * @maximum 12
+   */
+  perThread?: number;
+  /**
+   * 1 (default) or 2 (also expands the 8 strongest first-ring photos).
+   * @minimum 1
+   * @maximum 2
+   */
+  depth?: number;
+  /**
+   * Maximum photos returned (2-150, default 80).
+   * @minimum 2
+   * @maximum 150
+   */
+  limit?: number;
 };
 
 export type GetPhotoNeighborsParams = {

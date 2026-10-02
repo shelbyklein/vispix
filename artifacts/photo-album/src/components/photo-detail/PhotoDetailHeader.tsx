@@ -1,6 +1,6 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, RotateCw } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, Orbit, RotateCw } from "lucide-react";
 
 /** Where the Previous/Next lookup stands (#210). */
 export type PhotoNavState = "loading" | "ready" | "error" | "outside";
@@ -17,6 +17,7 @@ export function PhotoDetailHeader({
   onRetry,
   fallbackHref,
   back,
+  exploreHref,
 }: {
   albumId: number;
   albumTitle?: string | null;
@@ -31,6 +32,8 @@ export function PhotoDetailHeader({
   fallbackHref: string | null;
   /** Opened from search results (#210): back to them instead of the album. */
   back?: { href: string; label: string } | null;
+  /** The Photo Graph centred on this photo (#202). */
+  exploreHref?: string;
 }) {
   const fromSearch = !!back;
   return (
@@ -51,6 +54,14 @@ export function PhotoDetailHeader({
             </Button>
           </Link>
         ) : null}
+        {exploreHref && (
+          <Link href={exploreHref}>
+            <Button variant="outline" size="sm" className="gap-1.5" data-testid="explore-connections">
+              <Orbit className="h-4 w-4" />
+              Explore connections
+            </Button>
+          </Link>
+        )}
       </div>
       {albumId && (
         <div className="flex items-center gap-1" data-testid="photo-nav">

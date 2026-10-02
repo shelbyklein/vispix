@@ -1444,6 +1444,101 @@ export const ListSimilarPhotosResponse = zod.array(
 );
 
 /**
+ * Photos connected to this one by shared threads: visual similarity (image embeddings), near duplicates, shared people, same album (nearest in capture time) and shared usage-rights tags. Every photo is in the caller's organization and follows the caller's hidden-photo visibility; a photo the caller can't see answers 404. No AI provider calls.
+ * @summary Photo Graph — the threads around one photo, for discovery (#202)
+ */
+export const GetPhotoGraphParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const getPhotoGraphQueryPerThreadMax = 12;
+
+export const getPhotoGraphQueryDepthMax = 2;
+
+export const getPhotoGraphQueryLimitMin = 2;
+export const getPhotoGraphQueryLimitMax = 150;
+
+export const GetPhotoGraphQueryParams = zod.object({
+  threads: zod.coerce
+    .string()
+    .optional()
+    .describe(
+      "Comma-separated thread kinds (similar, duplicate, person, event, rights). Default similar,duplicate,person,event.",
+    ),
+  perThread: zod.coerce
+    .number()
+    .min(1)
+    .max(getPhotoGraphQueryPerThreadMax)
+    .optional()
+    .describe(
+      "Neighbours per thread kind for each expanded photo (1-12, default 6).",
+    ),
+  depth: zod.coerce
+    .number()
+    .min(1)
+    .max(getPhotoGraphQueryDepthMax)
+    .optional()
+    .describe(
+      "1 (default) or 2 (also expands the 8 strongest first-ring photos).",
+    ),
+  limit: zod.coerce
+    .number()
+    .min(getPhotoGraphQueryLimitMin)
+    .max(getPhotoGraphQueryLimitMax)
+    .optional()
+    .describe("Maximum photos returned (2-150, default 80)."),
+});
+
+export const GetPhotoGraphResponse = zod.object({
+  seedId: zod.number(),
+  depth: zod.number(),
+  threads: zod.array(
+    zod.enum(["similar", "duplicate", "person", "event", "rights"]),
+  ),
+  nodes: zod.array(
+    zod.object({
+      id: zod.number(),
+      ring: zod
+        .number()
+        .describe(
+          "0 for the centre photo, 1 for its direct threads, 2 for the second ring.",
+        ),
+      filename: zod.string().nullable(),
+      thumbnailUrl: zod.string().nullable(),
+      albumId: zod.number(),
+      albumTitle: zod.string().nullable(),
+      takenAt: zod.coerce.date().nullable(),
+      embedded: zod.boolean(),
+    }),
+  ),
+  edges: zod.array(
+    zod.object({
+      source: zod.number(),
+      target: zod.number(),
+      kind: zod.enum(["similar", "duplicate", "person", "event", "rights"]),
+      weight: zod.number().describe("Thread strength, 0-1."),
+      label: zod
+        .string()
+        .describe(
+          "Why these photos are linked (e.g. a person's name or album title).",
+        ),
+    }),
+  ),
+  truncated: zod
+    .boolean()
+    .describe(
+      "True when more connected photos existed than the limit allowed.",
+    ),
+  unavailable: zod.array(
+    zod.object({
+      photoId: zod.number(),
+      kind: zod.enum(["similar", "duplicate", "person", "event", "rights"]),
+      reason: zod.enum(["not_embedded"]),
+    }),
+  ),
+});
+
+/**
  * Resolves the photos shown before and after this one in an album's order (created_at DESC, id DESC) under the album page's filters, without loading the album. Without albumId the photo's own album is used (the direct-link fallback).
  * @summary Previous/next photo within an album view (#210)
  */

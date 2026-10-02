@@ -51,6 +51,7 @@ import type {
   DashboardStats,
   DeleteDuplicateExtrasResponse,
   DuplicatesSummaryResponse,
+  GetPhotoGraphParams,
   GetPhotoNeighborsParams,
   GetSmartCollectionPhotosParams,
   HealthStatus,
@@ -67,6 +68,7 @@ import type {
   Photo,
   PhotoAttributionTagInput,
   PhotoCategoryInput,
+  PhotoGraph,
   PhotoNeighbors,
   PhotoRetrievalResponse,
   PhotoTagInput,
@@ -1746,6 +1748,116 @@ export function useListSimilarPhotos<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getListSimilarPhotosQueryOptions(id, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Photos connected to this one by shared threads: visual similarity (image embeddings), near duplicates, shared people, same album (nearest in capture time) and shared usage-rights tags. Every photo is in the caller's organization and follows the caller's hidden-photo visibility; a photo the caller can't see answers 404. No AI provider calls.
+ * @summary Photo Graph — the threads around one photo, for discovery (#202)
+ */
+export const getGetPhotoGraphUrl = (
+  id: number,
+  params?: GetPhotoGraphParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/photos/${id}/graph?${stringifiedParams}`
+    : `/api/photos/${id}/graph`;
+};
+
+export const getPhotoGraph = async (
+  id: number,
+  params?: GetPhotoGraphParams,
+  options?: RequestInit,
+): Promise<PhotoGraph> => {
+  return customFetch<PhotoGraph>(getGetPhotoGraphUrl(id, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetPhotoGraphQueryKey = (
+  id: number,
+  params?: GetPhotoGraphParams,
+) => {
+  return [`/api/photos/${id}/graph`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetPhotoGraphQueryOptions = <
+  TData = Awaited<ReturnType<typeof getPhotoGraph>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetPhotoGraphParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoGraph>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetPhotoGraphQueryKey(id, params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getPhotoGraph>>> = ({
+    signal,
+  }) => getPhotoGraph(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getPhotoGraph>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetPhotoGraphQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getPhotoGraph>>
+>;
+export type GetPhotoGraphQueryError = ErrorType<void>;
+
+/**
+ * @summary Photo Graph — the threads around one photo, for discovery (#202)
+ */
+
+export function useGetPhotoGraph<
+  TData = Awaited<ReturnType<typeof getPhotoGraph>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetPhotoGraphParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getPhotoGraph>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetPhotoGraphQueryOptions(id, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

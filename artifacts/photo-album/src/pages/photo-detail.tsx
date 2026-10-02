@@ -405,6 +405,7 @@ export default function PhotoDetail() {
           onRetry={() => void neighbors.refetch()}
           fallbackHref={search ? `/photos/${photoId}` : null}
           back={searchBack}
+          exploreHref={`/photos/${photoId}/graph?from=${encodeURIComponent(`/photos/${photoId}${search ? `?${search}` : ""}`)}`}
         />
 
         <div className="grid lg:grid-cols-[1fr_320px] gap-8">
