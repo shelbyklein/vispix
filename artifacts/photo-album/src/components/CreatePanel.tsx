@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { X, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useCreatePanelOpen, createPanel } from "@/lib/create-panel";
@@ -36,8 +36,18 @@ export function CreatePanel() {
   const isMobile = useIsMobile();
   const [width, setWidth] = useState<number>(initialWidth);
   const [resizing, setResizing] = useState(false);
+  // Re-render on window resize so the rendered width is re-clamped to the
+  // current viewport (the stored/dragged width is left alone, so it comes back
+  // when the window grows again).
+  const [, setViewportTick] = useState(0);
+  useEffect(() => {
+    const onResize = () => setViewportTick((n) => n + 1);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   if (isMobile || !open) return null;
+  const renderedWidth = Math.min(maxWidth(), Math.max(MIN_WIDTH, width));
 
   function startResize(e: React.PointerEvent<HTMLDivElement>) {
     e.preventDefault();
@@ -72,7 +82,7 @@ export function CreatePanel() {
     // the page scrolls. The left edge is a drag handle for resizing.
     <aside
       className="relative sticky top-0 flex h-svh shrink-0 flex-col border-l border-border bg-background"
-      style={{ width }}
+      style={{ width: renderedWidth }}
       data-testid="create-panel"
     >
       <div
