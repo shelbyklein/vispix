@@ -441,3 +441,40 @@ export const ServiceStatusResponse = z.object({
     }),
   ),
 });
+
+// Dashboard library health (#217): configured vs verified-working state per
+// service, plus processing coverage with denominators. Derived from recorded
+// outcomes of real operations only — never a provider probe.
+const HealthStateEnum = z.enum(["not_configured", "configured", "working", "failing", "stale"]);
+const ServiceHealthShape = {
+  state: HealthStateEnum,
+  detail: z.string(),
+  lastSuccessAt: z.string().nullable(),
+  lastFailureAt: z.string().nullable(),
+  failureReason: z.object({ code: z.string(), message: z.string() }).nullable(),
+};
+export const LibraryHealthResponse = z.object({
+  generatedAt: z.string(),
+  staleAfterDays: z.number(),
+  imageAnalysis: z.object({
+    ...ServiceHealthShape,
+    provider: z.string().nullable(),
+    lastUsedProvider: z.string().nullable(),
+    coverage: z.object({ total: z.number(), analysed: z.number(), failed: z.number(), pending: z.number() }),
+  }),
+  imageEmbeddings: z.object({
+    ...ServiceHealthShape,
+    coverage: z.object({ total: z.number(), embedded: z.number(), missing: z.number(), refreshPending: z.number() }),
+  }),
+  searchEmbedding: z.object(ServiceHealthShape),
+  duplicates: z.object({
+    exact: z.object({ groups: z.number(), extraCopies: z.number(), hashedPhotos: z.number(), totalPhotos: z.number() }),
+    near: z.object({
+      groups: z.number(),
+      photos: z.number(),
+      threshold: z.number(),
+      indexedPhotos: z.number(),
+      totalPhotos: z.number(),
+    }),
+  }),
+});

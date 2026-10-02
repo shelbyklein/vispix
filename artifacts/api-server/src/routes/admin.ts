@@ -37,6 +37,7 @@ import {
   BackfillDimensionsStatusResponse,
   BackfillDimensionsResponse,
   AdminHubStatusResponse,
+  LibraryHealthResponse,
   ListMcpTokensResponse,
   CreateMcpTokenBody,
   CreateMcpTokenResponse,
@@ -64,6 +65,7 @@ import {
 } from "@workspace/api-zod";
 import { requireAdmin } from "../middlewares/requireAuth";
 import { buildServiceStatus } from "../lib/serviceStatus";
+import { buildLibraryHealth } from "../lib/libraryHealth";
 import { requireOrgAuth, requireOrgRole } from "../middlewares/requireOrg";
 import {
   loadAppSettings,
@@ -509,6 +511,14 @@ router.get("/admin/hub-status", ...requireOrgAdmin, async (req, res): Promise<vo
       duplicateGroups: duplicates.groupCount,
     }),
   );
+});
+
+// Library health for the dashboard status bar (#217): per-service state
+// (not configured / configured / working / failing / stale), processing
+// coverage with denominators, and exact vs near duplicate counts — all scoped
+// to the active org and derived from recorded outcomes, never a provider call.
+router.get("/admin/library-health", ...requireOrgAdmin, async (req, res): Promise<void> => {
+  res.json(LibraryHealthResponse.parse(await buildLibraryHealth(req.org!.id)));
 });
 
 router.get("/admin/thumbnails/backfill-status", ...requireOrgAdmin, async (req, res): Promise<void> => {
