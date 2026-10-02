@@ -178,10 +178,9 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
           onClick={onClose}
         />
         <DialogPrimitive.Content
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed inset-0 z-50 overflow-y-auto overscroll-contain focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           data-testid="photo-lightbox"
           aria-label={photo?.name ?? "Photo preview"}
-          onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
@@ -198,8 +197,16 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
             isLoadingNext={isLoadingNext}
           />
 
+          {/* Scrollable stage: short viewports (landscape phones, split-screen)
+              scroll instead of clipping, and `min-h-full` + centring keeps tall
+              screens tidy. Padding reserves room for the nav controls — a top row
+              below `lg`, side gutters from `lg` — so they never sit on content. */}
+          <div
+            className="flex min-h-full items-center justify-center px-4 pb-4 pt-16 lg:px-16 lg:py-6"
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+          >
           {photo && (
-            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 max-w-6xl w-full max-h-[90vh]">
+            <div className="flex flex-col lg:flex-row items-center lg:items-start gap-6 max-w-6xl w-full lg:max-h-[90dvh]">
               <LightboxImageArea
                 photo={photo}
                 imgSrc={imgSrc}
@@ -214,7 +221,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
               />
 
               <div
-                className="lg:w-64 shrink-0 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 p-4 space-y-3 lg:max-h-[85vh] lg:overflow-y-auto"
+                className="lg:w-64 shrink-0 rounded-xl bg-white/10 backdrop-blur-sm border border-white/15 p-4 space-y-3 lg:max-h-[85dvh] lg:overflow-y-auto"
                 onClick={(e) => e.stopPropagation()}
                 data-testid="lightbox-sidebar"
               >
@@ -272,6 +279,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
               </div>
             </div>
           )}
+          </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>

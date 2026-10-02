@@ -21,7 +21,7 @@ export function LightboxImageArea({
 }) {
   return (
     <div className="flex-1 flex flex-col items-center gap-3 min-w-0 overflow-hidden">
-      <div className="relative flex items-center justify-center max-h-[65vh] lg:max-h-[80vh] w-full">
+      <div className="relative flex items-center justify-center max-h-[65dvh] lg:max-h-[80dvh] w-full">
         {imageLoading && !imageError && (
           <div className="absolute inset-0 flex items-center justify-center z-10">
             <Loader2 className="h-10 w-10 text-white/60 animate-spin" />
@@ -38,7 +38,7 @@ export function LightboxImageArea({
           src={imgSrc!}
           alt={photo.name ?? "Photo"}
           fit="contain"
-          className="max-h-[65vh] lg:max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
+          className="max-h-[65dvh] lg:max-h-[80dvh] max-w-full rounded-lg object-contain shadow-2xl"
           onLoad={onImageLoad}
           onError={onImageError}
           data-testid="lightbox-image"
