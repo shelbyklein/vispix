@@ -8,6 +8,7 @@ import { billingWebhookHandler } from "./lib/billing/webhook";
 import { logger } from "./lib/logger";
 
 const app: Express = express();
+app.disable("x-powered-by");
 
 // Behind the Cloudflare tunnel / nginx, the socket peer is a fixed proxy hop —
 // trust one proxy hop so req.ip reflects the real client (X-Forwarded-For).

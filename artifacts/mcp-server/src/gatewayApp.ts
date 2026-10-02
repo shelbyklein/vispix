@@ -81,6 +81,7 @@ export function createGatewayApp(deps: GatewayDeps): Express {
   const publicUrl = deps.publicUrl?.replace(/\/$/, "");
 
   const app = express();
+  app.disable("x-powered-by");
   app.use(express.json({ limit: "1mb" }));
 
   // Unauthenticated liveness probe (no library data).

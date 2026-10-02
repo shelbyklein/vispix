@@ -1,11 +1,10 @@
 import { timingSafeEqual } from "node:crypto";
-import { asc } from "drizzle-orm";
-import { db, organizationsTable } from "@workspace/db";
 import { createServer } from "./server.js";
 import { getOriginalFile, getThumbnailFile } from "./photoLibrary.js";
 import { getAssetFile } from "./assetLibrary.js";
 import { createGatewayApp, type ResolvedCredential } from "./gatewayApp.js";
 import { credentialFingerprint, resolveMediaGrantKeys } from "./mediaGrants.js";
+import { getDefaultOrgId } from "@workspace/api-server/src/lib/defaultOrg";
 import { isMcpTokenLive, verifyMcpToken } from "@workspace/api-server/src/lib/mcpTokens";
 
 function tokenMatches(candidate: string, expected: string): boolean {
@@ -22,12 +21,10 @@ export async function startHttpServer(): Promise<void> {
     : null;
   const envFingerprint = envToken ? credentialFingerprint(envToken) : null;
 
-  // The break-glass env token isn't tied to an org; scope it to the default
-  // (lowest-id) org so it still only exposes one tenant's library.
-  async function defaultOrgId(): Promise<number | null> {
-    const [org] = await db.select({ id: organizationsTable.id }).from(organizationsTable).orderBy(asc(organizationsTable.id)).limit(1);
-    return org?.id ?? null;
-  }
+  // The break-glass env token isn't tied to an org; scope it to the
+  // default org (DEFAULT_ORG_ID / DEFAULT_ORG_SLUG, else lowest id) so it still
+  // only exposes one tenant's library.
+  const defaultOrgId = getDefaultOrgId;
 
   // Resolve a candidate token to the org it grants access to (#113 Phase 5) and
   // the parent identity its media grants are bound to (#204), or null when the
@@ -50,6 +47,11 @@ export async function startHttpServer(): Promise<void> {
   // HTTP tools return no gateway links (signed storage URLs are local-only).
   const publicUrl = process.env.MCP_PUBLIC_URL?.replace(/\/$/, "");
   const keys = resolveMediaGrantKeys();
+  // A too-short dedicated key is skipped by resolveMediaGrantKeys, so say so.
+  const dedicatedKey = process.env.MCP_MEDIA_SIGNING_KEY?.trim();
+  if (dedicatedKey && dedicatedKey.length < 32) {
+    console.error("MCP_MEDIA_SIGNING_KEY is set but shorter than 32 characters; ignoring it (generate one with: openssl rand -hex 32)");
+  }
   if (keys.source === "ephemeral") {
     console.error("MCP media grants: no MCP_MEDIA_SIGNING_KEY or BETTER_AUTH_SECRET; using a per-process key (links end on restart)");
   }
