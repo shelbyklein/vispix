@@ -58,6 +58,14 @@ export function albumPhotoConditions(albumId: number, opts: AlbumPhotoViewOption
   return [...conditions, ...photoStatusConditions(opts)];
 }
 
+/**
+ * Hidden-photo visibility as a WHERE fragment (undefined = no restriction, so
+ * it drops straight into `and(...)`). Callers pass `canSeeHiddenPhotos(req)`.
+ */
+export function hiddenPhotoCondition(canSeeHidden: boolean): SQL | undefined {
+  return canSeeHidden ? undefined : eq(photosTable.isHidden, false);
+}
+
 /** Collection, rating, AI-analysis and rights-tag filters — shared by the album and Photos pages. */
 export function photoStatusConditions(
   opts: Pick<AlbumPhotoViewOptions, "inCollection" | "hasRating" | "aiStatus" | "attributionTagId" | "hasAttribution">,
@@ -383,7 +391,14 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
  * identical in shape to buildPhotoResponse and preserve the input `photoIds`
  * order; ids with no photo row are dropped (matching the old `.filter(Boolean)`).
  */
-export async function buildPhotosResponse(photoIds: number[], orgId: number, currentUserId?: number) {
+export async function buildPhotosResponse(
+  photoIds: number[],
+  orgId: number,
+  currentUserId?: number,
+  // Container reads pass `canSeeHiddenPhotos(req)`: hidden photos are dropped
+  // for callers who may not see them (#218). Defaults to unfiltered.
+  opts: { canSeeHidden?: boolean } = {},
+) {
   if (photoIds.length === 0) return [];
 
   const [
@@ -405,7 +420,7 @@ export async function buildPhotosResponse(photoIds: number[], orgId: number, cur
       .leftJoin(albumsTable, eq(photosTable.albumId, albumsTable.id))
       // Tenant scope (#113): foreign-org ids are dropped even if a caller's
       // upstream query missed them — the defense-in-depth choke point.
-      .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, orgId))),
+      .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, orgId), hiddenPhotoCondition(opts.canSeeHidden ?? true))),
     db
       .select({
         photoId: photoCollectionsTable.photoId,

@@ -14,6 +14,7 @@ import {
 } from "@workspace/db";
 import { getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectStorage";
 import { resolveImageForAI } from "../aiPhotoAnalysis";
+import { hiddenPhotoCondition } from "../photoHelpers";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { generateImage, type ImageSize } from "./openaiImage";
 import { createLimiter } from "../concurrencyLimit";
@@ -68,9 +69,10 @@ function badRequest(message: string): Error {
 /**
  * Resolve requested inputs to image data URLs + usage notes, org-scoped: photo
  * and asset ids must belong to the org, and uploaded reference keys must sit
- * under the org's own upload prefix.
+ * under the org's own upload prefix. A hidden photo resolves like a missing one
+ * unless the caller may see hidden photos (#218).
  */
-async function resolveInputs(organizationId: number, requested: RequestedInput[]): Promise<ResolvedInput[]> {
+async function resolveInputs(organizationId: number, requested: RequestedInput[], canSeeHidden: boolean): Promise<ResolvedInput[]> {
   const photoIds = requested.filter((i) => i.kind === "photo" && i.refId != null).map((i) => i.refId!);
   const assetIds = requested.filter((i) => i.kind === "asset" && i.refId != null).map((i) => i.refId!);
 
@@ -79,7 +81,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       ? db
           .select({ id: photosTable.id, storageKey: photosTable.storageKey, url: photosTable.url, filename: photosTable.filename })
           .from(photosTable)
-          .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, organizationId)))
+          .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, organizationId), hiddenPhotoCondition(canSeeHidden)))
       : Promise.resolve([]),
     assetIds.length
       ? db
@@ -203,6 +205,9 @@ export interface RunGenerationArgs {
   sessionId?: number;
   prompt: string;
   inputs: RequestedInput[];
+  /** May library photo inputs include hidden photos? Callers pass
+   * `canSeeHiddenPhotos(req)`; omitted → no (#218). */
+  canSeeHidden?: boolean;
   /** Omitted on a revision → inherit the parent's format; a value re-renders
    * the design on a different canvas ("turn this into a story"). */
   format?: GenerationFormat;
@@ -290,7 +295,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   const format: GenerationFormat = args.format ?? parentFormat ?? "1:1";
   const formatChanged = parent != null && args.format != null && args.format !== parentFormat;
 
-  const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs);
+  const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs, args.canSeeHidden ?? false);
   const brief = parent
     ? formatChanged
       ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design elements, content, text and style, but RECOMPOSE the layout so it fills the entire new canvas edge to edge. Never letterbox, pillarbox, or place the old design inside bands or borders — rearrange, rescale and re-crop the elements to genuinely inhabit the new aspect ratio. ${args.prompt}`

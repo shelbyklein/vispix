@@ -7,6 +7,7 @@ import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
 import { planGeneration } from "../lib/imageGeneration/plan";
+import { canSeeHiddenPhotos } from "../lib/capabilities";
 import { generationRateLimit, sendGenerationError, GENERIC_GENERATION_ERROR } from "../lib/imageGeneration/limits";
 
 // AI image generation — the Create workspace backend (#167). All routes are
@@ -97,6 +98,7 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
       format: body.data.format,
       variantCount: body.data.variantCount,
       inputs: body.data.inputs,
+      canSeeHidden: canSeeHiddenPhotos(req),
     });
     res.json({
       sessionId: result.sessionId,

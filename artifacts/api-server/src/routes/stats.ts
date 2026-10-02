@@ -15,7 +15,8 @@ import {
   GetTopRatedPhotosResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
-import { buildPhotosResponse } from "../lib/photoHelpers";
+import { buildPhotosResponse, hiddenPhotoCondition } from "../lib/photoHelpers";
+import { canSeeHiddenPhotos } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -35,7 +36,7 @@ router.get("/stats/dashboard", requireOrgAuth, async (req, res): Promise<void> =
   const recentPhotoRows = await db
     .select({ id: photosTable.id })
     .from(photosTable)
-    .where(eq(photosTable.organizationId, orgId))
+    .where(and(eq(photosTable.organizationId, orgId), hiddenPhotoCondition(canSeeHiddenPhotos(req))))
     .orderBy(desc(photosTable.createdAt))
     .limit(8);
 
@@ -60,7 +61,7 @@ router.get("/stats/recent-photos", requireOrgAuth, async (req, res): Promise<voi
   const rows = await db
     .select({ id: photosTable.id })
     .from(photosTable)
-    .where(eq(photosTable.organizationId, orgId))
+    .where(and(eq(photosTable.organizationId, orgId), hiddenPhotoCondition(canSeeHiddenPhotos(req))))
     .orderBy(desc(photosTable.createdAt))
     .limit(12);
 
@@ -77,7 +78,7 @@ router.get("/stats/top-rated", requireOrgAuth, async (req, res): Promise<void> =
     })
     .from(photosTable)
     .innerJoin(ratingsTable, eq(ratingsTable.photoId, photosTable.id))
-    .where(eq(photosTable.organizationId, orgId))
+    .where(and(eq(photosTable.organizationId, orgId), hiddenPhotoCondition(canSeeHiddenPhotos(req))))
     .groupBy(photosTable.id)
     .orderBy(desc(avg(ratingsTable.score)))
     .limit(12);

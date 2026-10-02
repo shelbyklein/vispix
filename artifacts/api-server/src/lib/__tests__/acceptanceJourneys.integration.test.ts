@@ -416,11 +416,7 @@ describe("journey: shortlist to project (supported part: save the shortlist, #21
     expect((await call("POST", `/api/projects/${L.projects.springCampaign}/photos`, L.memberA, L.orgA, { photoId: idOf(60) })).status).toBe(403);
   });
 
-  // REAL BUG (found by this suite, not fixed here: tests/docs only): POST /projects/:id/photos only
-  // checks the photo's organization, not its visibility, and GET /projects/:id does not filter hidden
-  // photos for non-managers, so a member who learns a hidden photo's id can add it to their own project
-  // and read it back. Remove `.fails` when fixed (#218 hidden-photo visibility).
-  it.fails("a member cannot smuggle a hidden photo into their own project and read it back", async () => {
+  it("a member cannot smuggle a hidden photo into their own project and read it back", async () => {
     const hidden = L.photosA.find((p) => p.hidden)!;
     const mine = await call("POST", "/api/projects", L.memberA, L.orgA, { name: "Member shortlist" });
     expect(mine.status).toBe(201);

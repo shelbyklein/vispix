@@ -17,11 +17,11 @@ import {
   ReorderProjectsResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
-import { buildPhotosResponse } from "../lib/photoHelpers";
+import { buildPhotosResponse, hiddenPhotoCondition } from "../lib/photoHelpers";
 import { ObjectStorageService } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
-import { canManageItem } from "../lib/capabilities";
+import { canManageItem, canSeeHiddenPhotos } from "../lib/capabilities";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -32,14 +32,17 @@ function safeZipName(name: string): string {
   return (cleaned || "project") + ".zip";
 }
 
-async function buildProjectResponse(projectId: number, orgId: number) {
+// `canSeeHidden` (#218): for callers who may not see hidden photos, the count
+// and cover skip them.
+async function buildProjectResponse(projectId: number, orgId: number, canSeeHidden: boolean) {
   const [row] = await db
     .select({
       project: projectsTable,
-      photoCount: count(projectPhotosTable.photoId),
+      photoCount: count(photosTable.id),
     })
     .from(projectsTable)
     .leftJoin(projectPhotosTable, eq(projectsTable.id, projectPhotosTable.projectId))
+    .leftJoin(photosTable, and(eq(projectPhotosTable.photoId, photosTable.id), hiddenPhotoCondition(canSeeHidden)))
     .where(and(eq(projectsTable.id, projectId), eq(projectsTable.organizationId, orgId)))
     .groupBy(projectsTable.id);
 
@@ -49,7 +52,7 @@ async function buildProjectResponse(projectId: number, orgId: number) {
     .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
     .from(projectPhotosTable)
     .innerJoin(photosTable, eq(projectPhotosTable.photoId, photosTable.id))
-    .where(eq(projectPhotosTable.projectId, projectId))
+    .where(and(eq(projectPhotosTable.projectId, projectId), hiddenPhotoCondition(canSeeHidden)))
     .orderBy(sql`${projectPhotosTable.addedAt} desc`)
     .limit(1);
 
@@ -84,7 +87,7 @@ router.get("/projects/:id/download", requireOrgAuth, async (req, res): Promise<v
     .select({ id: photosTable.id, filename: photosTable.filename, storageKey: photosTable.storageKey })
     .from(projectPhotosTable)
     .innerJoin(photosTable, eq(projectPhotosTable.photoId, photosTable.id))
-    .where(eq(projectPhotosTable.projectId, projectId))
+    .where(and(eq(projectPhotosTable.projectId, projectId), hiddenPhotoCondition(canSeeHiddenPhotos(req))))
     .orderBy(sql`${projectPhotosTable.addedAt} asc`);
 
   if (photos.length === 0) {
@@ -141,13 +144,15 @@ router.put("/projects/order", requireOrgAuth, async (req, res): Promise<void> =>
 });
 
 router.get("/projects", requireOrgAuth, async (req, res): Promise<void> => {
+  const canSeeHidden = canSeeHiddenPhotos(req);
   const rows = await db
     .select({
       project: projectsTable,
-      photoCount: count(projectPhotosTable.photoId),
+      photoCount: count(photosTable.id),
     })
     .from(projectsTable)
     .leftJoin(projectPhotosTable, eq(projectsTable.id, projectPhotosTable.projectId))
+    .leftJoin(photosTable, and(eq(projectPhotosTable.photoId, photosTable.id), hiddenPhotoCondition(canSeeHidden)))
     .where(eq(projectsTable.organizationId, req.org!.id))
     .groupBy(projectsTable.id)
     // Manual card order first (ASC puts nulls last), recently-touched
@@ -160,7 +165,7 @@ router.get("/projects", requireOrgAuth, async (req, res): Promise<void> => {
         .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
         .from(projectPhotosTable)
         .innerJoin(photosTable, eq(projectPhotosTable.photoId, photosTable.id))
-        .where(eq(projectPhotosTable.projectId, row.project.id))
+        .where(and(eq(projectPhotosTable.projectId, row.project.id), hiddenPhotoCondition(canSeeHidden)))
         .orderBy(sql`${projectPhotosTable.addedAt} desc`)
         .limit(1);
 
@@ -190,7 +195,7 @@ router.post("/projects", requireOrgAuth, async (req, res): Promise<void> => {
     .values({ ...body.data, createdById: req.dbUser!.id, organizationId: req.org!.id })
     .returning();
 
-  const full = await buildProjectResponse(project.id, req.org!.id);
+  const full = await buildProjectResponse(project.id, req.org!.id, canSeeHiddenPhotos(req));
   res.status(201).json(GetProjectResponse.parse(full));
 });
 
@@ -202,7 +207,7 @@ router.get("/projects/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const full = await buildProjectResponse(params.data.id, req.org!.id);
+  const full = await buildProjectResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   if (!full) {
     res.status(404).json({ error: "Project not found" });
     return;
@@ -214,7 +219,7 @@ router.get("/projects/:id", requireOrgAuth, async (req, res): Promise<void> => {
     .where(eq(projectPhotosTable.projectId, params.data.id))
     .orderBy(projectPhotosTable.addedAt, projectPhotosTable.photoId);
 
-  const photos = await buildPhotosResponse(photoRows.map((p) => p.id), req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(photoRows.map((p) => p.id), req.org!.id, req.dbUser?.id, { canSeeHidden: canSeeHiddenPhotos(req) });
 
   res.json(GetProjectResponse.parse({ ...full, photos }));
 });
@@ -249,7 +254,7 @@ router.patch("/projects/:id", requireOrgAuth, async (req, res): Promise<void> =>
     .set({ ...body.data, updatedAt: new Date() })
     .where(eq(projectsTable.id, params.data.id));
 
-  const full = await buildProjectResponse(params.data.id, req.org!.id);
+  const full = await buildProjectResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   res.json(UpdateProjectResponse.parse(full));
 });
 
@@ -301,11 +306,12 @@ router.post("/projects/:id/photos", requireOrgAuth, async (req, res): Promise<vo
     return;
   }
 
-  // Only a photo in this org can be added — blocks cross-tenant photo ids.
+  // Only a photo in this org can be added — blocks cross-tenant photo ids. A
+  // hidden photo reads as nonexistent to callers who can't see it (#218).
   const [photo] = await db
     .select({ id: photosTable.id })
     .from(photosTable)
-    .where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id)));
+    .where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;

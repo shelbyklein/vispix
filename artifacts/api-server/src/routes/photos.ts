@@ -51,7 +51,7 @@ import {
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
-import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions } from "../lib/photoHelpers";
+import { buildPhotoResponse, buildPhotosResponse, fetchAlbumPhotoPage, fetchAlbumPhotoNeighbors, deletePhotoStorageObjects, libraryPhotoConditions, hiddenPhotoCondition } from "../lib/photoHelpers";
 import { parseSearchFilters } from "../lib/searchFilters";
 import { retrievalNeighbors } from "../lib/photoRetrieval";
 import { canManageItem, canSeeHiddenPhotos, isOrgManager } from "../lib/capabilities";
@@ -232,7 +232,7 @@ router.post("/albums/:id/photos/check-duplicates", requireOrgAuth, async (req, r
   const existing = await db
     .select({ id: photosTable.id, filename: photosTable.filename, filesize: photosTable.filesize })
     .from(photosTable)
-    .where(eq(photosTable.albumId, params.data.id));
+    .where(and(eq(photosTable.albumId, params.data.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
 
   const duplicates = body.data.files
     .map((f) => {
@@ -552,7 +552,7 @@ router.post("/photos/:id/rating", requireOrgAuth, async (req, res): Promise<void
     return;
   }
 
-  const [photo] = await db.select().from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db.select().from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -578,7 +578,7 @@ router.delete("/photos/:id/rating", requireOrgAuth, async (req, res): Promise<vo
     return;
   }
 
-  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -604,7 +604,7 @@ router.post("/photos/:id/suggestions/:collectionId/accept", requireOrgAuth, asyn
     return;
   }
 
-  const [photoExists] = await db.select({ id: photosTable.id, uploaderId: photosTable.uploaderId }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+  const [photoExists] = await db.select({ id: photosTable.id, uploaderId: photosTable.uploaderId }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photoExists) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -668,7 +668,7 @@ router.post("/photos/:id/suggestions/:collectionId/dismiss", requireOrgAuth, asy
     return;
   }
 
-  const [photoExists] = await db.select({ id: photosTable.id, uploaderId: photosTable.uploaderId }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+  const [photoExists] = await db.select({ id: photosTable.id, uploaderId: photosTable.uploaderId }).from(photosTable).where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photoExists) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -725,7 +725,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/accept", requi
   const [photoExists] = await db
     .select({ id: photosTable.id, uploaderId: photosTable.uploaderId })
     .from(photosTable)
-    .where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+    .where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photoExists) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -798,7 +798,7 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/dismiss", requ
   const [photoExists] = await db
     .select({ id: photosTable.id, uploaderId: photosTable.uploaderId })
     .from(photosTable)
-    .where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id)));
+    .where(and(eq(photosTable.id, params.data.id), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photoExists) {
     res.status(404).json({ error: "Photo not found" });
     return;
