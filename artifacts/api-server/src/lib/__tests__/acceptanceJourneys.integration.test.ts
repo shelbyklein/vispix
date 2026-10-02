@@ -112,10 +112,13 @@ beforeEach(() => {
 afterAll(async () => {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   await pool.end();
-  // Informational only (TT-VPX-ACCEPT-01 provisional budgets are in the release checklist).
+  // Informational only: no budget is agreed yet (TT-VPX-ACCEPT-01), so nothing is asserted.
+  const groups = new Map<string, number[]>();
+  for (const l of latency) groups.set(l.journey, [...(groups.get(l.journey) ?? []), l.ms]);
+  const median = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
   console.info(
-    "[acceptance latency, informational, local single run]\n" +
-      latency.map((l) => `  ${String(l.ms).padStart(5)} ms  ${l.journey}`).join("\n"),
+    "[acceptance latency, informational: local run, mocked provider, no budget asserted]\n" +
+      [...groups].map(([j, xs]) => `  median ${String(median(xs)).padStart(4)} ms  max ${String(Math.max(...xs)).padStart(4)} ms  n=${xs.length}  ${j}`).join("\n"),
   );
 });
 
