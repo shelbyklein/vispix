@@ -247,7 +247,7 @@ export async function planGeneration(
   }
 
   const suggestedFormat =
-    planned.suggestedFormat && planned.suggestedFormat in GENERATION_FORMATS
+    planned.suggestedFormat && Object.hasOwn(GENERATION_FORMATS, planned.suggestedFormat)
       ? (planned.suggestedFormat as GenerationFormat)
       : null;
 

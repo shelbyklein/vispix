@@ -149,7 +149,7 @@ export async function generateCampaignSuggestions(
       logger.warn({ err, campaignId: campaign.id }, "Campaign concept grounding failed — generating without inputs");
     }
 
-    const format: GenerationFormat = (concept.format in GENERATION_FORMATS ? concept.format : "1:1") as GenerationFormat;
+    const format: GenerationFormat = (Object.hasOwn(GENERATION_FORMATS, concept.format) ? concept.format : "1:1") as GenerationFormat;
     const result = await runGeneration({
       organizationId: campaign.organizationId,
       userId,
