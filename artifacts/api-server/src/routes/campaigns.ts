@@ -4,6 +4,7 @@ import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, campaignsTable, type Campaign } from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { generateCampaignSuggestions } from "../lib/imageGeneration/campaignSuggestions";
+import { generationRateLimit, sendGenerationError } from "../lib/imageGeneration/limits";
 import { canManageItem } from "../lib/capabilities";
 
 // Campaigns (#192): text briefs that drive AI ad suggestions. Org-scoped; the
@@ -172,7 +173,7 @@ router.delete("/campaigns/:id", requireOrgAuth, async (req: Request, res: Respon
 
 // Generate N (default 3) fresh suggestions from the brief. Returns pending
 // generation rows immediately (#189 async flow); the client polls the session.
-router.post("/campaigns/:id/generate", requireOrgAuth, async (req: Request, res: Response) => {
+router.post("/campaigns/:id/generate", requireOrgAuth, generationRateLimit, async (req: Request, res: Response) => {
   const id = parseInt(String(req.params.id), 10);
   if (!Number.isInteger(id)) {
     res.status(400).json({ error: "Invalid campaign id" });
@@ -231,10 +232,7 @@ router.post("/campaigns/:id/generate", requireOrgAuth, async (req: Request, res:
         .set({ lastGenerateRequestId: null })
         .where(and(eq(campaignsTable.id, id), eq(campaignsTable.lastGenerateRequestId, requestId)));
     }
-    const status = (error as { statusCode?: number }).statusCode ?? 500;
-    const message = error instanceof Error ? error.message : "Suggestion generation failed";
-    if (status >= 500) req.log.error({ err: error }, "Campaign suggestion generation failed");
-    res.status(status).json({ error: message });
+    sendGenerationError(req, res, error, "Suggestion generation failed. Please try again.", "Campaign suggestion generation failed");
   }
 });
 

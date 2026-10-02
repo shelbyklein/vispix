@@ -4,10 +4,11 @@ import {
   RequestUploadUrlBody,
   RequestUploadUrlResponse,
 } from "@workspace/api-zod";
-import { and, asc, eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { isAllowedUploadType, safeObjectHeaders, MAX_UPLOAD_BYTES, uploadLengthRangeSigningEnabled } from "../lib/storageKeys";
-import { db, organizationMembersTable, organizationsTable, photosTable } from "@workspace/db";
+import { db, organizationMembersTable, photosTable } from "@workspace/db";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
+import { getDefaultOrgId } from "../lib/defaultOrg";
 import { requireAuth } from "../middlewares/requireAuth";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { assertUploadAllowed } from "../lib/billing/subscriptions";
@@ -43,12 +44,7 @@ async function objectOrgId(wildcardPath: string): Promise<number | null> {
     if (owner) return owner.organizationId;
   }
 
-  const [defaultOrg] = await db
-    .select({ id: organizationsTable.id })
-    .from(organizationsTable)
-    .orderBy(asc(organizationsTable.id))
-    .limit(1);
-  return defaultOrg?.id ?? null;
+  return getDefaultOrgId();
 }
 
 // The caller must belong to the org that owns the object. Returns true when

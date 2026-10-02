@@ -14,10 +14,12 @@ import {
 } from "@workspace/db";
 import { getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectStorage";
 import { resolveImageForAI } from "../aiPhotoAnalysis";
+import { hiddenPhotoCondition } from "../photoHelpers";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { generateImage, type ImageSize } from "./openaiImage";
 import { createLimiter } from "../concurrencyLimit";
 import { logger } from "../logger";
+import { GENERIC_GENERATION_ERROR, releaseGenerationSlots, reserveGenerationSlots } from "./limits";
 
 // Output formats offered by the Create workspace — exactly the image model's
 // native canvases, nothing more (#167). Ratios the model can't render (4:5,
@@ -58,12 +60,19 @@ const ROLE_INSTRUCTIONS: Record<RequestedInput["role"], string> = {
     "EXACT ASSET — a logo/icon/product element that must appear faithfully and unmodified: exact shapes, colors and proportions. Never redraw, restyle or approximate it.",
 };
 
+// Caller-fixable input problems surface as 400s with their message; anything
+// else thrown here is an internal failure and gets a generic 500.
+function badRequest(message: string): Error {
+  return Object.assign(new Error(message), { statusCode: 400 });
+}
+
 /**
  * Resolve requested inputs to image data URLs + usage notes, org-scoped: photo
  * and asset ids must belong to the org, and uploaded reference keys must sit
- * under the org's own upload prefix.
+ * under the org's own upload prefix. A hidden photo resolves like a missing one
+ * unless the caller may see hidden photos (#218).
  */
-async function resolveInputs(organizationId: number, requested: RequestedInput[]): Promise<ResolvedInput[]> {
+async function resolveInputs(organizationId: number, requested: RequestedInput[], canSeeHidden: boolean): Promise<ResolvedInput[]> {
   const photoIds = requested.filter((i) => i.kind === "photo" && i.refId != null).map((i) => i.refId!);
   const assetIds = requested.filter((i) => i.kind === "asset" && i.refId != null).map((i) => i.refId!);
 
@@ -72,7 +81,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       ? db
           .select({ id: photosTable.id, storageKey: photosTable.storageKey, url: photosTable.url, filename: photosTable.filename })
           .from(photosTable)
-          .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, organizationId)))
+          .where(and(inArray(photosTable.id, photoIds), eq(photosTable.organizationId, organizationId), hiddenPhotoCondition(canSeeHidden)))
       : Promise.resolve([]),
     assetIds.length
       ? db
@@ -104,7 +113,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
 
     if (req.kind === "photo") {
       const photo = req.refId != null ? photoById.get(req.refId) : undefined;
-      if (!photo) throw new Error(`Photo #${req.refId} not found in this organization.`);
+      if (!photo) throw badRequest(`Photo #${req.refId} not found in this organization.`);
       storageKey = photo.storageKey;
       url = photo.url;
       name = name ?? photo.filename ?? `photo-${photo.id}`;
@@ -116,9 +125,9 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       );
     } else if (req.kind === "asset") {
       const asset = req.refId != null ? assetById.get(req.refId) : undefined;
-      if (!asset) throw new Error(`Asset #${req.refId} not found in this organization.`);
+      if (!asset) throw badRequest(`Asset #${req.refId} not found in this organization.`);
       if (asset.contentType && !asset.contentType.startsWith("image/")) {
-        throw new Error(`Asset "${asset.name}" (${asset.contentType}) is not a raster image and can't be attached.`);
+        throw badRequest(`Asset "${asset.name}" (${asset.contentType}) is not a raster image and can't be attached.`);
       }
       storageKey = asset.storageKey;
       name = name ?? asset.name;
@@ -127,7 +136,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       // Uploaded reference: the client passes the objectPath minted by the
       // upload flow. Only accept keys under this org's own upload prefix.
       if (!req.storageKey?.startsWith(`/objects/orgs/${organizationId}/`)) {
-        throw new Error("Uploaded reference key is not valid for this organization.");
+        throw badRequest("Uploaded reference key is not valid for this organization.");
       }
       storageKey = req.storageKey;
       name = name ?? "uploaded reference";
@@ -196,6 +205,9 @@ export interface RunGenerationArgs {
   sessionId?: number;
   prompt: string;
   inputs: RequestedInput[];
+  /** May library photo inputs include hidden photos? Callers pass
+   * `canSeeHiddenPhotos(req)`; omitted → no (#218). */
+  canSeeHidden?: boolean;
   /** Omitted on a revision → inherit the parent's format; a value re-renders
    * the design on a different canvas ("turn this into a story"). */
   format?: GenerationFormat;
@@ -213,6 +225,21 @@ export interface RunGenerationResult {
 }
 
 export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerationResult> {
+  // Per-org / per-user / global pending caps (#229). Slots are reserved before
+  // any heavy work and handed to the background chain, which releases one per
+  // job as it finishes or fails; any earlier failure releases them here.
+  const reserved = args.parentGenerationId != null ? 1 : Math.min(Math.max(args.variantCount, 1), 3);
+  reserveGenerationSlots(args.organizationId, args.userId, reserved);
+  const handoff = { transferred: false };
+  try {
+    return await runGenerationReserved(args, handoff);
+  } catch (err) {
+    if (!handoff.transferred) releaseGenerationSlots(args.organizationId, args.userId, reserved);
+    throw err;
+  }
+}
+
+async function runGenerationReserved(args: RunGenerationArgs, handoff: { transferred: boolean }): Promise<RunGenerationResult> {
   const key = await getOpenAIKeyForOrg(args.organizationId);
   if (!key) {
     throw Object.assign(new Error("No OpenAI API key configured for this organization — add one in AI settings."), {
@@ -268,7 +295,7 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
   const format: GenerationFormat = args.format ?? parentFormat ?? "1:1";
   const formatChanged = parent != null && args.format != null && args.format !== parentFormat;
 
-  const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs);
+  const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs, args.canSeeHidden ?? false);
   const brief = parent
     ? formatChanged
       ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design elements, content, text and style, but RECOMPOSE the layout so it fills the entire new canvas edge to edge. Never letterbox, pillarbox, or place the old design inside bands or borders — rearrange, rescale and re-crop the elements to genuinely inhabit the new aspect ratio. ${args.prompt}`
@@ -314,18 +341,25 @@ export async function runGeneration(args: RunGenerationArgs): Promise<RunGenerat
 
   const inputImages = parent ? undefined : resolved.map((i) => i.dataUrl);
   const previousResponseId = parent?.openaiResponseId ?? null;
+  handoff.transferred = true;
   void (async () => {
     for (const row of generations) {
-      await generationLimiter(() =>
-        processGenerationRow(row, {
-          apiKey: key.apiKey,
-          baseURL: key.baseURL,
-          brief,
-          inputImages,
-          size,
-          previousResponseId,
-        }),
-      );
+      try {
+        await generationLimiter(() =>
+          processGenerationRow(row, {
+            apiKey: key.apiKey,
+            baseURL: key.baseURL,
+            brief,
+            inputImages,
+            size,
+            previousResponseId,
+          }),
+        );
+      } catch (err) {
+        logger.error({ err, generationId: row.id }, "Generation job crashed");
+      } finally {
+        releaseGenerationSlots(args.organizationId, args.userId);
+      }
     }
   })().catch((err) => logger.error({ err, sessionId }, "Generation background chain crashed"));
 
@@ -370,11 +404,12 @@ async function processGenerationRow(
       })
       .where(eq(imageGenerationsTable.id, row.id));
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
+    // The real error (provider/storage/db detail) is logged; the row, which the
+    // client reads back, only gets a generic message.
     logger.error({ err, generationId: row.id }, "Image generation failed");
     await db
       .update(imageGenerationsTable)
-      .set({ status: "failed", error: message.slice(0, 1000) })
+      .set({ status: "failed", error: GENERIC_GENERATION_ERROR })
       .where(eq(imageGenerationsTable.id, row.id))
       .catch(() => {});
   }

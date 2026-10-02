@@ -15,11 +15,14 @@ export function LightboxNavControls({
   hasNext?: boolean;
   isLoadingNext?: boolean;
 }) {
+  // Below `lg` the arrows share a top row with Close (prev left, next beside
+  // Close); from `lg` they sit in side gutters the stage reserves. Either way
+  // they never overlap the photo's action row (#219).
   return (
     <>
       <button
         onClick={onClose}
-        className="absolute top-4 right-4 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10"
+        className="fixed top-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10"
         aria-label="Close preview"
         data-testid="lightbox-close"
       >
@@ -30,7 +33,7 @@ export function LightboxNavControls({
         <button
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
           disabled={!hasPrev}
-          className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="fixed top-3 left-3 lg:top-1/2 lg:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="Previous photo"
           data-testid="lightbox-prev"
         >
@@ -42,7 +45,7 @@ export function LightboxNavControls({
         <button
           onClick={(e) => { e.stopPropagation(); if (!isLoadingNext) onNext(); }}
           disabled={!hasNext || isLoadingNext}
-          className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="fixed top-3 right-16 lg:right-3 lg:top-1/2 lg:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
           aria-label="Next photo"
           data-testid="lightbox-next"
         >

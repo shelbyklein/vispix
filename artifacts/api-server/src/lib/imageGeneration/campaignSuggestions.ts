@@ -5,6 +5,7 @@ import { getOpenAIKeyForOrg } from "../aiProviders";
 import { findPhotoCandidates, findDesignatedPrimaryLogo } from "./plan";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat, type RequestedInput, type RunGenerationResult } from "./orchestrate";
 import { logger } from "../logger";
+import { assertGenerationCapacity, GenerationLimitError } from "./limits";
 
 // Campaign suggestions (#192): an LLM reads the campaign's text brief and
 // proposes up to 3 DISTINCT ad concepts (unlike variants, which re-render one
@@ -87,6 +88,8 @@ export interface CampaignSuggestionResult {
 export const NO_PRIMARY_LOGO_NOTICE =
   "No primary logo is designated, so these suggestions were generated without a logo. Mark your primary logo in Assets to include it.";
 
+const LIMIT_NOTICE = "Only some suggestions were started because your organization hit its image generation limit. Generate again once these finish.";
+
 export async function generateCampaignSuggestions(
   campaign: Campaign,
   userId: number,
@@ -100,6 +103,9 @@ export async function generateCampaignSuggestions(
     });
   }
 
+  // Fail fast before paying for the concept LLM call; runGeneration reserves
+  // the slots for real, one concept at a time.
+  assertGenerationCapacity(campaign.organizationId, userId, count);
   const concepts = await generateConcepts(key, campaign.brief, count);
   if (concepts.length === 0) {
     throw Object.assign(new Error("No concepts could be derived from the brief — add more detail."), {
@@ -131,6 +137,7 @@ export async function generateCampaignSuggestions(
   const generations: RunGenerationResult["generations"] = [];
   let primaryLogo: Awaited<ReturnType<typeof findDesignatedPrimaryLogo>> | undefined;
   let missingLogo = false;
+  let limitHit = false;
   for (const concept of concepts) {
     const inputs: RequestedInput[] = [];
     try {
@@ -149,23 +156,34 @@ export async function generateCampaignSuggestions(
       logger.warn({ err, campaignId: campaign.id }, "Campaign concept grounding failed — generating without inputs");
     }
 
-    const format: GenerationFormat = (concept.format in GENERATION_FORMATS ? concept.format : "1:1") as GenerationFormat;
-    const result = await runGeneration({
-      organizationId: campaign.organizationId,
-      userId,
-      sessionId,
-      prompt: `${concept.title}: ${concept.prompt}`,
-      inputs,
-      format,
-      variantCount: 1,
-      // Which brief revision (and request) this suggestion came from (#216),
-      // so outputs stay attributable after the brief is edited again.
-      settings: {
-        campaignId: campaign.id,
-        campaignBriefRevision: campaign.briefRevision,
-        ...(context.requestId ? { campaignRequestId: context.requestId } : {}),
-      },
-    });
+    const format: GenerationFormat = (Object.hasOwn(GENERATION_FORMATS, concept.format) ? concept.format : "1:1") as GenerationFormat;
+    let result: RunGenerationResult;
+    try {
+      result = await runGeneration({
+        organizationId: campaign.organizationId,
+        userId,
+        sessionId,
+        prompt: `${concept.title}: ${concept.prompt}`,
+        inputs,
+        format,
+        variantCount: 1,
+        // Which brief revision (and request) this suggestion came from (#216),
+        // so outputs stay attributable after the brief is edited again.
+        settings: {
+          campaignId: campaign.id,
+          campaignBriefRevision: campaign.briefRevision,
+          ...(context.requestId ? { campaignRequestId: context.requestId } : {}),
+        },
+      });
+    } catch (err) {
+      // A concurrent request took the slots we pre-checked: keep what was
+      // already queued rather than failing a half-started batch.
+      if (err instanceof GenerationLimitError && generations.length > 0) {
+        limitHit = true;
+        break;
+      }
+      throw err;
+    }
     generations.push(...result.generations);
   }
 
@@ -175,6 +193,9 @@ export async function generateCampaignSuggestions(
     sessionId,
     generations,
     concepts: concepts.map((c) => ({ title: c.title })),
-    notices: missingLogo ? [NO_PRIMARY_LOGO_NOTICE] : [],
+    notices: [
+      ...(missingLogo ? [NO_PRIMARY_LOGO_NOTICE] : []),
+      ...(limitHit ? [LIMIT_NOTICE] : []),
+    ],
   };
 }

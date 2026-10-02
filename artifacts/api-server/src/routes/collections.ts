@@ -26,9 +26,9 @@ import {
   ReorderCollectionsResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
-import { buildPhotosResponse } from "../lib/photoHelpers";
+import { buildPhotosResponse, hiddenPhotoCondition } from "../lib/photoHelpers";
 import { resolveSmartCollectionPhotoIds } from "../lib/smartCollectionPhotos";
-import { canManageItem } from "../lib/capabilities";
+import { canManageItem, canSeeHiddenPhotos } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -42,14 +42,17 @@ async function getCollectionTags(collectionId: number): Promise<string[]> {
   return rows.map((r) => r.name);
 }
 
-async function buildCollectionResponse(collectionId: number, orgId: number) {
+// `canSeeHidden` (#218): for callers who may not see hidden photos, the count
+// and cover skip them.
+async function buildCollectionResponse(collectionId: number, orgId: number, canSeeHidden: boolean) {
   const [row] = await db
     .select({
       collection: collectionsTable,
-      photoCount: count(photoCollectionsTable.photoId),
+      photoCount: count(photosTable.id),
     })
     .from(collectionsTable)
     .leftJoin(photoCollectionsTable, eq(collectionsTable.id, photoCollectionsTable.collectionId))
+    .leftJoin(photosTable, and(eq(photoCollectionsTable.photoId, photosTable.id), hiddenPhotoCondition(canSeeHidden)))
     .where(and(eq(collectionsTable.id, collectionId), eq(collectionsTable.organizationId, orgId)))
     .groupBy(collectionsTable.id);
 
@@ -60,13 +63,13 @@ async function buildCollectionResponse(collectionId: number, orgId: number) {
       ? db
           .select({ url: photosTable.url })
           .from(photosTable)
-          .where(eq(photosTable.id, row.collection.coverPhotoId))
+          .where(and(eq(photosTable.id, row.collection.coverPhotoId), hiddenPhotoCondition(canSeeHidden)))
           .limit(1)
       : db
           .select({ url: photosTable.url })
           .from(photoCollectionsTable)
           .innerJoin(photosTable, eq(photoCollectionsTable.photoId, photosTable.id))
-          .where(eq(photoCollectionsTable.collectionId, collectionId))
+          .where(and(eq(photoCollectionsTable.collectionId, collectionId), hiddenPhotoCondition(canSeeHidden)))
           .orderBy(sql`${photoCollectionsTable.photoId} asc`)
           .limit(1),
     getCollectionTags(collectionId),
@@ -99,16 +102,18 @@ router.put("/collections/order", requireOrgAuth, async (req, res): Promise<void>
 });
 
 router.get("/collections", requireOrgAuth, async (req, res): Promise<void> => {
+  const canSeeHidden = canSeeHiddenPhotos(req);
   // Defaults to plain collections so existing consumers never see people;
   // the People pages ask for kind=person explicitly.
   const kind = req.query.kind === "person" ? "person" : "collection";
   const rows = await db
     .select({
       collection: collectionsTable,
-      photoCount: count(photoCollectionsTable.photoId),
+      photoCount: count(photosTable.id),
     })
     .from(collectionsTable)
     .leftJoin(photoCollectionsTable, eq(collectionsTable.id, photoCollectionsTable.collectionId))
+    .leftJoin(photosTable, and(eq(photoCollectionsTable.photoId, photosTable.id), hiddenPhotoCondition(canSeeHidden)))
     .where(and(eq(collectionsTable.organizationId, req.org!.id), eq(collectionsTable.kind, kind)))
     .groupBy(collectionsTable.id)
     // Manual card order first (ASC puts nulls last), newest never-placed after.
@@ -141,13 +146,13 @@ router.get("/collections", requireOrgAuth, async (req, res): Promise<void> => {
           ? db
               .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
               .from(photosTable)
-              .where(eq(photosTable.id, row.collection.coverPhotoId))
+              .where(and(eq(photosTable.id, row.collection.coverPhotoId), hiddenPhotoCondition(canSeeHidden)))
               .limit(1)
           : db
               .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
               .from(photoCollectionsTable)
               .innerJoin(photosTable, eq(photoCollectionsTable.photoId, photosTable.id))
-              .where(eq(photoCollectionsTable.collectionId, row.collection.id))
+              .where(and(eq(photoCollectionsTable.collectionId, row.collection.id), hiddenPhotoCondition(canSeeHidden)))
               .orderBy(sql`${photoCollectionsTable.photoId} asc`)
               .limit(1),
         getCollectionTags(row.collection.id),
@@ -180,7 +185,7 @@ router.post("/collections", requireOrgAuth, async (req, res): Promise<void> => {
     .values({ ...body.data, createdById: req.dbUser!.id, organizationId: req.org!.id })
     .returning();
 
-  const full = await buildCollectionResponse(collection.id, req.org!.id);
+  const full = await buildCollectionResponse(collection.id, req.org!.id, canSeeHiddenPhotos(req));
   res.status(201).json(GetCollectionResponse.parse(full));
 });
 
@@ -192,7 +197,7 @@ router.get("/collections/:id", requireOrgAuth, async (req, res): Promise<void> =
     return;
   }
 
-  const full = await buildCollectionResponse(params.data.id, req.org!.id);
+  const full = await buildCollectionResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   if (!full) {
     res.status(404).json({ error: "Collection not found" });
     return;
@@ -204,7 +209,7 @@ router.get("/collections/:id", requireOrgAuth, async (req, res): Promise<void> =
     .where(eq(photoCollectionsTable.collectionId, params.data.id))
     .orderBy(photoCollectionsTable.photoId);
 
-  const photos = await buildPhotosResponse(photoRows.map((p) => p.id), req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(photoRows.map((p) => p.id), req.org!.id, req.dbUser?.id, { canSeeHidden: canSeeHiddenPhotos(req) });
 
   res.json(GetCollectionResponse.parse({ ...full, photos }));
 });
@@ -235,7 +240,7 @@ router.patch("/collections/:id", requireOrgAuth, async (req, res): Promise<void>
   }
 
   await db.update(collectionsTable).set(body.data).where(eq(collectionsTable.id, params.data.id));
-  const full = await buildCollectionResponse(params.data.id, req.org!.id);
+  const full = await buildCollectionResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   res.json(UpdateCollectionResponse.parse(full));
 });
 
@@ -287,7 +292,7 @@ router.post("/collections/:id/photos", requireOrgAuth, async (req, res): Promise
     return;
   }
 
-  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -372,7 +377,7 @@ router.patch("/collections/:id/cover", requireOrgAuth, async (req, res): Promise
     return;
   }
 
-  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;
@@ -380,7 +385,7 @@ router.patch("/collections/:id/cover", requireOrgAuth, async (req, res): Promise
 
   await db.update(collectionsTable).set({ coverPhotoId: body.data.photoId }).where(eq(collectionsTable.id, params.data.id));
 
-  const full = await buildCollectionResponse(params.data.id, req.org!.id);
+  const full = await buildCollectionResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   res.json(SetCollectionCoverResponse.parse(full));
 });
 
@@ -404,7 +409,7 @@ router.get("/collections/:id/smart-photos", requireOrgAuth, async (req, res): Pr
   const offset = Number.isInteger(offsetRaw) && offsetRaw > 0 ? offsetRaw : 0;
 
   const { ids } = await resolveSmartCollectionPhotoIds(collection, topK, offset, req.org!.id);
-  const photos = await buildPhotosResponse(ids, req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(ids, req.org!.id, req.dbUser?.id, { canSeeHidden: canSeeHiddenPhotos(req) });
   res.json(GetSmartCollectionPhotosResponse.parse(photos));
 });
 
@@ -425,7 +430,7 @@ router.get("/collections/:id/negative-photos", requireOrgAuth, async (req, res):
     .from(collectionNegativePhotosTable)
     .where(eq(collectionNegativePhotosTable.collectionId, params.data.id))
     .orderBy(collectionNegativePhotosTable.photoId);
-  const photos = await buildPhotosResponse(rows.map((r) => r.id), req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(rows.map((r) => r.id), req.org!.id, req.dbUser?.id, { canSeeHidden: canSeeHiddenPhotos(req) });
   res.json(ListCollectionNegativePhotosResponse.parse(photos));
 });
 
@@ -450,7 +455,7 @@ router.post("/collections/:id/negative-photos", requireOrgAuth, async (req, res)
     res.status(403).json({ error: "Forbidden" });
     return;
   }
-  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id)));
+  const [photo] = await db.select({ id: photosTable.id }).from(photosTable).where(and(eq(photosTable.id, body.data.photoId), eq(photosTable.organizationId, req.org!.id), hiddenPhotoCondition(canSeeHiddenPhotos(req))));
   if (!photo) {
     res.status(404).json({ error: "Photo not found" });
     return;

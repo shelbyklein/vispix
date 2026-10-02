@@ -20,8 +20,8 @@ import {
   ReorderAlbumsResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
-import { buildPhotosResponse, deletePhotoStorageObjects } from "../lib/photoHelpers";
-import { canManageItem } from "../lib/capabilities";
+import { buildPhotosResponse, deletePhotoStorageObjects, hiddenPhotoCondition } from "../lib/photoHelpers";
+import { canManageItem, canSeeHiddenPhotos } from "../lib/capabilities";
 
 const router: IRouter = Router();
 
@@ -36,7 +36,9 @@ function canManageAlbum(req: Request, ownerId: number): boolean {
 // Tenant scope (#113): buildAlbumResponse is only ever called with an album the
 // caller has already confirmed is in their org, but it re-asserts the org here
 // so a foreign album id resolves to null (→ 404) as defense-in-depth.
-async function buildAlbumResponse(albumId: number, orgId: number) {
+// `canSeeHidden` (#218): a hidden cover photo reads as no cover to callers who
+// may not see hidden photos.
+async function buildAlbumResponse(albumId: number, orgId: number, canSeeHidden: boolean) {
   const [[row], [ratedRow], [unratedRow], [dupRow], [nearRow]] = await Promise.all([
     db
       .select({
@@ -106,7 +108,7 @@ async function buildAlbumResponse(albumId: number, orgId: number) {
     const [cover] = await db
       .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
       .from(photosTable)
-      .where(eq(photosTable.id, row.album.coverPhotoId));
+      .where(and(eq(photosTable.id, row.album.coverPhotoId), hiddenPhotoCondition(canSeeHidden)));
     coverPhotoUrl = cover?.url ?? null;
     coverPhotoThumbnailKey = cover?.thumbnailKey ?? null;
   }
@@ -144,6 +146,7 @@ router.put("/albums/order", requireOrgAuth, async (req, res): Promise<void> => {
 });
 
 router.get("/albums", requireOrgAuth, async (req, res): Promise<void> => {
+  const canSeeHidden = canSeeHiddenPhotos(req);
   // Fetch album rows and ratedCounts in parallel.
   // ratedCounts uses a single aggregate scan — NOT a correlated subquery per album.
   const orgId = req.org!.id;
@@ -186,7 +189,7 @@ router.get("/albums", requireOrgAuth, async (req, res): Promise<void> => {
         const [cover] = await db
           .select({ url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
           .from(photosTable)
-          .where(eq(photosTable.id, row.album.coverPhotoId));
+          .where(and(eq(photosTable.id, row.album.coverPhotoId), hiddenPhotoCondition(canSeeHidden)));
         coverPhotoUrl = cover?.url ?? null;
         coverPhotoThumbnailKey = cover?.thumbnailKey ?? null;
       }
@@ -217,7 +220,7 @@ router.post("/albums", requireOrgAuth, async (req, res): Promise<void> => {
     .values({ ...body.data, ownerId: req.dbUser!.id, organizationId: req.org!.id })
     .returning();
 
-  const full = await buildAlbumResponse(album.id, req.org!.id);
+  const full = await buildAlbumResponse(album.id, req.org!.id, canSeeHiddenPhotos(req));
   res.status(201).json(GetAlbumResponse.parse(full));
 });
 
@@ -229,7 +232,7 @@ router.get("/albums/:id", requireOrgAuth, async (req, res): Promise<void> => {
     return;
   }
 
-  const full = await buildAlbumResponse(params.data.id, req.org!.id);
+  const full = await buildAlbumResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   if (!full) {
     res.status(404).json({ error: "Album not found" });
     return;
@@ -264,7 +267,7 @@ router.patch("/albums/:id", requireOrgAuth, async (req, res): Promise<void> => {
   }
 
   await db.update(albumsTable).set(body.data).where(eq(albumsTable.id, params.data.id));
-  const full = await buildAlbumResponse(params.data.id, req.org!.id);
+  const full = await buildAlbumResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   res.json(UpdateAlbumResponse.parse(full));
 });
 
@@ -326,7 +329,7 @@ router.patch("/albums/:id/cover", requireOrgAuth, async (req, res): Promise<void
     .select()
     .from(photosTable)
     .where(eq(photosTable.id, body.data.photoId));
-  if (!coverPhoto || coverPhoto.albumId !== params.data.id) {
+  if (!coverPhoto || coverPhoto.albumId !== params.data.id || (coverPhoto.isHidden && !canSeeHiddenPhotos(req))) {
     res.status(400).json({ error: "Photo does not belong to this album" });
     return;
   }
@@ -336,7 +339,7 @@ router.patch("/albums/:id/cover", requireOrgAuth, async (req, res): Promise<void
     .set({ coverPhotoId: body.data.photoId })
     .where(eq(albumsTable.id, params.data.id));
 
-  const full = await buildAlbumResponse(params.data.id, req.org!.id);
+  const full = await buildAlbumResponse(params.data.id, req.org!.id, canSeeHiddenPhotos(req));
   res.json(SetAlbumCoverResponse.parse(full));
 });
 
@@ -363,7 +366,7 @@ router.get("/albums/:id/top-rated", requireOrgAuth, async (req, res): Promise<vo
     .orderBy(desc(avg(ratingsTable.score)))
     .limit(12);
 
-  const photos = await buildPhotosResponse(rows.map((p) => p.id), req.org!.id, req.dbUser?.id);
+  const photos = await buildPhotosResponse(rows.map((p) => p.id), req.org!.id, req.dbUser?.id, { canSeeHidden: canSeeHiddenPhotos(req) });
   res.json(GetAlbumTopRatedResponse.parse(photos));
 });
 

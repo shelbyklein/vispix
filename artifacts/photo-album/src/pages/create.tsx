@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useGenerateImages,
+  getGenerationLimit,
   useGenerationSessions,
   useGenerationSession,
   usePlanGeneration,
@@ -59,6 +60,7 @@ import {
   SendHorizonal,
   Settings2,
   Maximize2,
+  ZoomIn,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
@@ -150,7 +152,7 @@ function VispixPickerDialog({
                 <Loader2 className="h-4 w-4 animate-spin" /> Searching…
               </div>
             ) : (
-              <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
+              <div className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-2 overflow-y-auto">
                 {(photos.data ?? []).map((p) => {
                   const thumb = p.thumbnailKey ? `/api/storage${p.thumbnailKey}` : p.url;
                   return (
@@ -181,7 +183,7 @@ function VispixPickerDialog({
             )}
           </TabsContent>
           <TabsContent value="assets">
-            <div className="grid max-h-80 grid-cols-4 gap-2 overflow-y-auto sm:grid-cols-6">
+            <div className="grid max-h-80 grid-cols-[repeat(auto-fill,minmax(5rem,1fr))] gap-2 overflow-y-auto">
               {(assets.data ?? [])
                 .filter((a) => a.contentType?.startsWith("image/"))
                 .map((a) => {
@@ -225,10 +227,12 @@ function AssetCandidateList({
   items,
   isAttached,
   onToggle,
+  onInspect,
 }: {
   items: PlanCandidate[];
   isAttached: (c: PlanCandidate) => boolean;
   onToggle: (c: PlanCandidate) => void;
+  onInspect: (c: PlanCandidate) => void;
 }) {
   const confident = items.some((c) => c.confidence === "high");
   return (
@@ -238,17 +242,17 @@ function AssetCandidateList({
           No clear match — pick the right one, or mark your primary logo in Assets.
         </p>
       )}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
         {items.map((c) => {
           const attached = isAttached(c);
           return (
+            <div key={`${c.kind}-${c.refId}`} className="relative min-w-0">
             <button
-              key={`${c.kind}-${c.refId}`}
               type="button"
               onClick={() => onToggle(c)}
               title={[c.name, c.variant, ...(c.reasons ?? []), c.notes].filter(Boolean).join("\n")}
               className={cn(
-                "flex flex-col overflow-hidden rounded-md border text-left",
+                "flex h-full w-full flex-col overflow-hidden rounded-md border text-left",
                 attached ? "border-primary ring-2 ring-primary" : "border-border hover:ring-2 hover:ring-primary/50",
               )}
               data-testid={`plan-candidate-${c.kind}-${c.refId}`}
@@ -274,10 +278,85 @@ function AssetCandidateList({
                 )}
               </div>
             </button>
+            <InspectButton candidate={c} onInspect={onInspect} />
+            </div>
           );
         })}
       </div>
     </div>
+  );
+}
+
+// Opens the larger inspection view for a candidate (sibling of the attach
+// button, not nested in it). Always visible so it works on touch; keyboard
+// reachable right after the card it belongs to.
+function InspectButton({ candidate, onInspect }: { candidate: PlanCandidate; onInspect: (c: PlanCandidate) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onInspect(candidate)}
+      className="absolute left-1 top-1 flex h-7 w-7 items-center justify-center rounded-full bg-background/85 text-foreground shadow-sm ring-1 ring-border hover:bg-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+      aria-label={`Inspect ${candidate.name}`}
+      title="View larger"
+      data-testid={`plan-candidate-inspect-${candidate.kind}-${candidate.refId}`}
+    >
+      <ZoomIn className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+// Larger look at a candidate before attaching it: full-size preview with the
+// name, variant and why it was suggested, plus the attach toggle.
+function CandidateInspectDialog({
+  candidate,
+  attached,
+  onToggle,
+  onClose,
+}: {
+  candidate: PlanCandidate | null;
+  attached: boolean;
+  onToggle: (c: PlanCandidate) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Dialog open={candidate !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-h-[92dvh] max-w-2xl overflow-y-auto" data-testid="candidate-inspect-dialog">
+        {candidate && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="flex flex-wrap items-center gap-2 break-words pr-6">
+                {candidate.isPrimary && (
+                  <span className="shrink-0 rounded bg-amber-400/20 px-1.5 text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Primary
+                  </span>
+                )}
+                {candidate.name}
+              </DialogTitle>
+              {candidate.variant && <p className="text-sm text-muted-foreground">{candidate.variant}</p>}
+            </DialogHeader>
+            <div className="flex max-h-[60dvh] min-h-40 items-center justify-center overflow-hidden rounded-md bg-muted [background-image:repeating-conic-gradient(hsl(var(--border))_0%_25%,transparent_0%_50%)] [background-size:16px_16px]">
+              <img
+                src={candidate.previewUrl}
+                alt={candidate.name}
+                className="max-h-[60dvh] max-w-full object-contain p-2"
+                data-testid="candidate-inspect-image"
+              />
+            </div>
+            {(candidate.reasons?.length || candidate.notes) && (
+              <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
+                {candidate.reasons?.map((r) => <li key={r}>{r}</li>)}
+                {candidate.notes && <li>{candidate.notes}</li>}
+              </ul>
+            )}
+            <div className="flex justify-end">
+              <Button type="button" size="sm" variant={attached ? "outline" : "default"} onClick={() => onToggle(candidate)} data-testid="candidate-inspect-toggle">
+                {attached ? "Remove from inputs" : "Attach as input"}
+              </Button>
+            </div>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -304,8 +383,15 @@ function PlanCard({
   variantCount: number;
   currentFormatLabel: string;
 }) {
+  const [inspecting, setInspecting] = useState<PlanCandidate | null>(null);
   return (
     <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
+      <CandidateInspectDialog
+        candidate={inspecting}
+        attached={inspecting ? isAttached(inspecting) : false}
+        onToggle={onToggleCandidate}
+        onClose={() => setInspecting(null)}
+      />
       <div className="flex items-start gap-2 text-sm text-foreground">
         <Lightbulb className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
         <p>{plan.summary}</p>
@@ -330,30 +416,35 @@ function PlanCard({
           {slot.items.length === 0 ? (
             <p className="text-xs italic text-muted-foreground/70">No matches in your library.</p>
           ) : slot.items[0].kind === "asset" ? (
-            <AssetCandidateList items={slot.items} isAttached={isAttached} onToggle={onToggleCandidate} />
+            <AssetCandidateList items={slot.items} isAttached={isAttached} onToggle={onToggleCandidate} onInspect={setInspecting} />
           ) : (
-            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
               {slot.items.map((c) => {
                 const attached = isAttached(c);
                 return (
-                  <button
-                    key={`${c.kind}-${c.refId}`}
-                    type="button"
-                    title={c.name}
-                    onClick={() => onToggleCandidate(c)}
-                    className={cn(
-                      "relative aspect-square overflow-hidden rounded-md border",
-                      attached ? "border-primary ring-2 ring-primary" : "border-border hover:ring-2 hover:ring-primary/50",
-                    )}
-                    data-testid={`plan-candidate-${c.kind}-${c.refId}`}
-                  >
-                    <img src={c.previewUrl} alt={c.name} className="h-full w-full object-cover" loading="lazy" />
-                    {attached && (
-                      <span className="absolute right-1 top-1 rounded-full bg-primary p-0.5">
-                        <Check className="h-3 w-3 text-primary-foreground" />
+                  <div key={`${c.kind}-${c.refId}`} className="relative min-w-0">
+                    <button
+                      type="button"
+                      title={c.name}
+                      onClick={() => onToggleCandidate(c)}
+                      className={cn(
+                        "flex w-full flex-col overflow-hidden rounded-md border text-left",
+                        attached ? "border-primary ring-2 ring-primary" : "border-border hover:ring-2 hover:ring-primary/50",
+                      )}
+                      data-testid={`plan-candidate-${c.kind}-${c.refId}`}
+                    >
+                      <span className="relative block aspect-square w-full">
+                        <img src={c.previewUrl} alt={c.name} className="h-full w-full object-cover" loading="lazy" />
+                        {attached && (
+                          <span className="absolute right-1 top-1 rounded-full bg-primary p-0.5">
+                            <Check className="h-3 w-3 text-primary-foreground" />
+                          </span>
+                        )}
                       </span>
-                    )}
-                  </button>
+                      <span className="truncate px-1.5 py-1 text-[11px] text-foreground">{c.name}</span>
+                    </button>
+                    <InspectButton candidate={c} onInspect={setInspecting} />
+                  </div>
                 );
               })}
             </div>
@@ -598,6 +689,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
         },
         onError: (err) => {
+          const limit = getGenerationLimit(err);
+          if (limit) {
+            toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
+            return;
+          }
           toast({
             title: "Planning failed",
             description: err instanceof Error ? err.message : undefined,
@@ -632,6 +728,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           resetExchange();
         },
         onError: (err) => {
+          const limit = getGenerationLimit(err);
+          if (limit) {
+            toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
+            return;
+          }
           toast({
             title: "Generation failed",
             description: err instanceof Error ? err.message : undefined,
@@ -675,7 +776,9 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
 
   return (
     <>
-      <div className={cn("flex flex-col gap-4", className)} data-testid="create-page">
+      {/* `@container`: layout below follows this workspace's own width (full page
+          vs. the docked panel), not the viewport. */}
+      <div className={cn("@container flex flex-col gap-4", className)} data-testid="create-page">
         <div className="flex flex-wrap items-center justify-between gap-2">
           {!compact && (
             <div>
@@ -694,7 +797,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
               setSessionId(v === "__new__" ? undefined : parseInt(v, 10));
             }}
           >
-            <SelectTrigger className="h-8 w-52 text-xs" data-testid="session-picker">
+            <SelectTrigger className="h-8 w-52 max-w-full text-xs" data-testid="session-picker">
               <SelectValue placeholder="New session" />
             </SelectTrigger>
             <SelectContent>
@@ -734,7 +837,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
               <div
                 className={cn(
                   "grid gap-3",
-                  group.items.length === 1 ? "grid-cols-1 sm:max-w-md" : "grid-cols-1 sm:grid-cols-2",
+                  group.items.length === 1 ? "grid-cols-1 @md:max-w-md" : "grid-cols-1 @md:grid-cols-2",
                 )}
               >
                 {group.items.map((g) => (
@@ -891,14 +994,14 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
                     e.target.value = "";
                   }}
                 />
-                {/* Mobile: secondary controls live behind a settings popover. */}
+                {/* Very narrow containers (< 20rem): secondary controls live behind a settings popover. */}
                 <Popover>
                   <PopoverTrigger asChild>
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="gap-1.5 sm:hidden"
+                      className="gap-1.5 @xs:hidden"
                       aria-label="Generation settings"
                       data-testid="mobile-settings-btn"
                     >
@@ -969,8 +1072,8 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
                 >
                   <Images className="h-3.5 w-3.5" /> {searchLabel}
                 </Button>
-                {/* Desktop: the same controls inline. */}
-                <div className="hidden items-center gap-2 sm:flex">
+                {/* Otherwise the same controls inline, wrapping to extra lines as needed. */}
+                <div className="hidden flex-wrap items-center gap-2 @xs:flex">
                   <Button
                     type="button"
                     size="sm"
@@ -1008,7 +1111,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
                     </SelectContent>
                   </Select>
                 </div>
-                <span className="ml-auto hidden text-[11px] text-muted-foreground/70 sm:inline">
+                <span className="ml-auto hidden text-[11px] text-muted-foreground/70 @md:inline">
                   Enter to send · Shift+Enter for a new line
                 </span>
               </>

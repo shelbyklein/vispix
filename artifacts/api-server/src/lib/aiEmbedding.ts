@@ -10,6 +10,7 @@ import {
 import { resolveImageForAI } from "./aiPhotoAnalysis";
 import { createLimiter } from "./concurrencyLimit";
 import { logger } from "./logger";
+import { recordEmbeddingFailure, recordEmbeddingSuccess, type EmbeddingHealthKind } from "./embeddingHealth";
 
 // Google Vertex AI multimodal embedding model. Images and text queries land in
 // the same 1408-dim space, so a text query retrieves images and image↔image
@@ -149,8 +150,17 @@ async function vertexPredict(
   return { ok: true, pred: { imageVec, textVec } };
 }
 
-async function callVertexPredict(instance: EmbedInstance): Promise<VertexPrediction | null> {
+// Remember the outcome of a real provider call for the dashboard (#217).
+// Not-configured / cancelled aren't provider outcomes, so they're not recorded.
+function recordOutcome(kind: EmbeddingHealthKind, organizationId: number | undefined, r: PredictResult): void {
+  if (organizationId == null) return;
+  if (r.ok) recordEmbeddingSuccess(kind, organizationId);
+  else if (r.reason === "timeout" || r.reason === "provider_error") recordEmbeddingFailure(kind, organizationId, r.reason);
+}
+
+async function callVertexPredict(instance: EmbedInstance, organizationId?: number): Promise<VertexPrediction | null> {
   const r = await vertexPredict(instance);
+  recordOutcome("image", organizationId, r);
   return r.ok ? r.pred : null;
 }
 
@@ -163,11 +173,12 @@ export const QUERY_EMBED_TIMEOUT_MS = 8000;
  */
 export async function embedQuery(
   query: string,
-  opts: { signal?: AbortSignal; timeoutMs?: number } = {},
+  opts: { signal?: AbortSignal; timeoutMs?: number; organizationId?: number } = {},
 ): Promise<{ ok: true; vec: number[] } | { ok: false; reason: EmbedFailure }> {
   const q = query.trim();
   if (!q) return { ok: false, reason: "provider_error" };
   const r = await vertexPredict({ text: q }, { signal: opts.signal, timeoutMs: opts.timeoutMs ?? QUERY_EMBED_TIMEOUT_MS });
+  recordOutcome("query", opts.organizationId, r);
   if (!r.ok) return r;
   return r.pred.textVec ? { ok: true, vec: r.pred.textVec } : { ok: false, reason: "provider_error" };
 }
@@ -224,10 +235,13 @@ export async function generateAndStorePhotoEmbedding(photoId: number): Promise<b
   const wantBlend = description != null && DESCRIPTION_EMBED_WEIGHT > 0;
 
   const pred = await embeddingLimiter(() =>
-    callVertexPredict({
-      image: { bytesBase64Encoded: base64 },
-      ...(wantBlend ? { text: description } : {}),
-    }),
+    callVertexPredict(
+      {
+        image: { bytesBase64Encoded: base64 },
+        ...(wantBlend ? { text: description } : {}),
+      },
+      photo.organizationId,
+    ),
   );
   if (!pred?.imageVec) return false;
 

@@ -105,6 +105,7 @@ export function clearQueryEmbeddingCache(): void {
 async function embedCached(
   text: string,
   signal?: AbortSignal,
+  organizationId?: number,
 ): Promise<{ ok: true; vec: number[] } | { ok: false; reason: EmbedFailure }> {
   const key = `${EMBEDDING_MODEL_TAG}\u0000${text}`;
   const now = Date.now();
@@ -114,7 +115,7 @@ async function embedCached(
     embedCache.set(key, hit);
     return { ok: true, vec: hit.vec };
   }
-  const r = await embedQuery(text, { signal });
+  const r = await embedQuery(text, { signal, organizationId });
   if (r.ok) {
     embedCache.set(key, { vec: r.vec, at: now });
     while (embedCache.size > EMBED_CACHE_MAX) embedCache.delete(embedCache.keys().next().value as string);
@@ -352,11 +353,12 @@ async function conceptVector(
   text: string,
   exclude: string[],
   signal?: AbortSignal,
+  organizationId?: number,
 ): Promise<{ ok: true; vec: number[]; degraded: RetrievalResult["degraded"] } | { ok: false; reason: EmbedFailure }> {
-  const pos = await embedCached(text, signal);
+  const pos = await embedCached(text, signal, organizationId);
   if (!pos.ok) return pos;
   if (exclude.length === 0) return { ok: true, vec: pos.vec, degraded: null };
-  const neg = await embedCached(exclude.join(", "), signal);
+  const neg = await embedCached(exclude.join(", "), signal, organizationId);
   if (!neg.ok) return { ok: true, vec: pos.vec, degraded: { reason: neg.reason, affects: "exclusions" } };
   const p = normalizeVec(pos.vec);
   const n = normalizeVec(neg.vec);
@@ -450,7 +452,7 @@ export async function retrievalNeighbors(req: Omit<RetrievalRequest, "limit" | "
   const exact = req.mode === "concept" ? [] : (await exactMatches(text, conditions)).map((e) => e.photoId);
   let ranked: SQL;
   let order: string;
-  const concept = req.mode === "keyword" ? null : await conceptVector(text, exclude, req.signal);
+  const concept = req.mode === "keyword" ? null : await conceptVector(text, exclude, req.signal, req.organizationId);
   if (concept?.ok) {
     ranked = conceptRankedSql(concept.vec, and(...conditions, ...(exact.length ? [notInArray(photosTable.id, exact)] : [])));
     order = CONCEPT_ORDER;
@@ -507,7 +509,7 @@ export async function retrievalNeighbors(req: Omit<RetrievalRequest, "limit" | "
 async function concept({ req, text, exclude, conditions, normalized, limit, cursor, excludeIds }: ModeArgs): Promise<RetrievalResult> {
   const retrieval = { version: RETRIEVAL_VERSION, mode: "concept" as RetrievalMode, embeddingModel: EMBEDDING_MODEL_TAG, ranking: CONCEPT_RANKING };
 
-  const qv = await conceptVector(text, exclude, req.signal);
+  const qv = await conceptVector(text, exclude, req.signal, req.organizationId);
   if (!qv.ok) {
     return { status: "unavailable", items: [], page: emptyPage(false), total: null, coverage: null, degraded: { reason: qv.reason, affects: "query" }, retrieval };
   }

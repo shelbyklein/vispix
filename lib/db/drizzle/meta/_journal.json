@@ -267,6 +267,13 @@
       "when": 1790735465379,
       "tag": "0037_majestic_kate_bishop",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790921430424,
+      "tag": "0038_dashing_vertigo",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { customFetch } from "./custom-fetch";
+import { ApiError, customFetch } from "./custom-fetch";
 
 // AI image generation — the Create workspace (#167). Hand-written hooks over
 // the /api/image-generation routes (same pattern as organizations.ts).
@@ -55,6 +55,21 @@ export interface GenerateImagesBody {
   format?: GenerationFormatId;
   variantCount: number;
   inputs: GenerationRequestInput[];
+}
+
+/**
+ * The server's 429 for generation limits (#229): too many jobs in flight, too
+ * many requests, or a full queue. Returns its user-facing message, else null.
+ */
+export function getGenerationLimit(err: unknown): { code: string; message: string; retryAfterSeconds: number | null } | null {
+  if (!(err instanceof ApiError) || err.status !== 429) return null;
+  const data = err.data as { error?: unknown; code?: unknown; retryAfterSeconds?: unknown } | null;
+  if (typeof data?.code !== "string" || !data.code.startsWith("generation_") || typeof data.error !== "string") return null;
+  return {
+    code: data.code,
+    message: data.error,
+    retryAfterSeconds: typeof data.retryAfterSeconds === "number" ? data.retryAfterSeconds : null,
+  };
 }
 
 const SESSIONS_KEY = ["image-generation", "sessions"] as const;
