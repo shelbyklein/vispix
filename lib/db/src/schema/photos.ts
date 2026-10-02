@@ -54,6 +54,10 @@ export const photosTable = pgTable(
     // Near-duplicate detection: exact perceptual-hash matches (distance 0) are
     // common for re-encodes, so an equality index still helps the scan.
     index("photos_perceptual_hash_idx").on(table.perceptualHash),
+    // Storage ownership lookups (ACL check on /api/storage/objects/*) match on
+    // the object key; without these they scan the whole table.
+    index("photos_storage_key_idx").on(table.storageKey),
+    index("photos_thumbnail_key_idx").on(table.thumbnailKey),
   ],
 );
 
