@@ -1,6 +1,7 @@
 import { Star, Loader2, ImageOff, Bot } from "lucide-react";
 import { FadeImage } from "@/components/ui/fade-image";
 import type { LightboxPhoto } from "./types";
+import { photoAltText } from "@/lib/photo-a11y";
 
 export function LightboxImageArea({
   photo,
@@ -23,12 +24,12 @@ export function LightboxImageArea({
     <div className="flex-1 flex flex-col items-center gap-3 min-w-0 overflow-hidden">
       <div className="relative flex items-center justify-center max-h-[65dvh] lg:max-h-[80dvh] w-full">
         {imageLoading && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="absolute inset-0 flex items-center justify-center z-10" aria-hidden="true">
             <Loader2 className="h-10 w-10 text-white/60 animate-spin" />
           </div>
         )}
         {imageError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10 text-white/60" data-testid="lightbox-image-error">
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10 text-white/60" role="alert" data-testid="lightbox-image-error">
             <ImageOff className="h-10 w-10" />
             <span className="text-sm">Failed to load image</span>
           </div>
@@ -36,7 +37,7 @@ export function LightboxImageArea({
         <FadeImage
           key={photo.id}
           src={imgSrc!}
-          alt={photo.name ?? "Photo"}
+          alt={photoAltText(aiDescription)}
           fit="contain"
           className="max-h-[65dvh] lg:max-h-[80dvh] max-w-full rounded-lg object-contain shadow-2xl"
           onLoad={onImageLoad}
@@ -52,7 +53,7 @@ export function LightboxImageArea({
           </span>
         )}
         {photo.averageRating != null && (
-          <div className="flex items-center gap-1" data-testid="lightbox-rating">
+          <div className="flex items-center gap-1" role="img" aria-label={`Average rating ${photo.averageRating.toFixed(1)} out of 5`} data-testid="lightbox-rating">
             <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
             <span className="text-amber-400 font-semibold text-sm">
               {photo.averageRating.toFixed(1)}

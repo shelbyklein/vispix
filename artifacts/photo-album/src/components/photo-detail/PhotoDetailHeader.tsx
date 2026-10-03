@@ -40,27 +40,27 @@ export function PhotoDetailHeader({
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-3">
         {back ? (
-          <Link href={back.href}>
-            <Button variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-search">
+          <Button asChild variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-search">
+            <Link href={back.href}>
               <ArrowLeft className="h-4 w-4" />
               {back.label}
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         ) : albumId ? (
-          <Link href={`/albums/${albumId}`}>
-            <Button variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-album">
+          <Button asChild variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-album">
+            <Link href={`/albums/${albumId}`}>
               <ArrowLeft className="h-4 w-4" />
               {albumTitle ?? "Album"}
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         ) : null}
         {exploreHref && (
-          <Link href={exploreHref}>
-            <Button variant="outline" size="sm" className="gap-1.5" data-testid="explore-connections">
+          <Button asChild variant="outline" size="sm" className="gap-1.5" data-testid="explore-connections">
+            <Link href={exploreHref}>
               <Orbit className="h-4 w-4" />
               Explore connections
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         )}
       </div>
       {albumId && (
@@ -78,12 +78,12 @@ export function PhotoDetailHeader({
             Prev
           </Button>
           {navState === "loading" && (
-            <span className="px-1 text-muted-foreground" data-testid="photo-position-loading" aria-label="Loading neighbouring photos">
+            <span className="px-1 text-muted-foreground" data-testid="photo-position-loading" role="status" aria-label="Loading neighbouring photos">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
             </span>
           )}
           {navState === "ready" && position != null && (
-            <span className="text-xs text-muted-foreground px-1 tabular-nums" data-testid="photo-position">
+            <span className="text-xs text-muted-foreground px-1 tabular-nums" role="status" data-testid="photo-position">
               {position} / {totalPhotos}
             </span>
           )}
@@ -94,7 +94,7 @@ export function PhotoDetailHeader({
             </Button>
           )}
           {navState === "outside" && (
-            <span className="text-xs text-muted-foreground px-1" data-testid="photo-nav-outside">
+            <span className="text-xs text-muted-foreground px-1" role="status" data-testid="photo-nav-outside">
               {fromSearch ? "Not in these search results" : "Not in this album view"}
               {fallbackHref && (
                 <>
