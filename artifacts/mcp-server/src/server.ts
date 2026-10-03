@@ -281,8 +281,8 @@ export function createServer(options: ServerOptions = {}): McpServer {
       title: "Get one photo in full detail",
       description:
         "Fetch a single photo by id: full metadata, its thumbnail image, and a time-limited link " +
-        "to download the full-resolution file. status is 'not_found' for any id outside your library " +
-        "and 'forbidden' for a photo that exists in it but is hidden from connectors.",
+        "to download the full-resolution file. status is 'not_found' for any id you can't see " +
+        "(outside your library, or hidden).",
       inputSchema: {
         id: z.number().int().describe("Photo id (from search_photos results)"),
         includeImages: z.boolean().default(true).describe("Inline the thumbnail image in the response"),
@@ -304,8 +304,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
       });
       const detail = await getPhotoDetail(id, options.organizationId);
       if (!detail) return failure("not_found", `Photo #${id} not found.`);
-      // Same visibility rule as search (#218): connectors never see hidden photos.
-      if (detail.hidden) return failure("forbidden", `Photo #${id} is hidden and not available to connectors.`);
+      // Same visibility rule as search and the web app (#218): connectors never
+      // see hidden photos, and a hidden id reads exactly like a missing one.
+      if (detail.hidden) return failure("not_found", `Photo #${id} not found.`);
       const { photo } = detail;
       const grant = options.mediaLinks?.photo(photo.id, "original");
       const fullResUrl = grant ? grant.url : detail.fullResUrl;

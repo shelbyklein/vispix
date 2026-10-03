@@ -264,11 +264,14 @@ describe("get_photo", () => {
     expect(parse(getPhotoOutput, foreign).error?.message.replace(/#\d+/, "#")).toBe(parse(getPhotoOutput, missing).error?.message.replace(/#\d+/, "#"));
   });
 
-  it("a hidden photo in the caller's own organization is forbidden, not served", async () => {
+  it("a hidden photo in the caller's own organization reads exactly like a missing one", async () => {
     const hidden = L.photosA.find((x) => x.hidden)!;
     const r = await call(A, "get_photo", { id: hidden.id });
+    const missing = await call(A, "get_photo", { id: 2_000_000_000 });
     expect(r.isError).toBe(true);
-    expect(parse(getPhotoOutput, r)).toMatchObject({ status: "forbidden", photo: null, error: { code: "forbidden" } });
+    expect(parse(getPhotoOutput, r)).toMatchObject({ status: "not_found", photo: null, error: { code: "not_found" } });
+    expect(text(r)).not.toMatch(/hidden|forbidden/i);
+    expect(parse(getPhotoOutput, r).error?.message.replace(/#\d+/, "#")).toBe(parse(getPhotoOutput, missing).error?.message.replace(/#\d+/, "#"));
   });
 });
 

@@ -134,10 +134,11 @@ Inputs: `id` (int), `includeImages` (default true).
 }
 ```
 
-`not_found` for any id that is not in the connector's organization, including
-another organization's id; it is indistinguishable from an id that does not
-exist. `forbidden` is only for a photo that exists in the connector's own
-organization but is hidden from connectors (#218). Both are `isError: true`.
+`not_found` for any id the connector can't see: one outside its organization
+(including another organization's id) or a hidden photo in its own (#218). It
+is indistinguishable from an id that does not exist, so it never confirms that
+a photo exists. `isError: true`. (`forbidden` is reserved in the schema and not
+returned by any read tool today.)
 
 ### `list_albums`, `list_people`, `list_usage_rights`
 
