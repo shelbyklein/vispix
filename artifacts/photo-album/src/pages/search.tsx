@@ -31,6 +31,7 @@ import {
 import { PhotoLightbox, type LightboxPhoto } from "@/components/PhotoLightbox";
 import { Search, SlidersHorizontal, X, Star, Images, EyeOff, Eye, Sparkles, Loader2, AlertTriangle, RotateCw, Info, Orbit } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { photoControlLabel } from "@/lib/photo-a11y";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
 const PAGE_SIZE = 48;
@@ -698,6 +699,7 @@ export default function SearchPage() {
             className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3"
             data-testid="search-loading"
           >
+            <span role="status" className="sr-only">Searching photos…</span>
             {Array.from({ length: 10 }).map((_, i) => (
               <Skeleton key={i} className="aspect-square rounded-lg" />
             ))}
@@ -740,7 +742,7 @@ export default function SearchPage() {
         {q && !isInitialLoading && !invalidFilters && !firstPageError && !unavailable && data && (
           <>
             <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-muted-foreground" data-testid="search-result-count">
+              <p className="text-sm text-muted-foreground" role="status" data-testid="search-result-count">
                 {photos.length === 0
                   ? degraded?.affects === "concept"
                     ? `No exact or keyword matches for “${q}”`
@@ -825,10 +827,10 @@ export default function SearchPage() {
                     draggable
                     onDragStart={(e) => startPhotoDrag(e, photo.id)}
                     onClick={() => setSelectedPhoto(photo)}
-                    className="block w-full h-full text-left"
+                    className="block w-full h-full text-left rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                     data-testid="search-result-item"
                     data-photo-id={photo.id}
-                    aria-label={`Open photo ${photo.filename ?? photo.id}${label ? ` — ${label.text}` : ""}`}
+                    aria-label={photoControlLabel("Open", photo, { albumTitle: photo.albumTitle, extra: label?.text })}
                   >
                     <div className={cn(
                       "group relative h-full rounded-lg overflow-hidden border border-border bg-muted cursor-pointer",
@@ -838,7 +840,7 @@ export default function SearchPage() {
                       <FadeImage
                         loading="lazy"
                         src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-                        alt={photo.filename ?? "Photo"}
+                        alt=""
                         className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                       />
                       {label?.exact && (
@@ -879,7 +881,7 @@ export default function SearchPage() {
                   <Link
                     href={`/photos/${photo.id}/graph?from=${encodeURIComponent(`/search${searchString ? `?${searchString}` : ""}`)}`}
                     className="absolute bottom-1.5 right-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white opacity-0 transition-opacity group-hover/tile:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-                    aria-label={`Explore connections from photo ${photo.filename ?? photo.id}`}
+                    aria-label={photoControlLabel("Explore connections from", photo)}
                     title="Explore connections"
                     data-testid="search-explore-connections"
                   >
@@ -893,6 +895,7 @@ export default function SearchPage() {
                 <div
                   ref={sentinelRef}
                   className="flex items-center justify-center py-8 text-sm text-muted-foreground"
+                  role="status"
                   data-testid="search-load-more"
                 >
                   <Loader2 className="h-4 w-4 animate-spin mr-2" /> Loading more…

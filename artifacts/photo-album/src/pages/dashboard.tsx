@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect, Fragment } from "react";
+import { photoControlLabel } from "@/lib/photo-a11y";
 import { FadeImage } from "@/components/ui/fade-image";
 import {
   useGetDashboardStats,
@@ -215,12 +216,13 @@ function PhotoStrip({
           onClick={() => onPhotoClick(photo)}
           className="relative w-full h-full rounded-lg overflow-hidden group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
           data-testid="photo-strip-item"
-          aria-label={`Preview ${photo.name ?? "photo"}`}
+          aria-label={photoControlLabel("Preview", { id: photo.id, filename: photo.name })}
+          data-photo-id={photo.id}
         >
           <FadeImage
             loading="lazy"
             src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-            alt={photo.name ?? "Photo"}
+            alt=""
             className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
           />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end p-2 opacity-0 group-hover:opacity-100">

@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { photoControlLabel } from "@/lib/photo-a11y";
 import { FadeImage } from "@/components/ui/fade-image";
 import { useParams, Link, useLocation } from "wouter";
 import {
@@ -883,7 +884,7 @@ export default function AlbumDetail() {
                 )}
                 <button
                   type="button"
-                  className={`w-full h-full block${photo.isHidden ? " opacity-60" : ""}`}
+                  className={`w-full h-full block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary${photo.isHidden ? " opacity-60" : ""}`}
                   onClick={() => {
                     if (isSelectMode) {
                       toggleSelection(photo.id);
@@ -898,12 +899,14 @@ export default function AlbumDetail() {
                       });
                     }
                   }}
-                  aria-label={`Open ${photo.filename ?? "photo"} in lightbox`}
+                  aria-label={photoControlLabel(isSelectMode ? "Select" : "Open", photo, { extra: photo.isHidden ? "hidden" : album.coverPhotoId === photo.id ? "cover photo" : null })}
+                  aria-pressed={isSelectMode ? isSelected : undefined}
+                  data-photo-id={photo.id}
                   data-testid="photo-thumbnail-btn"
                 >
                   <FadeImage
                     src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-                    alt={photo.filename ?? "Photo"}
+                    alt=""
                     loading="lazy"
                     className="w-full h-full object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
                   />
