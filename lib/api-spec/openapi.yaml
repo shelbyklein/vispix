@@ -2514,6 +2514,8 @@ paths:
           description: Unauthorized
         "404":
           description: Not found
+        "409":
+          description: The suggestion was already resolved the other way (accepted vs dismissed). Repeating the same decision is idempotent and returns 200.
 
   /photos/{id}/suggestions/{collectionId}/dismiss:
     post:
@@ -2542,6 +2544,8 @@ paths:
           description: Unauthorized
         "404":
           description: Not found
+        "409":
+          description: The suggestion was already resolved the other way (accepted vs dismissed). Repeating the same decision is idempotent and returns 200.
 
   /photos/{id}/tag-suggestions/{tagName}/accept:
     post:
@@ -2688,6 +2692,8 @@ paths:
           description: Unauthorized
         "404":
           description: Not found
+        "409":
+          description: The suggestion was already resolved the other way (accepted vs dismissed). Repeating the same decision is idempotent and returns 200.
 
   /photos/{id}/new-collection-suggestions/{suggestionId}/dismiss:
     post:
@@ -2716,6 +2722,8 @@ paths:
           description: Unauthorized
         "404":
           description: Not found
+        "409":
+          description: The suggestion was already resolved the other way (accepted vs dismissed). Repeating the same decision is idempotent and returns 200.
 
   /photos/{id}/rerun-analysis:
     post:
@@ -3703,21 +3711,58 @@ components:
 
     SuggestedCollection:
       type: object
-      required: [id, title]
+      description: >-
+        A pending AI collection recommendation. The API is the single authority for
+        this list; the photo details page and the lightbox both render it.
+      required: [id, title, source, provider, model, analysisVersion, reason]
       properties:
         id:
           type: integer
         title:
           type: string
+        source:
+          type: string
+          enum: [model, heuristic]
+          description: >-
+            Where the recommendation came from. "model" is an AI analysis result;
+            "heuristic" would be a word-overlap hint and is never shown as a model recommendation.
+        provider:
+          type: ["string", "null"]
+          description: AI provider that produced the recommendation (null for rows that predate tracking).
+        model:
+          type: ["string", "null"]
+        analysisVersion:
+          type: ["string", "null"]
+          description: Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+        reason:
+          type: ["string", "null"]
+          description: Human-readable reason shown beside the recommendation.
 
     SuggestedNewCollection:
       type: object
-      required: [id, suggestedName]
+      required: [id, suggestedName, source, provider, model, analysisVersion, reason]
       properties:
         id:
           type: integer
         suggestedName:
           type: string
+        source:
+          type: string
+          enum: [model, heuristic]
+          description: >-
+            Where the recommendation came from. "model" is an AI analysis result;
+            "heuristic" would be a word-overlap hint and is never shown as a model recommendation.
+        provider:
+          type: ["string", "null"]
+          description: AI provider that produced the recommendation (null for rows that predate tracking).
+        model:
+          type: ["string", "null"]
+        analysisVersion:
+          type: ["string", "null"]
+          description: Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+        reason:
+          type: ["string", "null"]
+          description: Human-readable reason shown beside the recommendation.
 
     SuggestedTag:
       type: object

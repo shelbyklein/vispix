@@ -11,7 +11,7 @@ import {
 export class OpenAIProvider implements AnalysisProvider {
   id = "openai" as const;
   private client: OpenAI;
-  private model: string;
+  readonly model: string;
 
   constructor(apiKey: string, baseURL?: string | null, model?: string | null) {
     this.client = new OpenAI({ apiKey, baseURL: baseURL ?? undefined });

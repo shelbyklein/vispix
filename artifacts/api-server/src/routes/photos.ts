@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray, desc, ne, sql } from "drizzle-orm";
+import { decideCollectionSuggestion, decideNewCollectionSuggestion } from "../lib/collectionSuggestions";
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, photoEmbeddingsTable } from "@workspace/db";
 import { runAndRecordPhotoAnalysis } from "../lib/aiPhotoAnalysis";
 import { generateAndStorePhotoEmbedding } from "../lib/aiEmbedding";
@@ -623,34 +624,15 @@ router.post("/photos/:id/suggestions/:collectionId/accept", requireOrgAuth, asyn
     return;
   }
 
-  const [suggestion] = await db
-    .select({ status: photoCollectionSuggestionsTable.status })
-    .from(photoCollectionSuggestionsTable)
-    .where(
-      and(
-        eq(photoCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoCollectionSuggestionsTable.collectionId, params.data.collectionId),
-      ),
-    );
-  if (!suggestion || suggestion.status !== "pending") {
-    res.status(404).json({ error: "Pending suggestion not found" });
+  const outcome = await decideCollectionSuggestion(params.data.id, params.data.collectionId, "accepted", req.dbUser?.id ?? null);
+  if (outcome === "missing") {
+    res.status(404).json({ error: "Suggestion not found" });
     return;
   }
-
-  await db
-    .insert(photoCollectionsTable)
-    .values({ collectionId: params.data.collectionId, photoId: params.data.id })
-    .onConflictDoNothing();
-
-  await db
-    .update(photoCollectionSuggestionsTable)
-    .set({ status: "accepted" })
-    .where(
-      and(
-        eq(photoCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoCollectionSuggestionsTable.collectionId, params.data.collectionId),
-      ),
-    );
+  if (outcome === "conflict") {
+    res.status(409).json({ error: "Suggestion was already resolved the other way" });
+    return;
+  }
 
   const full = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
   res.json(AcceptPhotoSuggestionResponse.parse(full));
@@ -675,36 +657,26 @@ router.post("/photos/:id/suggestions/:collectionId/dismiss", requireOrgAuth, asy
   }
 
   const [collection] = await db.select({ createdById: collectionsTable.createdById }).from(collectionsTable).where(and(eq(collectionsTable.id, params.data.collectionId), eq(collectionsTable.organizationId, req.org!.id)));
+  if (!collection) {
+    res.status(404).json({ error: "Collection not found" });
+    return;
+  }
   const isAdmin = isOrgManager(req);
-  const isOwner = photoExists.uploaderId === req.dbUser!.id || (collection && collection.createdById === req.dbUser!.id);
+  const isOwner = photoExists.uploaderId === req.dbUser!.id || collection.createdById === req.dbUser!.id;
   if (!isAdmin && !isOwner) {
     res.status(403).json({ error: "Forbidden" });
     return;
   }
 
-  const [existing] = await db
-    .select({ status: photoCollectionSuggestionsTable.status })
-    .from(photoCollectionSuggestionsTable)
-    .where(
-      and(
-        eq(photoCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoCollectionSuggestionsTable.collectionId, params.data.collectionId),
-      ),
-    );
-  if (!existing || existing.status !== "pending") {
-    res.status(404).json({ error: "Pending suggestion not found" });
+  const outcome = await decideCollectionSuggestion(params.data.id, params.data.collectionId, "dismissed", req.dbUser?.id ?? null);
+  if (outcome === "missing") {
+    res.status(404).json({ error: "Suggestion not found" });
     return;
   }
-
-  await db
-    .update(photoCollectionSuggestionsTable)
-    .set({ status: "dismissed" })
-    .where(
-      and(
-        eq(photoCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoCollectionSuggestionsTable.collectionId, params.data.collectionId),
-      ),
-    );
+  if (outcome === "conflict") {
+    res.status(409).json({ error: "Suggestion was already resolved the other way" });
+    return;
+  }
 
   const full = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
   res.json(DismissPhotoSuggestionResponse.parse(full));
@@ -738,46 +710,31 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/accept", requi
     return;
   }
 
-  const [suggestion] = await db
-    .select()
-    .from(photoNewCollectionSuggestionsTable)
-    .where(
-      and(
-        eq(photoNewCollectionSuggestionsTable.id, params.data.suggestionId),
-        eq(photoNewCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoNewCollectionSuggestionsTable.status, "pending"),
-      ),
-    );
-  if (!suggestion) {
-    res.status(404).json({ error: "Pending suggestion not found" });
-    return;
-  }
-
   const body = AcceptPhotoNewCollectionSuggestionBody.safeParse(req.body ?? {});
   if (!body.success) {
     res.status(400).json({ error: body.error.message });
     return;
   }
-  const collectionTitle = body.data.name?.trim() || suggestion.suggestedName;
 
-  const [newCollection] = await db
-    .insert(collectionsTable)
-    .values({
-      title: collectionTitle,
-      createdById: photoExists.uploaderId,
-      organizationId: req.org!.id,
-    })
-    .returning();
-
-  await db
-    .insert(photoCollectionsTable)
-    .values({ collectionId: newCollection.id, photoId: params.data.id })
-    .onConflictDoNothing();
-
-  await db
-    .update(photoNewCollectionSuggestionsTable)
-    .set({ status: "accepted" })
-    .where(eq(photoNewCollectionSuggestionsTable.id, params.data.suggestionId));
+  const outcome = await decideNewCollectionSuggestion(params.data.id, params.data.suggestionId, "accepted", req.dbUser?.id ?? null, async (tx, suggestedName) => {
+    const [newCollection] = await tx
+      .insert(collectionsTable)
+      .values({
+        title: body.data.name?.trim() || suggestedName,
+        createdById: photoExists.uploaderId,
+        organizationId: req.org!.id,
+      })
+      .returning();
+    await tx.insert(photoCollectionsTable).values({ collectionId: newCollection.id, photoId: params.data.id }).onConflictDoNothing();
+  });
+  if (outcome === "missing") {
+    res.status(404).json({ error: "Suggestion not found" });
+    return;
+  }
+  if (outcome === "conflict") {
+    res.status(409).json({ error: "Suggestion was already resolved the other way" });
+    return;
+  }
 
   const full = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
   res.json(AcceptPhotoNewCollectionSuggestionResponse.parse(full));
@@ -811,25 +768,15 @@ router.post("/photos/:id/new-collection-suggestions/:suggestionId/dismiss", requ
     return;
   }
 
-  const [suggestion] = await db
-    .select({ id: photoNewCollectionSuggestionsTable.id })
-    .from(photoNewCollectionSuggestionsTable)
-    .where(
-      and(
-        eq(photoNewCollectionSuggestionsTable.id, params.data.suggestionId),
-        eq(photoNewCollectionSuggestionsTable.photoId, params.data.id),
-        eq(photoNewCollectionSuggestionsTable.status, "pending"),
-      ),
-    );
-  if (!suggestion) {
-    res.status(404).json({ error: "Pending suggestion not found" });
+  const outcome = await decideNewCollectionSuggestion(params.data.id, params.data.suggestionId, "dismissed", req.dbUser?.id ?? null);
+  if (outcome === "missing") {
+    res.status(404).json({ error: "Suggestion not found" });
     return;
   }
-
-  await db
-    .update(photoNewCollectionSuggestionsTable)
-    .set({ status: "dismissed" })
-    .where(eq(photoNewCollectionSuggestionsTable.id, params.data.suggestionId));
+  if (outcome === "conflict") {
+    res.status(409).json({ error: "Suggestion was already resolved the other way" });
+    return;
+  }
 
   const full = await buildPhotoResponse(params.data.id, req.org!.id, req.dbUser?.id);
   res.json(DismissPhotoNewCollectionSuggestionResponse.parse(full));

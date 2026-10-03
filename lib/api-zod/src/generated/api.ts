@@ -336,10 +336,36 @@ export const GetAlbumTopRatedResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -347,6 +373,28 @@ export const GetAlbumTopRatedResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -544,10 +592,38 @@ export const ListAlbumPhotosResponse = zod.object({
         ),
       suggestedCollections: zod
         .array(
-          zod.object({
-            id: zod.number(),
-            title: zod.string(),
-          }),
+          zod
+            .object({
+              id: zod.number(),
+              title: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
+            })
+            .describe(
+              "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+            ),
         )
         .optional(),
       suggestedNewCollections: zod
@@ -555,6 +631,30 @@ export const ListAlbumPhotosResponse = zod.object({
           zod.object({
             id: zod.number(),
             suggestedName: zod.string(),
+            source: zod
+              .enum(["model", "heuristic"])
+              .describe(
+                'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+              ),
+            provider: zod
+              .string()
+              .nullable()
+              .describe(
+                "AI provider that produced the recommendation (null for rows that predate tracking).",
+              ),
+            model: zod.string().nullable(),
+            analysisVersion: zod
+              .string()
+              .nullable()
+              .describe(
+                "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+              ),
+            reason: zod
+              .string()
+              .nullable()
+              .describe(
+                "Human-readable reason shown beside the recommendation.",
+              ),
           }),
         )
         .optional(),
@@ -762,10 +862,38 @@ export const SearchPhotosResponse = zod.object({
         ),
       suggestedCollections: zod
         .array(
-          zod.object({
-            id: zod.number(),
-            title: zod.string(),
-          }),
+          zod
+            .object({
+              id: zod.number(),
+              title: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
+            })
+            .describe(
+              "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+            ),
         )
         .optional(),
       suggestedNewCollections: zod
@@ -773,6 +901,30 @@ export const SearchPhotosResponse = zod.object({
           zod.object({
             id: zod.number(),
             suggestedName: zod.string(),
+            source: zod
+              .enum(["model", "heuristic"])
+              .describe(
+                'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+              ),
+            provider: zod
+              .string()
+              .nullable()
+              .describe(
+                "AI provider that produced the recommendation (null for rows that predate tracking).",
+              ),
+            model: zod.string().nullable(),
+            analysisVersion: zod
+              .string()
+              .nullable()
+              .describe(
+                "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+              ),
+            reason: zod
+              .string()
+              .nullable()
+              .describe(
+                "Human-readable reason shown beside the recommendation.",
+              ),
           }),
         )
         .optional(),
@@ -965,10 +1117,36 @@ export const SemanticSearchPhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -976,6 +1154,28 @@ export const SemanticSearchPhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -1196,10 +1396,38 @@ export const RetrievePhotosResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -1207,6 +1435,30 @@ export const RetrievePhotosResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -1414,10 +1666,36 @@ export const ListSimilarPhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -1425,6 +1703,28 @@ export const ListSimilarPhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -1773,10 +2073,38 @@ export const ListPhotosResponse = zod.object({
         ),
       suggestedCollections: zod
         .array(
-          zod.object({
-            id: zod.number(),
-            title: zod.string(),
-          }),
+          zod
+            .object({
+              id: zod.number(),
+              title: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
+            })
+            .describe(
+              "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+            ),
         )
         .optional(),
       suggestedNewCollections: zod
@@ -1784,6 +2112,30 @@ export const ListPhotosResponse = zod.object({
           zod.object({
             id: zod.number(),
             suggestedName: zod.string(),
+            source: zod
+              .enum(["model", "heuristic"])
+              .describe(
+                'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+              ),
+            provider: zod
+              .string()
+              .nullable()
+              .describe(
+                "AI provider that produced the recommendation (null for rows that predate tracking).",
+              ),
+            model: zod.string().nullable(),
+            analysisVersion: zod
+              .string()
+              .nullable()
+              .describe(
+                "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+              ),
+            reason: zod
+              .string()
+              .nullable()
+              .describe(
+                "Human-readable reason shown beside the recommendation.",
+              ),
           }),
         )
         .optional(),
@@ -2061,10 +2413,36 @@ export const GetPhotoResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2072,6 +2450,28 @@ export const GetPhotoResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2218,10 +2618,36 @@ export const UpdatePhotoResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2229,6 +2655,28 @@ export const UpdatePhotoResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2380,10 +2828,36 @@ export const AddPhotoTagResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2391,6 +2865,28 @@ export const AddPhotoTagResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2532,10 +3028,36 @@ export const RemovePhotoTagResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2543,6 +3065,28 @@ export const RemovePhotoTagResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2687,10 +3231,36 @@ export const AddPhotoCategoryResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2698,6 +3268,28 @@ export const AddPhotoCategoryResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2839,10 +3431,36 @@ export const RemovePhotoCategoryResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -2850,6 +3468,28 @@ export const RemovePhotoCategoryResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -2996,10 +3636,36 @@ export const RatePhotoResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -3007,6 +3673,28 @@ export const RatePhotoResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -3147,10 +3835,36 @@ export const ClearPhotoRatingResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -3158,6 +3872,28 @@ export const ClearPhotoRatingResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -3729,10 +4465,38 @@ export const GetDashboardStatsResponse = zod.object({
         ),
       suggestedCollections: zod
         .array(
-          zod.object({
-            id: zod.number(),
-            title: zod.string(),
-          }),
+          zod
+            .object({
+              id: zod.number(),
+              title: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
+            })
+            .describe(
+              "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+            ),
         )
         .optional(),
       suggestedNewCollections: zod
@@ -3740,6 +4504,30 @@ export const GetDashboardStatsResponse = zod.object({
           zod.object({
             id: zod.number(),
             suggestedName: zod.string(),
+            source: zod
+              .enum(["model", "heuristic"])
+              .describe(
+                'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+              ),
+            provider: zod
+              .string()
+              .nullable()
+              .describe(
+                "AI provider that produced the recommendation (null for rows that predate tracking).",
+              ),
+            model: zod.string().nullable(),
+            analysisVersion: zod
+              .string()
+              .nullable()
+              .describe(
+                "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+              ),
+            reason: zod
+              .string()
+              .nullable()
+              .describe(
+                "Human-readable reason shown beside the recommendation.",
+              ),
           }),
         )
         .optional(),
@@ -3878,10 +4666,36 @@ export const GetRecentPhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -3889,6 +4703,28 @@ export const GetRecentPhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -4026,10 +4862,36 @@ export const GetTopRatedPhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -4037,6 +4899,28 @@ export const GetTopRatedPhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -4314,10 +5198,38 @@ export const GetCollectionResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -4325,6 +5237,30 @@ export const GetCollectionResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -4502,10 +5438,38 @@ export const UpdateCollectionResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -4513,6 +5477,30 @@ export const UpdateCollectionResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -4682,10 +5670,36 @@ export const ListCollectionNegativePhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -4693,6 +5707,28 @@ export const ListCollectionNegativePhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -4886,10 +5922,38 @@ export const SetCollectionCoverResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -4897,6 +5961,30 @@ export const SetCollectionCoverResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -5053,10 +6141,36 @@ export const GetSmartCollectionPhotosResponseItem = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -5064,6 +6178,28 @@ export const GetSmartCollectionPhotosResponseItem = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -5271,10 +6407,38 @@ export const GetProjectResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -5282,6 +6446,30 @@ export const GetProjectResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -5449,10 +6637,38 @@ export const UpdateProjectResponse = zod.object({
           ),
         suggestedCollections: zod
           .array(
-            zod.object({
-              id: zod.number(),
-              title: zod.string(),
-            }),
+            zod
+              .object({
+                id: zod.number(),
+                title: zod.string(),
+                source: zod
+                  .enum(["model", "heuristic"])
+                  .describe(
+                    'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                  ),
+                provider: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "AI provider that produced the recommendation (null for rows that predate tracking).",
+                  ),
+                model: zod.string().nullable(),
+                analysisVersion: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                  ),
+                reason: zod
+                  .string()
+                  .nullable()
+                  .describe(
+                    "Human-readable reason shown beside the recommendation.",
+                  ),
+              })
+              .describe(
+                "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+              ),
           )
           .optional(),
         suggestedNewCollections: zod
@@ -5460,6 +6676,30 @@ export const UpdateProjectResponse = zod.object({
             zod.object({
               id: zod.number(),
               suggestedName: zod.string(),
+              source: zod
+                .enum(["model", "heuristic"])
+                .describe(
+                  'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+                ),
+              provider: zod
+                .string()
+                .nullable()
+                .describe(
+                  "AI provider that produced the recommendation (null for rows that predate tracking).",
+                ),
+              model: zod.string().nullable(),
+              analysisVersion: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+                ),
+              reason: zod
+                .string()
+                .nullable()
+                .describe(
+                  "Human-readable reason shown beside the recommendation.",
+                ),
             }),
           )
           .optional(),
@@ -5737,10 +6977,36 @@ export const AcceptPhotoSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -5748,6 +7014,28 @@ export const AcceptPhotoSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -5889,10 +7177,36 @@ export const DismissPhotoSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -5900,6 +7214,28 @@ export const DismissPhotoSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6041,10 +7377,36 @@ export const AcceptPhotoTagSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6052,6 +7414,28 @@ export const AcceptPhotoTagSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6193,10 +7577,36 @@ export const DismissPhotoTagSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6204,6 +7614,28 @@ export const DismissPhotoTagSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6345,10 +7777,36 @@ export const AcceptPhotoCategorySuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6356,6 +7814,28 @@ export const AcceptPhotoCategorySuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6497,10 +7977,36 @@ export const DismissPhotoCategorySuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6508,6 +8014,28 @@ export const DismissPhotoCategorySuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6653,10 +8181,36 @@ export const AcceptPhotoNewCollectionSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6664,6 +8218,28 @@ export const AcceptPhotoNewCollectionSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),
@@ -6805,10 +8381,36 @@ export const DismissPhotoNewCollectionSuggestionResponse = zod.object({
     ),
   suggestedCollections: zod
     .array(
-      zod.object({
-        id: zod.number(),
-        title: zod.string(),
-      }),
+      zod
+        .object({
+          id: zod.number(),
+          title: zod.string(),
+          source: zod
+            .enum(["model", "heuristic"])
+            .describe(
+              'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+            ),
+          provider: zod
+            .string()
+            .nullable()
+            .describe(
+              "AI provider that produced the recommendation (null for rows that predate tracking).",
+            ),
+          model: zod.string().nullable(),
+          analysisVersion: zod
+            .string()
+            .nullable()
+            .describe(
+              "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+            ),
+          reason: zod
+            .string()
+            .nullable()
+            .describe("Human-readable reason shown beside the recommendation."),
+        })
+        .describe(
+          "A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.",
+        ),
     )
     .optional(),
   suggestedNewCollections: zod
@@ -6816,6 +8418,28 @@ export const DismissPhotoNewCollectionSuggestionResponse = zod.object({
       zod.object({
         id: zod.number(),
         suggestedName: zod.string(),
+        source: zod
+          .enum(["model", "heuristic"])
+          .describe(
+            'Where the recommendation came from. \"model\" is an AI analysis result; \"heuristic\" would be a word-overlap hint and is never shown as a model recommendation.',
+          ),
+        provider: zod
+          .string()
+          .nullable()
+          .describe(
+            "AI provider that produced the recommendation (null for rows that predate tracking).",
+          ),
+        model: zod.string().nullable(),
+        analysisVersion: zod
+          .string()
+          .nullable()
+          .describe(
+            "Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.",
+          ),
+        reason: zod
+          .string()
+          .nullable()
+          .describe("Human-readable reason shown beside the recommendation."),
       }),
     )
     .optional(),

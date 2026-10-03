@@ -312,14 +312,77 @@ export interface PhotoAiEvaluation {
   evaluatedAt?: string;
 }
 
+/**
+ * Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation.
+ */
+export type SuggestedCollectionSource =
+  (typeof SuggestedCollectionSource)[keyof typeof SuggestedCollectionSource];
+
+export const SuggestedCollectionSource = {
+  model: "model",
+  heuristic: "heuristic",
+} as const;
+
+/**
+ * A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.
+ */
 export interface SuggestedCollection {
   id: number;
   title: string;
+  /** Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation. */
+  source: SuggestedCollectionSource;
+  /**
+   * AI provider that produced the recommendation (null for rows that predate tracking).
+   * @nullable
+   */
+  provider: string | null;
+  /** @nullable */
+  model: string | null;
+  /**
+   * Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+   * @nullable
+   */
+  analysisVersion: string | null;
+  /**
+   * Human-readable reason shown beside the recommendation.
+   * @nullable
+   */
+  reason: string | null;
 }
+
+/**
+ * Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation.
+ */
+export type SuggestedNewCollectionSource =
+  (typeof SuggestedNewCollectionSource)[keyof typeof SuggestedNewCollectionSource];
+
+export const SuggestedNewCollectionSource = {
+  model: "model",
+  heuristic: "heuristic",
+} as const;
 
 export interface SuggestedNewCollection {
   id: number;
   suggestedName: string;
+  /** Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation. */
+  source: SuggestedNewCollectionSource;
+  /**
+   * AI provider that produced the recommendation (null for rows that predate tracking).
+   * @nullable
+   */
+  provider: string | null;
+  /** @nullable */
+  model: string | null;
+  /**
+   * Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+   * @nullable
+   */
+  analysisVersion: string | null;
+  /**
+   * Human-readable reason shown beside the recommendation.
+   * @nullable
+   */
+  reason: string | null;
 }
 
 export interface PhotoRating {

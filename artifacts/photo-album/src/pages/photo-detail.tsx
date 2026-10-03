@@ -194,6 +194,8 @@ export default function PhotoDetail() {
     qc.invalidateQueries({ queryKey: getListPhotosQueryKey().slice(0, 1) });
     qc.invalidateQueries({ queryKey: getGetRecentPhotosQueryKey() });
     qc.invalidateQueries({ queryKey: getGetTopRatedPhotosQueryKey() });
+    // Membership and recommendation counts shown on collection cards.
+    qc.invalidateQueries({ queryKey: getListCollectionsQueryKey() });
   }
 
   function handleAcceptSuggestion(collectionId: number) {
@@ -504,7 +506,6 @@ export default function PhotoDetail() {
             <CollectionsPanel
               photoCollections={photo.photoCollections}
               availableCollections={availableCollections}
-              aiDescription={photo.aiDescription}
               projects={allProjects}
               newCollectionName={newCollectionName}
               setNewCollectionName={setNewCollectionName}

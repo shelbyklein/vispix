@@ -1,9 +1,13 @@
-import { FolderOpen, FolderKanban, Copyright, Loader2, EyeOff, Eye, Check, Plus, ImageIcon, Sparkles, Trash2, Users } from "lucide-react";
+import { FolderOpen, FolderKanban, Copyright, Loader2, EyeOff, Eye, Check, Plus, ImageIcon, Trash2, Users } from "lucide-react";
 import { useRef, useState } from "react";
 import {
   useGetPhoto,
   useListCollections,
   useAddPhotoToCollection,
+  useAcceptPhotoSuggestion,
+  useDismissPhotoSuggestion,
+  useAcceptPhotoNewCollectionSuggestion,
+  useDismissPhotoNewCollectionSuggestion,
   useRemovePhotoFromCollection,
   useUpdatePhoto,
   useGetMe,
@@ -38,7 +42,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { suggestCollections } from "@/lib/aiSuggestions";
+import { CollectionSuggestionList } from "@/components/photo-detail/CollectionSuggestionList";
 import { LightboxStarRating } from "./LightboxStarRating";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
@@ -79,6 +83,12 @@ export function PhotoSidebarContent({
   const { data: allPeople } = useListCollections({ kind: "person" });
   const { mutate: addToCollection, isPending: adding } = useAddPhotoToCollection();
   const { mutate: removeFromCollection, isPending: removing } = useRemovePhotoFromCollection();
+  // AI recommendations: same server list and same decision endpoints as the
+  // details page (#212); decisions persist server-side and refresh this photo.
+  const { mutate: acceptSuggestion, isPending: acceptingSuggestion } = useAcceptPhotoSuggestion();
+  const { mutate: dismissSuggestion, isPending: dismissingSuggestion } = useDismissPhotoSuggestion();
+  const { mutate: acceptNewSuggestion, isPending: acceptingNewSuggestion } = useAcceptPhotoNewCollectionSuggestion();
+  const { mutate: dismissNewSuggestion, isPending: dismissingNewSuggestion } = useDismissPhotoNewCollectionSuggestion();
   const { mutate: updatePhoto, isPending: updatingVisibility } = useUpdatePhoto();
   const { mutate: createCollection, isPending: creating } = useCreateCollection();
   const { mutate: setAlbumCover, isPending: settingCover } = useSetAlbumCover();
@@ -116,6 +126,46 @@ export function PhotoSidebarContent({
         },
         onError: () => toast({ title: "Failed to add to collection", variant: "destructive" }),
       }
+    );
+  }
+
+  function handleAcceptSuggestion(collectionId: number) {
+    acceptSuggestion(
+      { id: photoId, collectionId },
+      {
+        onSuccess: () => {
+          invalidate();
+          toast({ title: "Added to collection" });
+        },
+        onError: () => toast({ title: "Failed to accept suggestion", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleDismissSuggestion(collectionId: number) {
+    dismissSuggestion(
+      { id: photoId, collectionId },
+      { onSuccess: invalidate, onError: () => toast({ title: "Failed to dismiss suggestion", variant: "destructive" }) }
+    );
+  }
+
+  function handleCreateFromSuggestion({ suggestionId, name }: { suggestionId: number; name: string }) {
+    acceptNewSuggestion(
+      { id: photoId, suggestionId, data: { name } },
+      {
+        onSuccess: () => {
+          invalidate();
+          toast({ title: "Collection created and photo added" });
+        },
+        onError: () => toast({ title: "Failed to accept suggestion", variant: "destructive" }),
+      }
+    );
+  }
+
+  function handleDismissNewSuggestion(suggestionId: number) {
+    dismissNewSuggestion(
+      { id: photoId, suggestionId },
+      { onSuccess: invalidate, onError: () => toast({ title: "Failed to dismiss suggestion", variant: "destructive" }) }
     );
   }
 
@@ -444,15 +494,27 @@ export function PhotoSidebarContent({
           </form>
         )}
 
+        <CollectionSuggestionList
+          tone="dark"
+          suggestedCollections={fullPhoto?.suggestedCollections}
+          suggestedNewCollections={fullPhoto?.suggestedNewCollections}
+          disabled={acceptingSuggestion || dismissingSuggestion || acceptingNewSuggestion || dismissingNewSuggestion}
+          onAccept={handleAcceptSuggestion}
+          onDismiss={handleDismissSuggestion}
+          onCreateNew={handleCreateFromSuggestion}
+          onDismissNew={handleDismissNewSuggestion}
+        />
+
         {allCollections && allCollections.length > 0 ? (
           <div className="flex flex-wrap gap-1.5" data-testid="lightbox-collection-pills">
             {(() => {
-              const suggested = suggestCollections(fullPhoto?.aiDescription, allCollections);
-              // Members first (they're current state), then AI suggestions, then
-              // the rest. Collapsed view shows the top 5 (always including all
-              // members); the remainder hides behind a "+N more" toggle.
+              // Members first (they're current state), then the rest. AI
+              // recommendations are not marked on these pills: they render from
+              // the server list above (#212). Collapsed view shows the top 5
+              // (always including all members); the remainder hides behind a
+              // "+N more" toggle.
               const rank = (c: (typeof allCollections)[number]) =>
-                currentCollections.some((cc) => cc.id === c.id) ? 0 : suggested.has(c.id) ? 1 : 2;
+                currentCollections.some((cc) => cc.id === c.id) ? 0 : 1;
               const sorted = [...allCollections].sort((a, b) => rank(a) - rank(b));
               const memberCount = currentCollections.length;
               const visibleCount = Math.max(5, memberCount);
@@ -461,7 +523,6 @@ export function PhotoSidebarContent({
                 showAllCollections || hiddenCount <= 0 ? sorted : sorted.slice(0, visibleCount);
               const pills = shown.map((col) => {
                 const isIn = currentCollections.some((c) => c.id === col.id);
-                const isSuggested = suggested.has(col.id);
                 return (
                   <button
                     key={col.id}
@@ -474,25 +535,14 @@ export function PhotoSidebarContent({
                       "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors disabled:opacity-50",
                       isIn
                         ? "bg-white text-gray-900 border border-white hover:bg-white/85"
-                        : isSuggested
-                        ? "bg-amber-500/20 text-amber-200 border border-amber-400/50 hover:bg-amber-500/35 hover:text-amber-100 hover:border-amber-400/80"
                         : "bg-transparent text-white/65 border border-white/30 hover:bg-white/10 hover:text-white hover:border-white/50"
                     )}
                     data-testid={`lightbox-collection-pill-${col.id}`}
-                    aria-label={
-                      isIn
-                        ? `Remove from ${col.title}`
-                        : isSuggested
-                        ? `AI suggested: Add to ${col.title}`
-                        : `Add to ${col.title}`
-                    }
+                    aria-label={isIn ? `Remove from ${col.title}` : `Add to ${col.title}`}
                     aria-pressed={isIn}
-                    title={isSuggested && !isIn ? "AI suggested based on photo description" : undefined}
                   >
                     {isIn ? (
                       <Check className="h-3 w-3 shrink-0" />
-                    ) : isSuggested ? (
-                      <Sparkles className="h-3 w-3 shrink-0" />
                     ) : (
                       <Plus className="h-3 w-3 shrink-0" />
                     )}

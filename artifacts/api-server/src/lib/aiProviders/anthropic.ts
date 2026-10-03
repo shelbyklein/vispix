@@ -22,7 +22,7 @@ function extractBase64FromDataUrl(dataUrl: string): {
 export class AnthropicProvider implements AnalysisProvider {
   id = "anthropic" as const;
   private client: Anthropic;
-  private model: string;
+  readonly model: string;
 
   constructor(apiKey: string, baseURL?: string | null, model?: string | null) {
     this.client = new Anthropic({ apiKey, baseURL: baseURL ?? undefined });

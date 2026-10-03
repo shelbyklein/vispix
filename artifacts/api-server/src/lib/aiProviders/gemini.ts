@@ -19,7 +19,7 @@ function extractBase64FromDataUrl(dataUrl: string): {
 export class GeminiProvider implements AnalysisProvider {
   id = "gemini" as const;
   private client: GoogleGenAI;
-  private model: string;
+  readonly model: string;
 
   constructor(apiKey: string, baseUrl?: string, model?: string | null) {
     this.client = new GoogleGenAI({
