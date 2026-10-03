@@ -37,20 +37,21 @@ export function PhotoDetailHeader({
 }) {
   const fromSearch = !!back;
   return (
-    <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-3">
+    // Wraps on narrow screens: back link, Explore and Prev/Next don't fit one row at phone width.
+    <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
         {back ? (
-          <Button asChild variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-search">
+          <Button asChild variant="ghost" size="sm" className="max-w-full gap-1.5" data-testid="back-to-search">
             <Link href={back.href}>
-              <ArrowLeft className="h-4 w-4" />
-              {back.label}
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">{back.label}</span>
             </Link>
           </Button>
         ) : albumId ? (
-          <Button asChild variant="ghost" size="sm" className="gap-1.5" data-testid="back-to-album">
+          <Button asChild variant="ghost" size="sm" className="max-w-full gap-1.5" data-testid="back-to-album">
             <Link href={`/albums/${albumId}`}>
-              <ArrowLeft className="h-4 w-4" />
-              {albumTitle ?? "Album"}
+              <ArrowLeft className="h-4 w-4 shrink-0" />
+              <span className="truncate">{albumTitle ?? "Album"}</span>
             </Link>
           </Button>
         ) : null}
