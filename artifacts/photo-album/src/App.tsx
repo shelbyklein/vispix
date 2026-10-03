@@ -325,6 +325,18 @@ function AppRoutes() {
             </>
           )}
         </Route>
+        <Route path="/generations">
+          {() => (
+            <>
+              <AuthGate when="signed-in">
+                <LazyPage load={() => import("@/pages/generations")} />
+              </AuthGate>
+              <AuthGate when="signed-out">
+                <Redirect to="/sign-in" />
+              </AuthGate>
+            </>
+          )}
+        </Route>
         <Route path="/campaigns/:id">
           {() => (
             <>

@@ -587,7 +587,13 @@ function GenerationCard({
 // its own header, so the page title row is hidden).
 export function CreateWorkspace({ className, compact = false }: { className?: string; compact?: boolean }) {
   const { toast } = useToast();
-  const [sessionId, setSessionId] = useState<number | undefined>(undefined);
+  // /create?session=<id> deep-links to an existing session (e.g. from the
+  // Past generations gallery). Only the full page honours it, not the panel.
+  const [sessionId, setSessionId] = useState<number | undefined>(() => {
+    if (compact || typeof window === "undefined") return undefined;
+    const id = Number(new URLSearchParams(window.location.search).get("session"));
+    return Number.isInteger(id) && id > 0 ? id : undefined;
+  });
   const [draft, setDraft] = useState("");
   const [format, setFormat] = useState<GenerationFormatId>("1:1");
   const [variantCount, setVariantCount] = useState(1);

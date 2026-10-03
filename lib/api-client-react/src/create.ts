@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, customFetch } from "./custom-fetch";
 
 // AI image generation — the Create workspace (#167). Hand-written hooks over
@@ -154,5 +154,48 @@ export function usePlanGeneration() {
         method: "POST",
         body: JSON.stringify(body),
       }),
+  });
+}
+
+// Past generations (#194): a read-only gallery of every completed generation in
+// the org, newest first, paged with an opaque cursor. Generated images are not
+// photos, so they are never analysed, embedded or searchable.
+
+export interface PastGeneration {
+  id: number;
+  imageUrl: string | null;
+  prompt: string;
+  format: GenerationFormatId | null;
+  width: number | null;
+  height: number | null;
+  status: "succeeded" | "failed";
+  createdAt: string;
+  creator: { id: number; name: string } | null;
+  source: {
+    type: "session" | "campaign";
+    sessionId: number;
+    sessionTitle: string;
+    campaignId: number | null;
+    campaignName: string | null;
+  };
+}
+
+export interface PastGenerationsPage {
+  items: PastGeneration[];
+  nextCursor: string | null;
+}
+
+export function usePastGenerations(options: { includeFailed?: boolean; limit?: number } = {}) {
+  const { includeFailed = false, limit = 30 } = options;
+  return useInfiniteQuery({
+    queryKey: ["image-generation", "all", { includeFailed, limit }] as const,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ limit: String(limit) });
+      if (includeFailed) params.set("includeFailed", "true");
+      if (pageParam) params.set("cursor", pageParam);
+      return customFetch<PastGenerationsPage>(`/api/image-generation/all?${params.toString()}`);
+    },
+    getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
 }

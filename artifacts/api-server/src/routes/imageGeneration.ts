@@ -1,8 +1,15 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod/v4";
 import sharp from "sharp";
-import { and, desc, asc, eq } from "drizzle-orm";
-import { db, imageGenerationSessionsTable, imageGenerationsTable, type ImageGeneration } from "@workspace/db";
+import { and, desc, asc, eq, inArray, lt, or, sql } from "drizzle-orm";
+import {
+  db,
+  imageGenerationSessionsTable,
+  imageGenerationsTable,
+  campaignsTable,
+  usersTable,
+  type ImageGeneration,
+} from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
@@ -153,6 +160,97 @@ router.get("/image-generation/sessions/:id", requireOrgAuth, async (req: Request
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
     generations: generations.map(serializeGeneration),
+  });
+});
+
+// Past generations (#194): a read-only gallery of every image the org has
+// generated, newest first. This is a view over image_generations ONLY — it never
+// touches photos, so generated images stay outside the AI analysis, evaluation,
+// embedding and search pipeline. Keyset paging on (createdAt, id).
+const AllGenerationsQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  cursor: z.string().max(100).optional(),
+  includeFailed: z.enum(["true", "false"]).default("false"),
+});
+
+function encodeCursor(createdAt: Date, id: number): string {
+  return Buffer.from(`${createdAt.toISOString()}|${id}`).toString("base64url");
+}
+
+function decodeCursor(cursor: string): { createdAt: Date; id: number } | null {
+  const [iso, rawId] = Buffer.from(cursor, "base64url").toString().split("|");
+  const createdAt = new Date(iso ?? "");
+  const id = Number(rawId);
+  if (Number.isNaN(createdAt.getTime()) || !Number.isInteger(id)) return null;
+  return { createdAt, id };
+}
+
+router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Response) => {
+  const query = AllGenerationsQuery.safeParse(req.query);
+  if (!query.success) {
+    res.status(400).json({ error: "Invalid query" });
+    return;
+  }
+  const { limit, cursor, includeFailed } = query.data;
+  const orgId = req.org!.id;
+  const conditions = [
+    eq(imageGenerationsTable.organizationId, orgId),
+    inArray(imageGenerationsTable.status, includeFailed === "true" ? ["succeeded", "failed"] : ["succeeded"]),
+  ];
+  if (cursor) {
+    const decoded = decodeCursor(cursor);
+    if (!decoded) {
+      res.status(400).json({ error: "Invalid cursor" });
+      return;
+    }
+    // The cursor carries millisecond precision (JS Date) while Postgres stores
+    // microseconds, so compare at millisecond precision or same-batch rows drop.
+    const createdMs = sql`date_trunc('milliseconds', ${imageGenerationsTable.createdAt})`;
+    conditions.push(
+      or(sql`${createdMs} < ${decoded.createdAt.toISOString()}::timestamptz`, and(sql`${createdMs} = ${decoded.createdAt.toISOString()}::timestamptz`, lt(imageGenerationsTable.id, decoded.id)))!,
+    );
+  }
+  const rows = await db
+    .select({
+      gen: imageGenerationsTable,
+      sessionTitle: imageGenerationSessionsTable.title,
+      creatorId: usersTable.id,
+      creatorName: usersTable.name,
+      campaignId: campaignsTable.id,
+      campaignName: campaignsTable.name,
+    })
+    .from(imageGenerationsTable)
+    .innerJoin(imageGenerationSessionsTable, eq(imageGenerationSessionsTable.id, imageGenerationsTable.sessionId))
+    .leftJoin(usersTable, eq(usersTable.id, imageGenerationSessionsTable.userId))
+    .leftJoin(
+      campaignsTable,
+      and(eq(campaignsTable.sessionId, imageGenerationsTable.sessionId), eq(campaignsTable.organizationId, orgId)),
+    )
+    .where(and(...conditions))
+    .orderBy(desc(imageGenerationsTable.createdAt), desc(imageGenerationsTable.id))
+    .limit(limit + 1);
+
+  const page = rows.slice(0, limit);
+  const last = page[page.length - 1];
+  res.json({
+    items: page.map((r) => {
+      const settings = r.gen.settings as { format?: string; size?: string; quality?: string };
+      return {
+        id: r.gen.id,
+        imageUrl: r.gen.storageKey ? `/api/storage${r.gen.storageKey}` : null,
+        prompt: r.gen.prompt,
+        format: settings.format ?? null,
+        width: r.gen.width,
+        height: r.gen.height,
+        status: r.gen.status,
+        createdAt: r.gen.createdAt.toISOString(),
+        creator: r.creatorId != null ? { id: r.creatorId, name: r.creatorName } : null,
+        source: r.campaignId != null
+          ? { type: "campaign" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: r.campaignId, campaignName: r.campaignName }
+          : { type: "session" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: null, campaignName: null },
+      };
+    }),
+    nextCursor: rows.length > limit && last ? encodeCursor(last.gen.createdAt, last.gen.id) : null,
   });
 });
 
