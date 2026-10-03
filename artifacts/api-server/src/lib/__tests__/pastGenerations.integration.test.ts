@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 
 // Past generations gallery (#194). Better Auth is mocked as in the other
@@ -183,6 +184,27 @@ describe("GET /api/image-generation/all", () => {
     }
     expect(seen).toEqual([...ids].reverse());
     expect(cursor).toBeNull();
+  });
+
+  it("pages correctly when rows share a millisecond but their microseconds run opposite to id order", async () => {
+    const session = await seedSession(orgId, user.id);
+    const ids: number[] = [];
+    for (let i = 0; i < 5; i++) {
+      const g = await seedGen(orgId, session.id);
+      // Same millisecond (.123); later ids get *earlier* microseconds.
+      await db.execute(sql`update image_generations set created_at = '2026-03-01T00:00:00.123Z'::timestamptz + ${`${10 - i} microseconds`}::interval where id = ${g.id}`);
+      ids.push(g.id);
+    }
+    const seen: number[] = [];
+    let cursor: string | null = null;
+    for (let n = 0; n < 5; n++) {
+      const body: Page = await page(`/api/image-generation/all?limit=2${cursor ? `&cursor=${cursor}` : ""}`);
+      seen.push(...body.items.map((i) => i.id));
+      cursor = body.nextCursor;
+      if (!cursor) break;
+    }
+    expect([...seen].sort((a, b) => a - b)).toEqual([...ids].sort((a, b) => a - b));
+    expect(new Set(seen).size).toBe(ids.length);
   });
 
   it("rejects a malformed cursor", async () => {

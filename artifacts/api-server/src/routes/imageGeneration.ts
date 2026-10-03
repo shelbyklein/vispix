@@ -227,7 +227,9 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
       and(eq(campaignsTable.sessionId, imageGenerationsTable.sessionId), eq(campaignsTable.organizationId, orgId)),
     )
     .where(and(...conditions))
-    .orderBy(desc(imageGenerationsTable.createdAt), desc(imageGenerationsTable.id))
+    // Order on the same millisecond-truncated time the cursor compares, so rows
+    // sharing a millisecond are ordered by id on both sides of a page boundary.
+    .orderBy(desc(sql`date_trunc('milliseconds', ${imageGenerationsTable.createdAt})`), desc(imageGenerationsTable.id))
     .limit(limit + 1);
 
   const page = rows.slice(0, limit);
