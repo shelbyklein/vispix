@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import sharp from "sharp";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
+import { isOrgUploadKey } from "../storageKeys";
 import {
   db,
   photosTable,
@@ -93,6 +94,20 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
     // Current rights, re-read now (#207) — a change since shortlisting counts.
     loadUsageRights(photoIds, organizationId),
   ]);
+  // Upload keys that are really library objects (an original or thumbnail of
+  // any photo, hidden or not).
+  const uploadKeys = requested.filter((i) => i.kind === "upload" && i.storageKey && isOrgUploadKey(i.storageKey, organizationId)).map((i) => i.storageKey!);
+  const libraryKeys = new Set<string>();
+  if (uploadKeys.length) {
+    const rows = await db
+      .select({ storageKey: photosTable.storageKey, thumbnailKey: photosTable.thumbnailKey })
+      .from(photosTable)
+      .where(or(inArray(photosTable.storageKey, uploadKeys), inArray(photosTable.thumbnailKey, uploadKeys)));
+    for (const r of rows) {
+      if (r.storageKey) libraryKeys.add(r.storageKey);
+      if (r.thumbnailKey) libraryKeys.add(r.thumbnailKey);
+    }
+  }
   const photoById = new Map(photos.map((p) => [p.id, p]));
   const assetById = new Map(assets.map((a) => [a.id, a]));
   const checkedAt = new Date();
@@ -127,11 +142,17 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       if (asset.notes?.trim()) usageNotes.push(`Asset "${name}" usage notes: ${asset.notes.trim()}`);
     } else {
       // Uploaded reference: the client passes the objectPath minted by the
-      // upload flow. Only accept keys under this org's own upload prefix.
-      if (!req.storageKey?.startsWith(`/objects/orgs/${organizationId}/`)) {
+      // upload flow. Only keys that flow issues to this org are accepted
+      // (`/objects/orgs/<org>/uploads/<uuid>`: isOrgUploadKey allows only
+      // [A-Za-z0-9-] after the prefix, so `..`, backslashes and control
+      // characters cannot pass). Library objects — a photo's original or
+      // thumbnail — must be referenced as kind "photo" so the visibility check
+      // applies.
+      const key = req.storageKey ?? "";
+      if (!isOrgUploadKey(key, organizationId) || libraryKeys.has(key)) {
         throw badRequest("Uploaded reference key is not valid for this organization.");
       }
-      storageKey = req.storageKey;
+      storageKey = key;
       name = name ?? "uploaded reference";
     }
 
@@ -152,6 +173,22 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
     });
   }
   return resolved;
+}
+
+/** Prompts that led to `parent`, oldest first, including its own (bounded walk up the revision chain). */
+async function loadPromptChain(parent: ImageGeneration, organizationId: number): Promise<string[]> {
+  const prompts = [parent.prompt];
+  let next = parent.parentGenerationId;
+  for (let depth = 0; next != null && depth < 8; depth++) {
+    const [row] = await db
+      .select({ prompt: imageGenerationsTable.prompt, parentGenerationId: imageGenerationsTable.parentGenerationId })
+      .from(imageGenerationsTable)
+      .where(and(eq(imageGenerationsTable.id, next), eq(imageGenerationsTable.organizationId, organizationId)));
+    if (!row) break;
+    prompts.unshift(row.prompt);
+    next = row.parentGenerationId;
+  }
+  return prompts;
 }
 
 function buildBrief(prompt: string, inputs: ResolvedInput[], format: GenerationFormat): string {
@@ -241,8 +278,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
     });
   }
 
-  // Revision: reuse the parent's session + response id and skip re-sending
-  // reference images (the Responses API keeps the image context server-side).
+  // Revision: reuse the parent's session.
   let parent: ImageGeneration | null = null;
   if (args.parentGenerationId != null) {
     const [row] = await db
@@ -255,7 +291,22 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
         ),
       );
     if (!row) throw Object.assign(new Error("Generation to revise was not found."), { statusCode: 404 });
+    if (!row.storageKey || row.status !== "succeeded") {
+      throw badRequest("That generation has no finished image to revise.");
+    }
     parent = row;
+  }
+
+  // Revisions carry their own context (OpenAI-side storage is off, so there is
+  // no previous_response_id): the parent's output image, downscaled like any
+  // AI input, plus the earlier instructions that produced it.
+  let parentImage: string | undefined;
+  let priorPrompts: string[] = [];
+  if (parent) {
+    const { dataUrl } = await resolveImageForAI("", parent.storageKey);
+    if (!dataUrl.startsWith("data:")) throw new Error("Could not load the image to revise.");
+    parentImage = dataUrl;
+    priorPrompts = await loadPromptChain(parent, args.organizationId);
   }
 
   // Session: reuse, or create titled by the first prompt.
@@ -290,10 +341,13 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   const formatChanged = parent != null && args.format != null && args.format !== parentFormat;
 
   const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs, args.canSeeHidden ?? false);
+  const revisionContext = priorPrompts.length
+    ? `\n\nContext — the attached image is the current design. It was created from this request${priorPrompts.length > 1 ? " and these follow-up changes (oldest first)" : ""}:\n${priorPrompts.map((p, i) => `${i + 1}. ${p}`).join("\n")}\nReference photos and assets from the original request are not re-attached; the attached image already contains them, so preserve them exactly as they appear.`
+    : "";
   const brief = parent
-    ? formatChanged
+    ? (formatChanged
       ? `Re-render the current image adapted to a ${GENERATION_FORMATS[format].label} canvas: keep the same design elements, content, text and style, but RECOMPOSE the layout so it fills the entire new canvas edge to edge. Never letterbox, pillarbox, or place the old design inside bands or borders — rearrange, rescale and re-crop the elements to genuinely inhabit the new aspect ratio. ${args.prompt}`
-      : `Revise the current image: ${args.prompt}\nKeep everything else unchanged.`
+      : `Revise the current image: ${args.prompt}\nKeep everything else unchanged.`) + revisionContext
     : buildBrief(args.prompt, resolved, format);
   const usageNotesSnapshot = parent
     ? ((parent.usageNotesSnapshot as string[] | null) ?? [])
@@ -311,7 +365,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   // Async flow (#189): insert PENDING rows and return immediately — the model
   // calls take 15–60s+ per variant, far beyond proxy timeouts, so the client
   // polls the session while a background chain fills the rows in. Each variant
-  // is an independent call (own response id → independently revisable),
+  // is an independent call (independently revisable),
   // processed sequentially: image calls are heavy and org keys have tight
   // rate limits.
   const generations: ImageGeneration[] = [];
@@ -338,8 +392,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
     .set({ updatedAt: new Date() })
     .where(eq(imageGenerationSessionsTable.id, sessionId));
 
-  const inputImages = parent ? undefined : resolved.map((i) => i.dataUrl);
-  const previousResponseId = parent?.openaiResponseId ?? null;
+  const inputImages = parentImage ? [parentImage] : resolved.map((i) => i.dataUrl);
   handoff.transferred = true;
   void (async () => {
     for (const row of generations) {
@@ -351,7 +404,6 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
             brief,
             inputImages,
             size,
-            previousResponseId,
           }),
         );
       } catch (err) {
@@ -377,7 +429,6 @@ async function processGenerationRow(
     brief: string;
     inputImages: string[] | undefined;
     size: ImageSize;
-    previousResponseId: string | null;
   },
 ): Promise<void> {
   try {
@@ -387,7 +438,6 @@ async function processGenerationRow(
       brief: ctx.brief,
       inputImages: ctx.inputImages,
       size: ctx.size,
-      previousResponseId: ctx.previousResponseId,
     });
     const stored = await storeGeneratedPng(row.organizationId, image.buffer);
     await db

@@ -2,9 +2,8 @@ import OpenAI from "openai";
 import { logger } from "../logger";
 
 // OpenAI image generation (#167) via the Responses API + image_generation tool.
-// The Responses API (rather than the bare images endpoint) gives us multi-turn
-// editing: each response id can be passed back as previous_response_id so
-// "make the headline larger" style follow-ups keep the image context.
+// Revisions are stateless: the caller re-sends the current image and context
+// with each request (store is false, so no response is retained to chain to).
 
 // The image model does the rendering; a small text model orchestrates the tool
 // call. Both overridable by env without a code change.
@@ -18,11 +17,9 @@ export interface GenerateImageArgs {
   baseURL?: string | null;
   /** Full generation brief (creative direction + roles + usage notes). */
   brief: string;
-  /** Reference images as data URLs; omitted on multi-turn revisions. */
+  /** Images as data URLs: the references, or on a revision the current design. */
   inputImages?: string[];
   size: ImageSize;
-  /** Continue editing a previous result. */
-  previousResponseId?: string | null;
 }
 
 export interface GeneratedImage {
@@ -54,7 +51,10 @@ export async function generateImage(args: GenerateImageArgs): Promise<GeneratedI
         output_format: "png",
       },
     ],
-    ...(args.previousResponseId ? { previous_response_id: args.previousResponseId } : {}),
+    // Provider-side retention off: OpenAI must not keep our briefs or images
+    // (#243). Revisions therefore re-send the parent image instead of chaining
+    // previous_response_id, which needs stored responses.
+    store: false,
   } as never) as unknown as {
     id: string;
     output?: Array<{ type: string; result?: string | null; status?: string }>;
