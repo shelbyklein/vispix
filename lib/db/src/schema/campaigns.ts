@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, text, timestamp, index } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, timestamp, index, jsonb } from "drizzle-orm/pg-core";
 import { organizationsTable } from "./organizations";
 import { usersTable } from "./users";
 import { imageGenerationSessionsTable } from "./imageGeneration";
@@ -8,6 +8,12 @@ import { imageGenerationSessionsTable } from "./imageGeneration";
 // campaign owns one image-generation session (created lazily on first
 // generate); its suggestions are that session's generations, so lineage,
 // polling and downloads reuse the #167 machinery unchanged.
+export interface CampaignNeedsInputConcept {
+  title: string;
+  missing: { role: "hero_photo" | "exact_asset"; slot: string; status: string; message: string }[];
+  resume: { title: string; prompt: string; format: string; heroPhotoQuery: string | null; useLogo: boolean };
+}
+
 export const campaignsTable = pgTable("campaigns", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
@@ -26,6 +32,12 @@ export const campaignsTable = pgTable("campaigns", {
   // The last generate request accepted for this campaign (#216), so a repeated
   // click or retry of the same request doesn't start duplicate generation.
   lastGenerateRequestId: text("last_generate_request_id"),
+  // Concepts the latest "Generate suggestions" run held back because a required
+  // photo/logo couldn't be found (#215): [{ title, missing, resume }]. Replaced
+  // on every run; an entry is removed once that concept is generated. Null when
+  // nothing is waiting. Holds only static messages and the planner's text query
+  // (never photo names or ids).
+  needsInputConcepts: jsonb("needs_input_concepts").$type<CampaignNeedsInputConcept[]>(),
   // The campaign's generation session; null until the first Generate.
   sessionId: integer("session_id").references(() => imageGenerationSessionsTable.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

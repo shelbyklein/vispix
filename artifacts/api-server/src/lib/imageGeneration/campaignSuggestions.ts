@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 import { eq } from "drizzle-orm";
-import { db, campaignsTable, imageGenerationSessionsTable, type Campaign } from "@workspace/db";
+import { db, campaignsTable, imageGenerationSessionsTable, type Campaign, type CampaignNeedsInputConcept } from "@workspace/db";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { findPhotoCandidates, findDesignatedPrimaryLogo, REQUIRED_INPUT_MESSAGES, type RequiredInput } from "./plan";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat, type RequestedInput, type RunGenerationResult } from "./orchestrate";
@@ -120,6 +120,12 @@ export function nearestSupportedFormat(requested: string): GenerationFormat {
     }
   }
   return best;
+}
+
+function heldConcepts(results: CampaignConceptResult[]): CampaignNeedsInputConcept[] {
+  return results
+    .filter((r) => r.status === "needs_input" && r.missing && r.missing.length > 0 && r.resume)
+    .map((r) => ({ title: r.title, missing: r.missing!, resume: r.resume! }));
 }
 
 type PrimaryLogo = Awaited<ReturnType<typeof findDesignatedPrimaryLogo>>;
@@ -283,7 +289,13 @@ export async function generateCampaignSuggestions(
     }
   }
 
-  await db.update(campaignsTable).set({ updatedAt: new Date() }).where(eq(campaignsTable.id, campaign.id));
+  // The latest run replaces whatever was held before, so the campaign page can
+  // show the held concepts again after a reload.
+  const held = heldConcepts(results);
+  await db
+    .update(campaignsTable)
+    .set({ updatedAt: new Date(), needsInputConcepts: held.length > 0 ? held : null })
+    .where(eq(campaignsTable.id, campaign.id));
 
   const missingLogo = results.some((r) => r.missing?.some((m) => m.role === "exact_asset" && m.message === REQUIRED_INPUT_MESSAGES.primaryLogoMissing));
   return {
@@ -312,6 +324,13 @@ export async function generateCampaignConcept(
   assertGenerationCapacity(campaign.organizationId, userId, 1);
   const sessionId = await ensureCampaignSession(campaign, userId);
   const out = await processConcept(campaign, userId, sessionId, concept, [...new Set(acknowledgedMissing)], {}, context);
-  await db.update(campaignsTable).set({ updatedAt: new Date() }).where(eq(campaignsTable.id, campaign.id));
+  // Drop the entry for this concept; if it is still blocked (a role wasn't
+  // acknowledged) it comes back with its current missing list.
+  const [fresh] = await db.select({ held: campaignsTable.needsInputConcepts }).from(campaignsTable).where(eq(campaignsTable.id, campaign.id));
+  const next = [...(fresh?.held ?? []).filter((h) => h.title !== concept.title), ...heldConcepts([out.result])];
+  await db
+    .update(campaignsTable)
+    .set({ updatedAt: new Date(), needsInputConcepts: next.length > 0 ? next : null })
+    .where(eq(campaignsTable.id, campaign.id));
   return { sessionId, generations: out.generations, concepts: [out.result], notices: [] };
 }
