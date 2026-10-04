@@ -26,21 +26,20 @@ A revision re-generates from the parent's **base** image (store is off; see CLAU
 
 ## Missing required inputs
 
-The planner marks inputs a design needs (a hero photo, the primary/requested logo) as **required**. When one is `missing` or `ambiguous`:
+The planner marks inputs a design needs (a hero photo, the primary/requested logo) as **required**. A required input is satisfied only by an **attached input of that role** or an **explicit acknowledgement** ("Continue without"). `found` inputs are not exempt: when a plan arrives, Create auto-attaches the top candidate for each `found` required input (the designated primary logo for `exact_asset`, the top photo candidate for `hero_photo`) through the same path as clicking it, so it shows as attached and can be removed. Removing it re-shows the amber panel ("Your primary logo was removed. Choose a logo or continue without one.") and Generate stays disabled until resolved. `ambiguous` and `missing` inputs are never auto-attached; the person chooses.
 
-- Create: Generate is disabled until the person chooses an input or picks "Continue without". The API enforces the same rule: `POST /image-generation/generate` returns
+**How requirements are computed (`plan.ts`, `requiredInputs` on the plan).** A hero photo is required when the planner proposed a photo query; a logo (`exact_asset`) when it proposed a brand-asset query, or the request itself names the logo ("logo", "wordmark", "brand mark") and nothing attached looks like one. Status: `found` (a photo candidate exists; a logo candidate with high/medium match confidence from #206 ranking), `missing` (no candidates; for a logo, no designated primary when a generic/primary logo was asked for), `ambiguous` (logo candidates exist but the best is low-confidence). Messages are fixed strings, never model text. An attached input of the same role satisfies the requirement.
 
-  ```json
-  { "error": "…", "code": "input_required", "missing": [{ "role": "exact_asset", "slot": "Primary logo", "status": "missing", "message": "…" }] }
-  ```
+**Who enforces what.**
 
-  with status **409** unless the request lists the role in `acknowledgedMissing`.
-- Campaigns: a concept whose required inputs can't be grounded is returned with `status: "needs_input"` instead of being rendered without inputs.
-- Continuing without is recorded in the generation's `fidelity.grounding.acknowledgedMissing` and shown on the output ("No logo used" / "No photo used").
+- **Create = UI-enforced and server-enforced (when the client sends the plan).** The plan card shows an amber panel per unresolved required input ("Choose a logo…" / "Continue without a logo"); Generate stays disabled until each is attached or acknowledged. The request carries the plan's `requiredInputs` (max 4 entries of `{ role, slot, status, message }`) and `acknowledgedMissing` (known roles `hero_photo` | `exact_asset`; anything else is a 400; de-duplicated and recorded as `grounding.acknowledgedMissing`). The server checks **every** `requiredInputs` entry regardless of status (`found`, `missing`, `ambiguous`): if the request has no input with that role and the role is not in `acknowledgedMissing`, it generates nothing and returns **409** `{ error: "A required input is missing", code: "input_required", missing: [...the unresolved entries] }` (the client's `InputRequiredError`). Create then re-shows the amber panel. **Caveat:** the server cannot derive requirements itself, so callers that send no `requiredInputs` (MCP, direct API calls, revisions) are not checked; only `acknowledgedMissing` is recorded for them.
+- **Campaigns = server-enforced.** Concepts are planned and grounded entirely on the server, so it enforces strictly: a concept whose required inputs can't be grounded is returned with `status: "needs_input"` and `missing: RequiredInput[]`, and **no generation row is created** for it (the old silent "generating without inputs" fallback is gone, including after a grounding error). Required: a hero photo when the concept has a photo query (found = the top retrieval match is attached), the designated primary logo when the concept wants a logo (#206: never an arbitrary brand asset).
+- **Continuing a needs_input concept.** `POST /campaigns/:id/generate-concept` with `{ concept, acknowledgedMissing }` (the `concept` is the `resume` object returned alongside a needs_input concept; same permission and rate limit as generating). The server re-grounds it (a photo/logo added since is used), and only roles listed in `acknowledgedMissing` may be skipped — any other missing role still returns `needs_input`. Skipped roles are recorded as `grounding.acknowledgedMissing`. Needs-input concepts are returned by the generate call only; they are not persisted, so reloading the page drops them (generate again to get them back).
+- Continuing without is recorded in the generation's `fidelity.grounding.acknowledgedMissing` and shown on the output ("No logo used" / "No photo used"). The Create result card shows these labels (and "Logo placed exactly", "Photo reinterpreted by AI", "Asked for X; made Y") in a compact row; the Generations detail shows the same lines with more detail.
 
 ## Canvases
 
-Supported: `1:1` (1024×1024), `2:3` (1024×1536), `3:2` (1536×1024). Any other requested ratio is rendered on the nearest supported canvas **and recorded** as `formatResolution { requested, rendered, supported: false }`, shown on the output — never relabelled silently.
+Supported: `1:1` (1024×1024), `2:3` (1024×1536), `3:2` (1536×1024). Any other requested ratio is rendered on the nearest supported canvas **and recorded** as `formatResolution { requested, rendered, supported: false }`, shown on the output — never relabelled silently. Campaign concepts pass their requested ratio (e.g. `16:9`) as `requestedFormat` and render on the nearest canvas by aspect ratio (`16:9` → `3:2`, `9:16` → `2:3`; unparseable → `1:1`).
 
 ## Provenance
 

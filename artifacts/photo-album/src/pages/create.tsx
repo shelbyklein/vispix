@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useGenerateImages,
   getGenerationLimit,
+  getInputRequired,
   useGenerationSessions,
   useGenerationSession,
   usePlanGeneration,
@@ -18,6 +19,8 @@ import {
   type ImageGenerationResult,
   type GenerationPlan,
   type PlanCandidate,
+  type RequiredInput,
+  type RequiredInputRole,
 } from "@workspace/api-client-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { Button } from "@/components/ui/button";
@@ -62,10 +65,12 @@ import {
   Settings2,
   Maximize2,
   ZoomIn,
+  Stamp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
+import { fidelityLines } from "@/lib/fidelity";
 
 // The Create workspace (#167): a chat between the user and a planning
 // assistant. Every submit is a chat message — the assistant replies with a
@@ -376,9 +381,108 @@ function CandidateInspectDialog({
   );
 }
 
+const ROLE_WORDS: Record<RequiredInputRole, { noun: string; choose: string }> = {
+  hero_photo: { noun: "photo", choose: "Choose a photo…" },
+  exact_asset: { noun: "logo", choose: "Choose a logo…" },
+};
+
+// Required inputs that still block Generate (#215): any status (even "found" -
+// found inputs are auto-attached, so one only blocks if the person removed it),
+// with nothing of that role attached and no explicit "continue without".
+function unresolvedRequiredInputs(
+  required: RequiredInput[] | undefined,
+  attachedRoles: ReadonlySet<string>,
+  acknowledged: ReadonlySet<RequiredInputRole>,
+): RequiredInput[] {
+  return (required ?? []).filter((r) => !attachedRoles.has(r.role) && !acknowledged.has(r.role));
+}
+
+function RequiredInputPanels({
+  required,
+  attachedRoles,
+  acknowledged,
+  onChoose,
+  onContinueWithout,
+  onUndoContinue,
+}: {
+  required: RequiredInput[];
+  attachedRoles: ReadonlySet<string>;
+  acknowledged: ReadonlySet<RequiredInputRole>;
+  onChoose: (role: RequiredInputRole) => void;
+  onContinueWithout: (role: RequiredInputRole) => void;
+  onUndoContinue: (role: RequiredInputRole) => void;
+}) {
+  const items = required;
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {items.map((r) => {
+        const words = ROLE_WORDS[r.role];
+        const headingId = `required-input-title-${r.role}`;
+        const isAttached = attachedRoles.has(r.role);
+        const isAcknowledged = !isAttached && acknowledged.has(r.role);
+        if (isAttached || isAcknowledged) {
+          return (
+            <div
+              key={r.role}
+              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground"
+              data-testid={`required-input-${r.role}`}
+              data-state={isAttached ? "attached" : "acknowledged"}
+            >
+              <Check className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                {isAttached ? `${r.slot}: ${words.noun} attached.` : `Continuing without a ${words.noun}.`}
+              </span>
+              {isAcknowledged && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onUndoContinue(r.role)} data-testid={`undo-continue-without-${r.role}`}>
+                  Undo
+                </Button>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div
+            key={r.role}
+            role="group"
+            aria-labelledby={headingId}
+            className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2"
+            data-testid={`required-input-${r.role}`}
+            data-state={r.status}
+          >
+            {/* role=heading, not <h*>: global h1–h6 !important colours would override the amber. */}
+            <div id={headingId} role="heading" aria-level={4} className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+              {r.slot} {r.status === "found" ? "removed" : r.status === "ambiguous" ? "needs a decision" : "not found"}
+            </div>
+            <p className="text-xs text-foreground">
+              {r.status === "found"
+                ? `Your ${r.slot.toLowerCase()} was removed. Choose a ${words.noun} or continue without one.`
+                : r.message}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChoose(r.role)} data-testid={`choose-${r.role}`}>
+                {words.choose}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onContinueWithout(r.role)} data-testid={`continue-without-${r.role}`}>
+                Continue without a {words.noun}
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PlanCard({
   plan,
   isLatest,
+  attachedRoles,
+  acknowledged,
+  onChoose,
+  onContinueWithout,
+  onUndoContinue,
   isAttached,
   onToggleCandidate,
   onApplyFormat,
@@ -390,6 +494,11 @@ function PlanCard({
 }: {
   plan: GenerationPlan;
   isLatest: boolean;
+  attachedRoles: ReadonlySet<string>;
+  acknowledged: ReadonlySet<RequiredInputRole>;
+  onChoose: (role: RequiredInputRole) => void;
+  onContinueWithout: (role: RequiredInputRole) => void;
+  onUndoContinue: (role: RequiredInputRole) => void;
   isAttached: (c: PlanCandidate) => boolean;
   onToggleCandidate: (c: PlanCandidate) => void;
   onApplyFormat: (f: GenerationFormatId) => void;
@@ -400,6 +509,8 @@ function PlanCard({
   currentFormatLabel: string;
 }) {
   const [inspecting, setInspecting] = useState<PlanCandidate | null>(null);
+  const unresolved = unresolvedRequiredInputs(plan.requiredInputs, attachedRoles, acknowledged);
+  const blocked = isLatest && unresolved.length > 0;
   return (
     <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
       <CandidateInspectDialog
@@ -478,6 +589,16 @@ function PlanCard({
           )}
         </div>
       ))}
+      {isLatest && (
+        <RequiredInputPanels
+          required={plan.requiredInputs ?? []}
+          attachedRoles={attachedRoles}
+          acknowledged={acknowledged}
+          onChoose={onChoose}
+          onContinueWithout={onContinueWithout}
+          onUndoContinue={onUndoContinue}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {plan.suggestedFormat && (
           <button
@@ -501,7 +622,8 @@ function PlanCard({
             size="sm"
             className="ml-auto gap-1.5"
             onClick={onGenerate}
-            disabled={generating}
+            disabled={generating || blocked}
+            title={blocked ? "Choose the missing input, or continue without it" : undefined}
             data-testid="plan-generate-btn"
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -510,6 +632,30 @@ function PlanCard({
         )}
       </div>
     </div>
+  );
+}
+
+// #215: how the image was made, in a compact row under the picture.
+function FidelityLabels({ generation }: { generation: ImageGenerationResult }) {
+  const lines = fidelityLines(generation);
+  if (lines.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap gap-1 border-t border-border/60 px-1.5 py-1" data-testid={`fidelity-labels-${generation.id}`}>
+      {lines.map((l) => (
+        <li
+          key={l.compact}
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground"
+          data-testid="fidelity-label"
+        >
+          {l.kind === "logo" ? (
+            <Stamp className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
+          {l.compact}
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -557,6 +703,7 @@ function GenerationCard({
       {generation.imageUrl && (
         <img src={generation.imageUrl} alt={generation.prompt} className="w-full object-contain" loading="lazy" />
       )}
+      <FidelityLabels generation={generation} />
       {/* Always-visible actions (hover overlays don't exist on touch screens). */}
       <div className="flex items-center justify-between gap-1 border-t border-border/60 bg-background/60 px-1.5 py-1">
         <Button
@@ -627,6 +774,9 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Required inputs (#215) the person chose to go without; cleared whenever a
+  // fresh plan recomputes the requirements.
+  const [acknowledged, setAcknowledged] = useState<ReadonlySet<RequiredInputRole>>(new Set());
   // The current exchange's transcript (user messages + assistant plans). When a
   // generation lands, the exchange is captured by the generation's prompt +
   // variants from the server, and the local transcript resets for the next one.
@@ -647,7 +797,16 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   // the session polls. Hold new submissions until the batch settles.
   const anyPending = generations.some((g) => g.status === "pending");
   const busy = generate.isPending || anyPending;
-  const latestPlanId = [...chatLog].reverse().find((t) => t.type === "plan")?.id ?? null;
+  const latestPlanTurn = [...chatLog].reverse().find((t): t is Extract<ChatTurn, { type: "plan" }> => t.type === "plan");
+  const latestPlanId = latestPlanTurn?.id ?? null;
+  const attachedRoles: ReadonlySet<string> = new Set(attached.map((a) => a.role));
+  const setRoleAcknowledged = (role: RequiredInputRole, on: boolean) =>
+    setAcknowledged((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(role);
+      else next.delete(role);
+      return next;
+    });
   // The full request so far: every user message this exchange, in order.
   const conversationText = (extra?: string) =>
     [...chatLog.filter((t): t is Extract<ChatTurn, { type: "user" }> => t.type === "user").map((t) => t.text), ...(extra ? [extra] : [])]
@@ -663,6 +822,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     setDraft("");
     setAttached([]);
     setReviseTarget(null);
+    setAcknowledged(new Set());
   }
 
   function candidateAttached(c: PlanCandidate): boolean {
@@ -677,6 +837,29 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
         ...prev,
         { localId: crypto.randomUUID(), kind: c.kind, refId: c.refId, role: c.role, name: c.name, previewUrl: c.previewUrl },
       ];
+    });
+  }
+
+  // #215: a required input the planner found is used, not just offered. Attach
+  // the top candidate (the designated primary logo / the best photo) the same
+  // way a click does, unless something of that role is already attached. The
+  // person can still remove it; Generate then waits for a decision.
+  function autoAttachFound(plan: GenerationPlan) {
+    const picks: PlanCandidate[] = [];
+    for (const r of plan.requiredInputs ?? []) {
+      if (r.status !== "found") continue;
+      const items = plan.slots.filter((s) => s.role === r.role).flatMap((s) => s.items);
+      const top = (r.role === "exact_asset" ? items.find((c) => c.isPrimary) : undefined) ?? items[0];
+      if (top) picks.push(top);
+    }
+    if (picks.length === 0) return;
+    setAttached((prev) => {
+      const next = [...prev];
+      for (const c of picks) {
+        if (next.some((a) => a.role === c.role)) continue;
+        next.push({ localId: crypto.randomUUID(), kind: c.kind, refId: c.refId, role: c.role, name: c.name, previewUrl: c.previewUrl });
+      }
+      return next.length === prev.length ? prev : next;
     });
   }
 
@@ -720,6 +903,8 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           // The suggested format is offered as a chip on the plan card only —
           // never auto-applied, so it can't stomp an explicit user choice.
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
+          setAcknowledged(new Set());
+          autoAttachFound(plan);
         },
         onError: (err) => {
           const limit = getGenerationLimit(err);
@@ -737,7 +922,13 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     );
   }
 
-  function runGenerate(prompt: string, parentGenerationId?: number, formatOverride?: GenerationFormatId) {
+  function runGenerate(
+    prompt: string,
+    parentGenerationId?: number,
+    formatOverride?: GenerationFormatId,
+    acknowledgedMissing?: RequiredInputRole[],
+    requiredInputs?: RequiredInput[],
+  ) {
     if (!prompt || busy) return;
     generate.mutate(
       {
@@ -752,6 +943,9 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           parentGenerationId != null
             ? []
             : attached.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name })),
+        ...(acknowledgedMissing && acknowledgedMissing.length > 0 ? { acknowledgedMissing } : {}),
+        // The server enforces the plan's requirements (409 input_required).
+        ...(requiredInputs && requiredInputs.length > 0 ? { requiredInputs } : {}),
       },
       {
         onSuccess: (result) => {
@@ -761,6 +955,17 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           resetExchange();
         },
         onError: (err) => {
+          // The server refused because a required input is still unresolved:
+          // drop the acknowledgements so the amber panel asks again.
+          if (getInputRequired(err)) {
+            setAcknowledged(new Set());
+            toast({
+              title: "A required input is missing",
+              description: "Choose one in the plan card, or continue without it.",
+              variant: "destructive",
+            });
+            return;
+          }
           const limit = getGenerationLimit(err);
           if (limit) {
             toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
@@ -781,7 +986,14 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   function handleGenerateFromPlan() {
     const prompt = conversationText(draft.trim() || undefined);
     if (!prompt) return;
-    runGenerate(prompt);
+    // Required inputs (#215): refuse while one is unresolved; otherwise record
+    // the roles the person chose to go without.
+    const required = latestPlanTurn?.plan.requiredInputs;
+    if (unresolvedRequiredInputs(required, attachedRoles, acknowledged).length > 0) return;
+    const goingWithout = (required ?? [])
+      .filter((r) => !attachedRoles.has(r.role) && acknowledged.has(r.role))
+      .map((r) => r.role);
+    runGenerate(prompt, undefined, undefined, [...new Set(goingWithout)], required);
   }
 
   // Re-render an existing result on a different canvas (model revision keeps
@@ -899,6 +1111,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
                 key={turn.id}
                 plan={turn.plan}
                 isLatest={turn.id === latestPlanId}
+                attachedRoles={attachedRoles}
+                acknowledged={acknowledged}
+                onChoose={() => setPickerOpen(true)}
+                onContinueWithout={(role) => setRoleAcknowledged(role, true)}
+                onUndoContinue={(role) => setRoleAcknowledged(role, false)}
                 isAttached={candidateAttached}
                 onToggleCandidate={toggleCandidate}
                 onApplyFormat={setFormat}

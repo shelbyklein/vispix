@@ -1,4 +1,4 @@
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import sharp from "sharp";
 import { and, eq, inArray, or } from "drizzle-orm";
 import { isOrgUploadKey } from "../storageKeys";
@@ -10,13 +10,15 @@ import {
   imageGenerationsTable,
   type GenerationInput,
   type ImageGeneration,
+  type GenerationCompositionRecord,
 } from "@workspace/db";
 import { loadUsageRights, snapshotOf, usageNote } from "../usageRights";
-import { getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectStorage";
+import { ObjectStorageService, getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectStorage";
 import { resolveImageForAI } from "../aiPhotoAnalysis";
 import { hiddenPhotoCondition } from "../photoHelpers";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { generateImage, type ImageSize } from "./openaiImage";
+import { compositeLogo, logoDimensions, PLACEHOLDER_HEX, type Box, type Placement } from "./compose";
 import { createLimiter } from "../concurrencyLimit";
 import { logger } from "../logger";
 import { GENERIC_GENERATION_ERROR, releaseGenerationSlots, reserveGenerationSlots } from "./limits";
@@ -48,6 +50,31 @@ interface ResolvedInput extends GenerationInput {
   usageNotes: string[];
   /** Photo inputs (#207): rights re-read at generation time, frozen with the output. */
   rights?: ImageGeneration["rightsSnapshot"][number];
+  /** Library logo asset inputs with role exact_asset (#215): original bytes, for compositing. */
+  assetFile?: { bytes: Buffer; contentType: string; width: number; height: number };
+}
+
+const storageService = new ObjectStorageService();
+
+/** Raw bytes of a stored /objects/... file. */
+async function loadObjectBytes(storageKey: string): Promise<Buffer> {
+  const file = await storageService.getObjectEntityFile(storageKey);
+  const [buffer] = await file.download();
+  return buffer;
+}
+
+const sha12 = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex").slice(0, 12);
+
+/** What gets composited onto each output: the original logo file and where it came from. */
+interface CompositeJob {
+  assetId: number;
+  assetName: string;
+  /** Internal revision: `<storage key>#<sha256 first 12 hex>`. */
+  assetRevision: string;
+  bytes: Buffer;
+  contentType: string;
+  /** Revision re-composite: the parent's recorded layout/placement. Absent -> detect the placeholder. */
+  fixed?: { layout: Box; placement: Placement };
 }
 
 // Role instructions (#167 §2): style influences, photos are preserved with a
@@ -61,6 +88,11 @@ const ROLE_INSTRUCTIONS: Record<RequestedInput["role"], string> = {
   exact_asset:
     "EXACT ASSET — a logo/icon/product element that must appear faithfully and unmodified: exact shapes, colors and proportions. Never redraw, restyle or approximate it.",
 };
+
+// The logo that Vispix composites itself (#215): the model must not draw it.
+function compositedLogoInstruction(aspectW: number, aspectH: number): string {
+  return `LOGO REFERENCE (for proportions and colors only) — do NOT draw, copy or approximate this logo anywhere. Instead, where the logo belongs in the design, leave one flat, solid ${PLACEHOLDER_HEX} (pure magenta) rectangle with an aspect ratio of ${aspectW}:${aspectH} (width:height), sharp square corners, no border, no shadow, no gradient and nothing inside it. Do not use ${PLACEHOLDER_HEX} anywhere else. The finished logo will be placed into that rectangle afterwards.`;
+}
 
 // Caller-fixable input problems surface as 400s with their message; anything
 // else thrown here is an internal failure and gets a generic 500.
@@ -119,6 +151,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
     let name = req.name ?? null;
     const usageNotes: string[] = [];
     let rights: ResolvedInput["rights"];
+    let assetFile: ResolvedInput["assetFile"];
 
     if (req.kind === "photo") {
       const photo = req.refId != null ? photoById.get(req.refId) : undefined;
@@ -139,6 +172,14 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       }
       storageKey = asset.storageKey;
       name = name ?? asset.name;
+      if (req.role === "exact_asset") {
+        const bytes = await loadObjectBytes(asset.storageKey);
+        const contentType = asset.contentType || "image/png";
+        // Fail fast, before any provider spend, on a file that can't be composited.
+        const dims = await logoDimensions(bytes, contentType).catch(() => null);
+        if (!dims) throw badRequest(`Asset "${asset.name}" can't be read as an image, so it can't be placed as an exact logo.`);
+        assetFile = { bytes, contentType, ...dims };
+      }
       if (asset.notes?.trim()) usageNotes.push(`Asset "${name}" usage notes: ${asset.notes.trim()}`);
     } else {
       // Uploaded reference: the client passes the objectPath minted by the
@@ -170,6 +211,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       dataUrl,
       usageNotes,
       rights,
+      assetFile,
     });
   }
   return resolved;
@@ -191,7 +233,13 @@ async function loadPromptChain(parent: ImageGeneration, organizationId: number):
   return prompts;
 }
 
+/** The first library logo (exact_asset) is composited by Vispix; v1 composites only one (#215). */
+function pickCompositeInput(inputs: ResolvedInput[]): ResolvedInput | null {
+  return inputs.find((i) => i.kind === "asset" && i.role === "exact_asset" && i.assetFile && i.refId != null) ?? null;
+}
+
 function buildBrief(prompt: string, inputs: ResolvedInput[], format: GenerationFormat): string {
+  const composited = pickCompositeInput(inputs);
   const lines: string[] = [
     "You are generating a finished marketing graphic. Create exactly one image following the user's creative direction.",
     "",
@@ -202,7 +250,11 @@ function buildBrief(prompt: string, inputs: ResolvedInput[], format: GenerationF
   if (inputs.length > 0) {
     lines.push("", "Attached images, in order, and how each must be treated:");
     inputs.forEach((input, i) => {
-      lines.push(`${i + 1}. "${input.name}" — ${ROLE_INSTRUCTIONS[input.role]}`);
+      const instruction =
+        input === composited
+          ? compositedLogoInstruction(input.assetFile!.width, input.assetFile!.height)
+          : ROLE_INSTRUCTIONS[input.role];
+      lines.push(`${i + 1}. "${input.name}" — ${instruction}`);
     });
   }
   const notes = inputs.flatMap((i) => i.usageNotes);
@@ -248,6 +300,11 @@ export interface RunGenerationArgs {
   /** Extra provenance stored in each generation's settings (e.g. the campaign
    * brief revision, #216). Core settings keys always take precedence. */
   settings?: Record<string, unknown>;
+  /** Canvas the person asked for, when it isn't one of the supported ones; the
+   * rendered canvas is always `format`. Omitted -> same as rendered (#215). */
+  requestedFormat?: string;
+  /** Required input roles the person chose to continue without (#215). */
+  acknowledgedMissing?: Array<"hero_photo" | "exact_asset">;
 }
 
 export interface RunGenerationResult {
@@ -303,7 +360,9 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   let parentImage: string | undefined;
   let priorPrompts: string[] = [];
   if (parent) {
-    const { dataUrl } = await resolveImageForAI("", parent.storageKey);
+    // Regenerate from the BASE image (before logo compositing) so a revision
+    // never re-edits a composited logo; rows without one use the final image.
+    const { dataUrl } = await resolveImageForAI("", parent.baseStorageKey ?? parent.storageKey);
     if (!dataUrl.startsWith("data:")) throw new Error("Could not load the image to revise.");
     parentImage = dataUrl;
     priorPrompts = await loadPromptChain(parent, args.organizationId);
@@ -341,8 +400,56 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   const formatChanged = parent != null && args.format != null && args.format !== parentFormat;
 
   const resolved = parent ? [] : await resolveInputs(args.organizationId, args.inputs, args.canSeeHidden ?? false);
+
+  // Exact-logo composition (#215). Fresh: the first library logo. Revision: the
+  // same asset file revision the parent used, re-composited at the parent's
+  // recorded layout (unless the canvas changed, where the layout can't carry
+  // over and the placeholder is detected afresh).
+  let composite: CompositeJob | null = null;
+  let reservedNote = "";
+  if (parent) {
+    const pc = parent.composition;
+    if (pc) {
+      const assetKey = pc.assetRevision.split("#")[0];
+      const bytes = await loadObjectBytes(assetKey);
+      composite = {
+        assetId: pc.assetId,
+        assetName: pc.assetName,
+        assetRevision: `${assetKey}#${sha12(bytes)}`,
+        bytes,
+        contentType: "",
+        fixed: formatChanged ? undefined : { layout: pc.layout, placement: pc.placement },
+      };
+      if (formatChanged) {
+        const d = await logoDimensions(bytes);
+        reservedNote = `\nThe logo is placed by the system, not drawn by you. Leave one flat, solid ${PLACEHOLDER_HEX} (pure magenta) rectangle with an aspect ratio of ${d.width}:${d.height}, sharp corners and nothing inside it, where the logo belongs on the new canvas; draw no logo and use that color nowhere else.`;
+      } else if (parent.baseStorageKey && pc.placement === "model_placeholder") {
+        reservedNote = `\nThe flat solid ${PLACEHOLDER_HEX} rectangle in the image is reserved for the logo: keep it exactly as is (same position, size and color, nothing inside it) and draw no logo. Use ${PLACEHOLDER_HEX} nowhere else.`;
+      } else if (parent.baseStorageKey) {
+        const l = pc.layout;
+        reservedNote = `\nThe logo is overlaid by the system afterwards at x=${l.x}, y=${l.y}, ${l.width}x${l.height} px: keep that area free of important content and draw no logo.`;
+      }
+    }
+  } else {
+    const pick = pickCompositeInput(resolved);
+    if (pick) {
+      composite = {
+        assetId: pick.refId!,
+        assetName: pick.name ?? `asset-${pick.refId}`,
+        assetRevision: `${pick.storageKey}#${sha12(pick.assetFile!.bytes)}`,
+        bytes: pick.assetFile!.bytes,
+        contentType: pick.assetFile!.contentType,
+      };
+    }
+  }
+  // v1 composites ONE logo. Other exact_asset inputs (extra logos, uploaded
+  // references) go to the model as before and are recorded as not composited.
+  const notComposited = resolved
+    .filter((i) => i.role === "exact_asset" && i !== pickCompositeInput(resolved))
+    .map((i) => i.name ?? "exact asset");
+
   const revisionContext = priorPrompts.length
-    ? `\n\nContext — the attached image is the current design. It was created from this request${priorPrompts.length > 1 ? " and these follow-up changes (oldest first)" : ""}:\n${priorPrompts.map((p, i) => `${i + 1}. ${p}`).join("\n")}\nReference photos and assets from the original request are not re-attached; the attached image already contains them, so preserve them exactly as they appear.`
+    ? `\n\nContext — the attached image is the current design. It was created from this request${priorPrompts.length > 1 ? " and these follow-up changes (oldest first)" : ""}:\n${priorPrompts.map((p, i) => `${i + 1}. ${p}`).join("\n")}\nReference photos and assets from the original request are not re-attached; the attached image already contains them, so preserve them exactly as they appear.${reservedNote}`
     : "";
   const brief = parent
     ? (formatChanged
@@ -360,6 +467,14 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
     ? ((parent.inputs as GenerationInput[] | null) ?? [])
     : resolved.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name }));
   const size = GENERATION_FORMATS[format]?.size ?? "1024x1024";
+  // Fidelity records (#215). A revision keeps its parent's photo treatment and
+  // grounding acknowledgements unless the caller supplies new ones.
+  const photoTreatment: "reinterpreted" | null = parent
+    ? (parent.photoTreatment === "reinterpreted" || (parent.photoTreatment == null && (parent.inputs as GenerationInput[]).some((i) => i.role === "hero_photo")) ? "reinterpreted" : null)
+    : resolved.some((i) => i.role === "hero_photo") ? "reinterpreted" : null;
+  const acknowledgedMissing = args.acknowledgedMissing ?? (parent?.acknowledgedMissing as string[] | null) ?? [];
+  const requested = args.requestedFormat ?? format;
+  const formatResolution = { requested, rendered: format, supported: requested === format };
   const variantCount = parent ? 1 : Math.min(Math.max(args.variantCount, 1), 3);
 
   // Async flow (#189): insert PENDING rows and return immediately — the model
@@ -377,7 +492,18 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
         sessionId,
         parentGenerationId: parent?.id ?? null,
         prompt: args.prompt,
-        settings: { ...args.settings, format, size, variantIndex: variant, variantCount, imageModel: "" },
+        settings: {
+          ...args.settings,
+          format,
+          size,
+          variantIndex: variant,
+          variantCount,
+          imageModel: "",
+          ...(notComposited.length ? { notComposited } : {}),
+        },
+        photoTreatment,
+        formatResolution,
+        acknowledgedMissing,
         inputs: storedInputs,
         usageNotesSnapshot,
         rightsSnapshot,
@@ -404,6 +530,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
             brief,
             inputImages,
             size,
+            composite,
           }),
         );
       } catch (err) {
@@ -429,6 +556,7 @@ async function processGenerationRow(
     brief: string;
     inputImages: string[] | undefined;
     size: ImageSize;
+    composite: CompositeJob | null;
   },
 ): Promise<void> {
   try {
@@ -439,12 +567,39 @@ async function processGenerationRow(
       inputImages: ctx.inputImages,
       size: ctx.size,
     });
-    const stored = await storeGeneratedPng(row.organizationId, image.buffer);
+    // Exact logo (#215): keep the model's output as the BASE image, then place
+    // the original logo file. Any failure here fails the whole generation (it
+    // must never end "succeeded" without the logo it was asked to carry).
+    let finalBuffer = image.buffer;
+    let baseStorageKey: string | null = null;
+    let composition: GenerationCompositionRecord | null = null;
+    if (ctx.composite) {
+      const job = ctx.composite;
+      baseStorageKey = (await storeGeneratedPng(row.organizationId, image.buffer)).storageKey;
+      const result = await compositeLogo(image.buffer, job.bytes, job.fixed?.layout ?? null, {
+        contentType: job.contentType,
+        placement: job.fixed?.placement,
+      });
+      finalBuffer = result.image;
+      composition = {
+        mode: "exact_logo",
+        assetId: job.assetId,
+        assetName: job.assetName,
+        assetRevision: job.assetRevision,
+        layout: result.layout,
+        placement: result.placement,
+      };
+    }
+    const stored = await storeGeneratedPng(row.organizationId, finalBuffer);
+    const settings = { ...(row.settings as Record<string, unknown>), imageModel: image.imageModel };
     await db
       .update(imageGenerationsTable)
       .set({
         openaiResponseId: image.responseId,
-        settings: { ...(row.settings as Record<string, unknown>), imageModel: image.imageModel },
+        settings,
+        baseStorageKey,
+        composition,
+        provenance: { model: image.imageModel || null, settings },
         storageKey: stored.storageKey,
         contentType: "image/png",
         width: stored.width,

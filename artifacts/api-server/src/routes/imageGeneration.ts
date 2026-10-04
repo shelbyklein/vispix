@@ -13,9 +13,10 @@ import {
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
-import { planGeneration } from "../lib/imageGeneration/plan";
+import { planGeneration, type RequiredInput } from "../lib/imageGeneration/plan";
 import { canSeeHiddenPhotos } from "../lib/capabilities";
 import { loadGenerationView, redactInputs, redactRights, redactUsageNotes, type GenerationView } from "../lib/imageGeneration/redact";
+import { generationProvenance, visibleHeroPhotos } from "../lib/imageGeneration/provenance";
 import { generationRateLimit, sendGenerationError, GENERIC_GENERATION_ERROR } from "../lib/imageGeneration/limits";
 
 // AI image generation — the Create workspace backend (#167). All routes are
@@ -44,6 +45,27 @@ const GenerateBody = z.object({
     )
     .max(8)
     .default([]),
+  // #215: required inputs the person explicitly chose to go without. The
+  // server records them; it doesn't re-derive requirements from the client.
+  acknowledgedMissing: z
+    .array(z.enum(["hero_photo", "exact_asset"]))
+    .max(4)
+    .optional()
+    .transform((roles) => (roles ? [...new Set(roles)] : [])),
+  // #215: the plan's required inputs, sent by clients that planned first
+  // (Create). When present the server enforces them; callers without a plan
+  // (MCP, direct API, revisions) omit it and are not checked.
+  requiredInputs: z
+    .array(
+      z.object({
+        role: z.enum(["hero_photo", "exact_asset"]),
+        slot: z.string().max(100),
+        status: z.enum(["found", "missing", "ambiguous"]),
+        message: z.string().max(400),
+      }),
+    )
+    .max(4)
+    .optional(),
 });
 
 function serializeGeneration(g: ImageGeneration, view: GenerationView) {
@@ -64,6 +86,8 @@ function serializeGeneration(g: ImageGeneration, view: GenerationView) {
     status: g.status,
     error: g.error,
     createdAt: g.createdAt instanceof Date ? g.createdAt.toISOString() : String(g.createdAt),
+    // How it was made (#215): composition, photo treatment, grounding, format, model.
+    fidelity: generationProvenance(g, { canSeeHidden: view.canSeeHidden }),
   };
 }
 
@@ -96,8 +120,27 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
     res.status(400).json({ error: "Invalid generation request" });
     return;
   }
+  if (body.data.requiredInputs) {
+    const attachedRoles = new Set<string>(body.data.inputs.map((i) => i.role));
+    const acknowledged = new Set<string>(body.data.acknowledgedMissing);
+    const unresolved = body.data.requiredInputs.filter(
+      (r) => !attachedRoles.has(r.role) && !acknowledged.has(r.role),
+    );
+    if (unresolved.length > 0) {
+      // Same shape as the client's InputRequiredError.
+      const refusal: { error: string; code: "input_required"; missing: RequiredInput[] } = {
+        error: "A required input is missing",
+        code: "input_required",
+        missing: unresolved,
+      };
+      res.status(409).json(refusal);
+      return;
+    }
+  }
   try {
-    const result = await runGeneration({
+    // acknowledgedMissing is a Lane A run arg (#215); typed so this compiles
+    // whether or not RunGenerationArgs declares it yet.
+    const args: Parameters<typeof runGeneration>[0] & { acknowledgedMissing?: ("hero_photo" | "exact_asset")[] } = {
       organizationId: req.org!.id,
       userId: req.dbUser!.id,
       sessionId: body.data.sessionId,
@@ -107,7 +150,9 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
       variantCount: body.data.variantCount,
       inputs: body.data.inputs,
       canSeeHidden: canSeeHiddenPhotos(req),
-    });
+      ...(body.data.acknowledgedMissing.length > 0 ? { acknowledgedMissing: body.data.acknowledgedMissing } : {}),
+    };
+    const result = await runGeneration(args);
     const view = await loadGenerationView(req.org!.id, canSeeHiddenPhotos(req), result.generations);
     res.json({
       sessionId: result.sessionId,
@@ -252,6 +297,8 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
         createdAt: r.gen.createdAt.toISOString(),
         // Rights of each photo input, frozen at generation time (#207).
         rightsConsidered: redactRights(r.gen.rightsSnapshot ?? [], view),
+        fidelity: generationProvenance(r.gen, { canSeeHidden: view.canSeeHidden }),
+        heroPhotos: visibleHeroPhotos(r.gen.inputs ?? [], view),
         creator: r.creatorId != null ? { id: r.creatorId, name: r.creatorName } : null,
         source: r.campaignId != null
           ? { type: "campaign" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: r.campaignId, campaignName: r.campaignName }

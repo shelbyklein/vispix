@@ -38,6 +38,18 @@ export interface GenerationInput {
   name: string | null;
 }
 
+// Stored composition: the API contract's GenerationComposition. `assetRevision`
+// is `<storage key>#<sha256 first 12 hex>` internally; serializers redact the
+// key for non-managers (lib/imageGeneration/provenance.ts).
+export interface GenerationCompositionRecord {
+  mode: "exact_logo";
+  assetId: number;
+  assetName: string;
+  assetRevision: string;
+  layout: { x: number; y: number; width: number; height: number };
+  placement: "model_placeholder" | "default_corner";
+}
+
 export const imageGenerationsTable = pgTable("image_generations", {
   id: serial("id").primaryKey(),
   organizationId: integer("organization_id")
@@ -69,6 +81,20 @@ export const imageGenerationsTable = pgTable("image_generations", {
   contentType: text("content_type"),
   width: integer("width"),
   height: integer("height"),
+  // Asset fidelity (#215). All nullable/additive; rows from before it have none.
+  // The model output before any logo compositing (revisions regenerate from it);
+  // null when nothing was composited (the final image is the base).
+  baseStorageKey: text("base_storage_key"),
+  // Exact-logo composition record (asset, file revision, pixel layout, placement).
+  composition: jsonb("composition").$type<GenerationCompositionRecord>(),
+  // "reinterpreted" when a hero photo was redrawn by the model.
+  photoTreatment: text("photo_treatment"),
+  // { requested, rendered, supported } canvas resolution.
+  formatResolution: jsonb("format_resolution").$type<{ requested: string; rendered: string; supported: boolean }>(),
+  // { model, settings } as returned by / sent to the provider.
+  provenance: jsonb("provenance").$type<{ model: string | null; settings: Record<string, unknown> }>(),
+  // Required input roles the person chose to continue without.
+  acknowledgedMissing: jsonb("acknowledged_missing").$type<string[]>(),
   status: text("status").notNull().default("pending"), // pending | succeeded | failed
   error: text("error"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
