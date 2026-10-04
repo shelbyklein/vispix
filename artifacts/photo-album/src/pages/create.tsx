@@ -2,6 +2,7 @@ import { RightsPills, usageRightsOf, RIGHTS_DISCLAIMER } from "@/components/usag
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
+  ApiError,
   useGenerateImages,
   getGenerationLimit,
   getInputRequired,
@@ -71,6 +72,33 @@ import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
 import { fidelityLines } from "@/lib/fidelity";
+
+// The session the person last had open, remembered per organization so a
+// reload reopens it. Storage can be unavailable (private mode): fail quietly.
+const lastSessionKey = (orgId: number) => `vispix:create:last-session:${orgId}`;
+function readLastSession(orgId: number): number | undefined {
+  try {
+    const id = Number(window.localStorage.getItem(lastSessionKey(orgId)));
+    return Number.isInteger(id) && id > 0 ? id : undefined;
+  } catch {
+    return undefined;
+  }
+}
+function forgetLastSession(orgId: number) {
+  try {
+    window.localStorage.removeItem(lastSessionKey(orgId));
+  } catch {
+    /* ignore */
+  }
+}
+function writeLastSession(orgId: number, sessionId: number | undefined) {
+  if (sessionId == null) return forgetLastSession(orgId);
+  try {
+    window.localStorage.setItem(lastSessionKey(orgId), String(sessionId));
+  } catch {
+    /* ignore */
+  }
+}
 
 // The Create workspace (#167): a chat between the user and a planning
 // assistant. Every submit is a chat message — the assistant replies with a
@@ -431,7 +459,7 @@ function RequiredInputPanels({
             >
               <Check className="h-3.5 w-3.5 shrink-0" />
               <span className="min-w-0 flex-1">
-                {isAttached ? `${r.slot}: ${words.noun} attached.` : `Continuing without a ${words.noun}.`}
+                {isAttached ? `${r.slot} attached` : `Continuing without a ${words.noun}.`}
               </span>
               {isAcknowledged && (
                 <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onUndoContinue(r.role)} data-testid={`undo-continue-without-${r.role}`}>
@@ -791,6 +819,36 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   const { uploadFile, isUploading } = useUpload();
   const { activeOrg } = useOrg();
   const searchLabel = `Search ${activeOrg?.name ?? "library"}`;
+
+  // Reopen the session the person last had open (per organization) instead of
+  // an empty "New session": the remembered id, else the newest session, else
+  // nothing (a new session). A deep link (?session=) wins, and the compact
+  // panel keeps its own state.
+  const orgId = activeOrg?.id;
+  const [restoredFor, setRestoredFor] = useState<number | "skip" | null>(() => (sessionId != null || compact ? "skip" : null));
+  useEffect(() => {
+    if (restoredFor === "skip" || orgId == null || restoredFor === orgId) return;
+    const remembered = readLastSession(orgId);
+    if (remembered != null) {
+      setSessionId(remembered);
+      setRestoredFor(orgId);
+    } else if (sessions.data) {
+      setSessionId(sessions.data[0]?.id);
+      setRestoredFor(orgId);
+    }
+  }, [restoredFor, orgId, sessions.data]);
+  useEffect(() => {
+    if (restoredFor === "skip" || orgId == null || restoredFor !== orgId) return;
+    writeLastSession(orgId, sessionId);
+  }, [restoredFor, orgId, sessionId]);
+  // The remembered session is gone (deleted, or no longer visible): forget it
+  // and fall back to the newest one.
+  const sessionGone = session.error instanceof ApiError && session.error.status === 404;
+  useEffect(() => {
+    if (!sessionGone || orgId == null || restoredFor !== orgId) return;
+    forgetLastSession(orgId);
+    setSessionId(sessions.data?.find((s) => s.id !== sessionId)?.id);
+  }, [sessionGone, orgId, restoredFor, sessionId, sessions.data]);
 
   const generations = session.data?.generations ?? [];
   // Generation is async: pending rows are being filled in by the server while

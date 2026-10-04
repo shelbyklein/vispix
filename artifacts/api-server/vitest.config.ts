@@ -23,5 +23,8 @@ export default defineConfig({
     // mid-test — FK violations, duplicate-key errors, empty result sets).
     sequence: { concurrent: false },
     fileParallelism: false,
+    // ...and an advisory lock keeps OTHER processes (e.g. the mcp-server suite)
+    // off the same database while a file runs.
+    setupFiles: ["./src/lib/__tests__/dbLock.setup.ts"],
   },
 });

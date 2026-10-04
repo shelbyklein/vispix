@@ -57,6 +57,8 @@ function serialize(c: Campaign) {
     brief: c.brief,
     briefRevision: c.briefRevision,
     sessionId: c.sessionId,
+    // Concepts held back for a missing photo/logo by the latest run (#215).
+    needsInputConcepts: c.needsInputConcepts ?? [],
     createdById: c.createdById,
     createdAt: c.createdAt.toISOString(),
     updatedAt: c.updatedAt.toISOString(),

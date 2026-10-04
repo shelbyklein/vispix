@@ -12,6 +12,8 @@ export interface CampaignSummary {
   /** Bumped on every brief change (#216); send it back as `expectedRevision`. */
   briefRevision: number;
   sessionId: number | null;
+  /** Concepts the latest Generate run held back for a missing photo/logo (#215); survives reloads. */
+  needsInputConcepts: CampaignNeedsInputConcept[];
   /** Its creator; with org owners/admins, the only ones who can change it (#218). */
   createdById: number;
   createdAt: string;
@@ -95,6 +97,13 @@ export interface CampaignAdConcept {
   format: string;
   heroPhotoQuery: string | null;
   useLogo: boolean;
+}
+
+/** A held concept as stored on the campaign (#215). */
+export interface CampaignNeedsInputConcept {
+  title: string;
+  missing: RequiredInput[];
+  resume: CampaignAdConcept;
 }
 
 export interface CampaignConcept {
