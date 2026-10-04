@@ -1,6 +1,7 @@
 import { pgTable, serial, integer, text, jsonb, timestamp, index, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { organizationsTable } from "./organizations";
 import { usersTable } from "./users";
+import type { UsageRightsSnapshot } from "./attributionTags";
 
 // AI image generation (#167): a Create-workspace conversation and its outputs.
 // Every generated image is fully traceable — prompt, attached inputs with their
@@ -59,6 +60,10 @@ export const imageGenerationsTable = pgTable("image_generations", {
   // Usage notes that applied at generation time (photo rights tags, asset
   // notes), frozen so the output stays auditable even if notes change later.
   usageNotesSnapshot: jsonb("usage_notes_snapshot").$type<string[]>().notNull().default([]),
+  // Structured usage-rights state of each photo input at generation time (#207),
+  // frozen like the notes above. Empty for generations without photo inputs and
+  // for rows created before this was recorded.
+  rightsSnapshot: jsonb("rights_snapshot").$type<(UsageRightsSnapshot & { photoId: number; name: string })[]>().notNull().default([]),
   // /objects/orgs/<org>/generated/<uuid> once stored; null while pending/failed.
   storageKey: text("storage_key"),
   contentType: text("content_type"),

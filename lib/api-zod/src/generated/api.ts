@@ -295,7 +295,23 @@ export const GetAlbumTopRatedResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -550,7 +566,21 @@ export const ListAlbumPhotosResponse = zod.object({
         )
         .optional()
         .describe(
-          "Attribution \/ usage-rights tags this photo is cleared for.",
+          "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+        ),
+      usageRights: zod
+        .object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
         ),
       aiDescription: zod.string().nullish(),
       latestAiStatus: zod
@@ -820,7 +850,21 @@ export const SearchPhotosResponse = zod.object({
         )
         .optional()
         .describe(
-          "Attribution \/ usage-rights tags this photo is cleared for.",
+          "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+        ),
+      usageRights: zod
+        .object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
         ),
       aiDescription: zod.string().nullish(),
       latestAiStatus: zod
@@ -1076,7 +1120,23 @@ export const SemanticSearchPhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -1350,7 +1410,21 @@ export const RetrievePhotosResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -1625,7 +1699,23 @@ export const ListSimilarPhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -2031,7 +2121,21 @@ export const ListPhotosResponse = zod.object({
         )
         .optional()
         .describe(
-          "Attribution \/ usage-rights tags this photo is cleared for.",
+          "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+        ),
+      usageRights: zod
+        .object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
         ),
       aiDescription: zod.string().nullish(),
       latestAiStatus: zod
@@ -2372,7 +2476,23 @@ export const GetPhotoResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -2577,7 +2697,23 @@ export const UpdatePhotoResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -2787,7 +2923,23 @@ export const AddPhotoTagResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -2987,7 +3139,23 @@ export const RemovePhotoTagResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -3190,7 +3358,23 @@ export const AddPhotoCategoryResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -3390,7 +3574,23 @@ export const RemovePhotoCategoryResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -3595,7 +3795,23 @@ export const RatePhotoResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -3794,7 +4010,23 @@ export const ClearPhotoRatingResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -4423,7 +4655,21 @@ export const GetDashboardStatsResponse = zod.object({
         )
         .optional()
         .describe(
-          "Attribution \/ usage-rights tags this photo is cleared for.",
+          "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+        ),
+      usageRights: zod
+        .object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        })
+        .optional()
+        .describe(
+          'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
         ),
       aiDescription: zod.string().nullish(),
       latestAiStatus: zod
@@ -4625,7 +4871,23 @@ export const GetRecentPhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -4821,7 +5083,23 @@ export const GetTopRatedPhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -5152,7 +5430,21 @@ export const GetCollectionResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -5392,7 +5684,21 @@ export const UpdateCollectionResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -5629,7 +5935,23 @@ export const ListCollectionNegativePhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -5876,7 +6198,21 @@ export const SetCollectionCoverResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -6100,7 +6436,23 @@ export const GetSmartCollectionPhotosResponseItem = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -6264,6 +6616,78 @@ export const ReorderProjectsResponse = zod.object({
 });
 
 /**
+ * Re-reads each photo's usage rights at request time. Warning-only: export is never blocked. not_recorded means unknown; recorded tags are your team's records, not a legal clearance.
+ * @summary Usage rights of a project's photos right now, and changes since shortlisting (#207)
+ */
+export const GetProjectRightsCheckParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetProjectRightsCheckResponse = zod.object({
+  checkedAt: zod.coerce.date(),
+  counts: zod.object({
+    total: zod.number(),
+    recorded: zod.number(),
+    notRecorded: zod.number(),
+    changedSinceShortlist: zod.number(),
+    notCapturedAtShortlist: zod
+      .number()
+      .describe(
+        "Photos shortlisted before rights snapshots existed, so changes can't be compared.",
+      ),
+  }),
+  photos: zod.array(
+    zod.object({
+      photoId: zod.number(),
+      filename: zod.string().nullable(),
+      usageRights: zod
+        .object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        })
+        .describe(
+          'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+        ),
+      shortlistedRights: zod.union([
+        zod.object({
+          status: zod.enum(["recorded", "not_recorded"]),
+          tags: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+          checkedAt: zod.coerce.date(),
+        }),
+        zod.null(),
+      ]),
+      changedSinceShortlist: zod.union([
+        zod.object({
+          added: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+          removed: zod.array(
+            zod.object({
+              id: zod.number(),
+              name: zod.string(),
+            }),
+          ),
+        }),
+        zod.null(),
+      ]),
+    }),
+  ),
+});
+
+/**
  * @summary Get a single project with its photos
  */
 export const GetProjectParams = zod.object({
@@ -6361,7 +6785,21 @@ export const GetProjectResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -6591,7 +7029,21 @@ export const UpdateProjectResponse = zod.object({
           )
           .optional()
           .describe(
-            "Attribution \/ usage-rights tags this photo is cleared for.",
+            "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+          ),
+        usageRights: zod
+          .object({
+            status: zod.enum(["recorded", "not_recorded"]),
+            tags: zod.array(
+              zod.object({
+                id: zod.number(),
+                name: zod.string(),
+              }),
+            ),
+          })
+          .optional()
+          .describe(
+            'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
           ),
         aiDescription: zod.string().nullish(),
         latestAiStatus: zod
@@ -6936,7 +7388,23 @@ export const AcceptPhotoSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -7136,7 +7604,23 @@ export const DismissPhotoSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -7336,7 +7820,23 @@ export const AcceptPhotoTagSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -7536,7 +8036,23 @@ export const DismissPhotoTagSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -7736,7 +8252,23 @@ export const AcceptPhotoCategorySuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -7936,7 +8468,23 @@ export const DismissPhotoCategorySuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -8140,7 +8688,23 @@ export const AcceptPhotoNewCollectionSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([
@@ -8340,7 +8904,23 @@ export const DismissPhotoNewCollectionSuggestionResponse = zod.object({
       }),
     )
     .optional()
-    .describe("Attribution \/ usage-rights tags this photo is cleared for."),
+    .describe(
+      "Usage-rights tags your team recorded on this photo (a record, not a legal clearance).",
+    ),
+  usageRights: zod
+    .object({
+      status: zod.enum(["recorded", "not_recorded"]),
+      tags: zod.array(
+        zod.object({
+          id: zod.number(),
+          name: zod.string(),
+        }),
+      ),
+    })
+    .optional()
+    .describe(
+      'Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never \"no rights\". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.',
+    ),
   aiDescription: zod.string().nullish(),
   latestAiStatus: zod
     .union([

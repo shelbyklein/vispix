@@ -281,6 +281,13 @@
       "when": 1790999581103,
       "tag": "0039_collection_suggestion_lifecycle",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791098980746,
+      "tag": "0040_usage_rights_snapshots",
+      "breakpoints": true
     }
   ]
 }

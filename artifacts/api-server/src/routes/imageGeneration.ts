@@ -246,6 +246,8 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
         height: r.gen.height,
         status: r.gen.status,
         createdAt: r.gen.createdAt.toISOString(),
+        // Rights of each photo input, frozen at generation time (#207).
+        rightsConsidered: r.gen.rightsSnapshot ?? [],
         creator: r.creatorId != null ? { id: r.creatorId, name: r.creatorName } : null,
         source: r.campaignId != null
           ? { type: "campaign" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: r.campaignId, campaignName: r.campaignName }

@@ -123,6 +123,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
     rating: { average: p.averageRating, count: p.ratingCount },
     quality: { score: p.aiScore, flaws: p.aiFlaws },
     rights: p.rights,
+    rightsStatus: p.rights.length > 0 ? ("recorded" as const) : ("not_recorded" as const),
     match: p.match ?? null,
     thumbnail: thumbnailInfo(p),
   });
@@ -190,7 +191,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
         exclude: z.string().optional().describe("Concept to steer away from (e.g. 'crowds', 'indoor range')"),
         minRating: z.number().min(1).max(5).optional().describe("Only photos with at least this average star rating"),
         minQuality: z.number().min(0).max(10).optional().describe("Only photos with at least this AI quality score (0-10; e.g. 7 for hero-shot candidates)"),
-        rightsTag: z.string().optional().describe("Only photos cleared for this usage-rights tag (see list_usage_rights)"),
+        rightsTag: z.string().optional().describe("Only photos with this usage-rights tag recorded (see list_usage_rights)"),
         person: z.string().optional().describe("Only photos tagged to this person (see list_people)"),
         includeImages: z.boolean().default(true).describe("Inline thumbnail images in the response"),
         maxImages: z.number().int().min(1).max(MAX_INLINE_IMAGES).default(MAX_INLINE_IMAGES).describe("Cap on inline images (also bounded by total bytes)"),
@@ -249,7 +250,7 @@ export function createServer(options: ServerOptions = {}): McpServer {
           p.width && p.height && `${p.width}x${p.height}`,
           p.averageRating != null && `rating: ${p.averageRating.toFixed(1)}/5 (${p.ratingCount})`,
           p.aiScore != null && `quality: ${p.aiScore.toFixed(1)}/10${p.aiFlaws.length > 0 ? ` (flaws: ${p.aiFlaws.join(", ")})` : ""}`,
-          p.rights.length > 0 && `rights: ${p.rights.join(", ")}`,
+          p.rights.length > 0 ? `rights recorded: ${p.rights.join(", ")}` : "rights: not recorded",
         ].filter(Boolean);
         const desc = p.aiDescription ? `\n   ${p.aiDescription.slice(0, 300)}` : "";
         return bits.join(" | ") + desc;
@@ -318,7 +319,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
         photo.width && photo.height && `dimensions: ${photo.width}x${photo.height}`,
         photo.averageRating != null && `rating: ${photo.averageRating.toFixed(1)}/5 (${photo.ratingCount} ratings)`,
         photo.aiScore != null && `AI quality score: ${photo.aiScore.toFixed(1)}/10${photo.aiFlaws.length > 0 ? ` — flaws: ${photo.aiFlaws.join(", ")}` : ""}`,
-        photo.rights.length > 0 ? `usage rights: ${photo.rights.join(", ")}` : "usage rights: none recorded",
+        photo.rights.length > 0
+          ? `usage rights recorded by the team: ${photo.rights.join(", ")} (not a legal clearance)`
+          : "usage rights: not recorded (unknown) — check before publishing",
         photo.takenAt && `taken: ${photo.takenAt}`,
         photo.aiDescription && `description: ${photo.aiDescription}`,
         fullResUrl && `full-resolution download (${validity}): ${fullResUrl}`,
@@ -416,8 +419,9 @@ export function createServer(options: ServerOptions = {}): McpServer {
     {
       title: "List usage-rights tags",
       description:
-        "List the attribution / usage-rights tags photos can be cleared for (e.g. web, print, " +
-        "social media). Pass a tag name as search_photos' rightsTag to restrict results to cleared photos.",
+        "List the usage-rights tags your team can record on photos (e.g. web, print, social media). " +
+        "A recorded tag is the team's own record, not a legal clearance; photos with no tag are 'not recorded' (unknown). " +
+        "Pass a tag name as search_photos' rightsTag to restrict results to photos with that tag recorded.",
       inputSchema: {},
       outputSchema: listUsageRightsOutput,
     },

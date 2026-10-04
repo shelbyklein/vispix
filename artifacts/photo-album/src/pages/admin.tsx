@@ -49,7 +49,7 @@ const ORG_GROUPS: { title: string; sections: Section[] }[] = [
       { href: "/admin/organization", title: "Organization", description: "Name, description, and details of your current organization.", icon: Building2 },
       { href: "/admin/members", title: "Members", description: "Invite teammates and manage roles in this organization.", icon: Users },
       { href: "/admin/billing", title: "Billing", description: "Plan, storage usage, and subscription for this organization.", icon: CreditCard },
-      { href: "/admin/attribution-tags", title: "Attribution Tags", description: "Usage-rights tags photos can be cleared for.", icon: Copyright },
+      { href: "/admin/attribution-tags", title: "Attribution Tags", description: "Usage-rights tags your team records on photos.", icon: Copyright },
     ],
   },
   {

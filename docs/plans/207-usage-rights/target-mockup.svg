@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" font-family="system-ui, -apple-system, sans-serif">
+  <!-- Wireframe of the #207 target states (warning-only policy). Not pixel-final. -->
+  <rect width="1200" height="760" fill="#0b0f17"/>
+  <text x="32" y="44" fill="#e8ecf2" font-size="22" font-weight="600">#207 target: usage rights visible at every decision point (warning only)</text>
+  <text x="32" y="70" fill="#8a94a6" font-size="14">"Not recorded" = unknown. "Recorded" = tags your team set; never shown as a legal clearance. Nothing is blocked.</text>
+
+  <!-- 1. Details / lightbox panel -->
+  <g transform="translate(32,100)">
+    <text x="0" y="0" fill="#8a94a6" font-size="13" font-weight="600">1 · PHOTO DETAILS AND LIGHTBOX</text>
+    <rect x="0" y="14" width="340" height="150" rx="12" fill="#121826" stroke="#2a3346"/>
+    <text x="18" y="44" fill="#e8ecf2" font-size="14" font-weight="600">Usage rights</text>
+    <rect x="18" y="58" width="304" height="52" rx="8" fill="#3a2a08" stroke="#b45309"/>
+    <text x="34" y="80" fill="#fcd34d" font-size="14" font-weight="600">⚠ Rights not recorded</text>
+    <text x="34" y="99" fill="#e7c98a" font-size="12">No rights recorded for this photo. Check before use.</text>
+    <text x="18" y="138" fill="#7dd3fc" font-size="13">Review rights →</text>
+    <rect x="0" y="178" width="340" height="96" rx="12" fill="#121826" stroke="#2a3346"/>
+    <text x="18" y="206" fill="#e8ecf2" font-size="14" font-weight="600">Usage rights</text>
+    <rect x="18" y="218" width="110" height="26" rx="13" fill="#0f2a1c" stroke="#15803d"/>
+    <text x="32" y="236" fill="#86efac" font-size="12">USA Archery</text>
+    <text x="18" y="264" fill="#8a94a6" font-size="11">Recorded by your team · not a legal clearance</text>
+  </g>
+
+  <!-- 2. Create candidates -->
+  <g transform="translate(404,100)">
+    <text x="0" y="0" fill="#8a94a6" font-size="13" font-weight="600">2 · CREATE CANDIDATES</text>
+    <g transform="translate(0,14)">
+      <rect width="170" height="200" rx="10" fill="#121826" stroke="#2a3346"/>
+      <rect x="8" y="8" width="154" height="100" rx="6" fill="#3f6212"/>
+      <text x="14" y="128" fill="#e8ecf2" font-size="12">archer_02.jpg</text>
+      <rect x="12" y="140" width="146" height="22" rx="11" fill="#3a2a08" stroke="#b45309"/>
+      <text x="22" y="155" fill="#fcd34d" font-size="11">⚠ Rights not recorded</text>
+      <text x="14" y="184" fill="#8a94a6" font-size="11">Quality 7.2 / 10</text>
+    </g>
+    <g transform="translate(190,14)">
+      <rect width="170" height="200" rx="10" fill="#121826" stroke="#2a3346"/>
+      <rect x="8" y="8" width="154" height="100" rx="6" fill="#1e3a8a"/>
+      <text x="14" y="128" fill="#e8ecf2" font-size="12">archer_07.jpg</text>
+      <rect x="12" y="140" width="110" height="22" rx="11" fill="#0f2a1c" stroke="#15803d"/>
+      <text x="22" y="155" fill="#86efac" font-size="11">USA Archery</text>
+      <text x="14" y="184" fill="#8a94a6" font-size="11">Quality not evaluated</text>
+    </g>
+  </g>
+
+  <!-- 3. Selection bar -->
+  <g transform="translate(32,420)">
+    <text x="0" y="0" fill="#8a94a6" font-size="13" font-weight="600">3 · SELECTION BAR (Photos / album select mode)</text>
+    <rect x="0" y="14" width="740" height="56" rx="10" fill="#121826" stroke="#2a3346"/>
+    <text x="20" y="48" fill="#e8ecf2" font-size="14">3 photos selected</text>
+    <text x="160" y="48" fill="#fcd34d" font-size="13">⚠ 1 with rights not recorded</text>
+    <rect x="560" y="28" width="80" height="30" rx="8" fill="#1f2937"/><text x="574" y="48" fill="#e8ecf2" font-size="12">Delete</text>
+    <rect x="650" y="28" width="76" height="30" rx="8" fill="#1f2937"/><text x="664" y="48" fill="#e8ecf2" font-size="12">Cancel</text>
+  </g>
+
+  <!-- 4. Export confirmation -->
+  <g transform="translate(800,100)">
+    <text x="0" y="0" fill="#8a94a6" font-size="13" font-weight="600">4 · PROJECT EXPORT CONFIRMATION</text>
+    <rect x="0" y="14" width="368" height="380" rx="14" fill="#121826" stroke="#2a3346"/>
+    <text x="20" y="48" fill="#e8ecf2" font-size="16" font-weight="600">Download "Spring promo" (4 photos)</text>
+    <text x="20" y="78" fill="#86efac" font-size="13">✓ 2 with recorded rights</text>
+    <text x="20" y="102" fill="#fcd34d" font-size="13">⚠ 2 with rights not recorded</text>
+    <text x="20" y="126" fill="#fca5a5" font-size="13">↺ 1 changed since it was shortlisted</text>
+    <rect x="20" y="142" width="328" height="118" rx="8" fill="#0b0f17" stroke="#2a3346"/>
+    <text x="32" y="166" fill="#e8ecf2" font-size="12">archer_02.jpg — not recorded</text>
+    <text x="32" y="188" fill="#e8ecf2" font-size="12">archer_04.jpg — not recorded</text>
+    <text x="32" y="210" fill="#e8ecf2" font-size="12">archer_03.jpg — "USA Archery" removed</text>
+    <text x="32" y="232" fill="#8a94a6" font-size="11">since shortlisted</text>
+    <text x="20" y="290" fill="#8a94a6" font-size="11">The zip includes usage-rights.json: what was recorded at</text>
+    <text x="20" y="306" fill="#8a94a6" font-size="11">download time. Recorded rights are not a legal clearance.</text>
+    <rect x="180" y="334" width="168" height="38" rx="9" fill="#2563eb"/><text x="200" y="358" fill="#fff" font-size="13" font-weight="600">Download anyway</text>
+    <rect x="80" y="334" width="88" height="38" rx="9" fill="#1f2937"/><text x="102" y="358" fill="#e8ecf2" font-size="13">Cancel</text>
+  </g>
+
+  <!-- 5. Generation record -->
+  <g transform="translate(32,530)">
+    <text x="0" y="0" fill="#8a94a6" font-size="13" font-weight="600">5 · GENERATED IMAGE RECORD (Generations detail)</text>
+    <rect x="0" y="14" width="740" height="120" rx="12" fill="#121826" stroke="#2a3346"/>
+    <text x="20" y="44" fill="#e8ecf2" font-size="14" font-weight="600">Rights considered (checked 2026-10-04 14:02)</text>
+    <text x="20" y="70" fill="#e8ecf2" font-size="13">archer_07.jpg — recorded: USA Archery</text>
+    <text x="20" y="92" fill="#fcd34d" font-size="13">archer_02.jpg — rights not recorded</text>
+    <text x="20" y="118" fill="#8a94a6" font-size="11">Snapshot frozen at generation time. Recorded rights are your team's records, not a legal clearance.</text>
+  </g>
+</svg>

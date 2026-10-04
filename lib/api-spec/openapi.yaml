@@ -2269,6 +2269,33 @@ paths:
         "401":
           description: Unauthorized
 
+  /projects/{id}/rights-check:
+    get:
+      operationId: getProjectRightsCheck
+      tags: [projects]
+      summary: Usage rights of a project's photos right now, and changes since shortlisting (#207)
+      description: >-
+        Re-reads each photo's usage rights at request time. Warning-only: export
+        is never blocked. not_recorded means unknown; recorded tags are your
+        team's records, not a legal clearance.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Current rights per photo, with changes since each was shortlisted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectRightsCheck"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Not found
+
   /projects/{id}:
     get:
       operationId: getProject
@@ -2769,6 +2796,79 @@ paths:
 
 components:
   schemas:
+    UsageRightsSnapshot:
+      type: object
+      required: [status, tags, checkedAt]
+      properties:
+        status:
+          type: string
+          enum: [recorded, not_recorded]
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttributionTag"
+        checkedAt:
+          type: string
+          format: date-time
+    ProjectRightsCheck:
+      type: object
+      required: [checkedAt, counts, photos]
+      properties:
+        checkedAt:
+          type: string
+          format: date-time
+        counts:
+          type: object
+          required: [total, recorded, notRecorded, changedSinceShortlist, notCapturedAtShortlist]
+          properties:
+            total: { type: integer }
+            recorded: { type: integer }
+            notRecorded: { type: integer }
+            changedSinceShortlist: { type: integer }
+            notCapturedAtShortlist:
+              type: integer
+              description: Photos shortlisted before rights snapshots existed, so changes can't be compared.
+        photos:
+          type: array
+          items:
+            type: object
+            required: [photoId, filename, usageRights, shortlistedRights, changedSinceShortlist]
+            properties:
+              photoId: { type: integer }
+              filename: { type: ["string", "null"] }
+              usageRights:
+                $ref: "#/components/schemas/UsageRights"
+              shortlistedRights:
+                oneOf:
+                  - $ref: "#/components/schemas/UsageRightsSnapshot"
+                  - type: "null"
+              changedSinceShortlist:
+                oneOf:
+                  - type: object
+                    required: [added, removed]
+                    properties:
+                      added:
+                        type: array
+                        items: { $ref: "#/components/schemas/AttributionTag" }
+                      removed:
+                        type: array
+                        items: { $ref: "#/components/schemas/AttributionTag" }
+                  - type: "null"
+    UsageRights:
+      type: object
+      description: >-
+        Explicit usage-rights state (#207). not_recorded means unknown (no tag
+        recorded), never "no rights". recorded lists the tags your team recorded;
+        it is not a legal clearance. Warning-only: nothing is blocked on it.
+      required: [status, tags]
+      properties:
+        status:
+          type: string
+          enum: [recorded, not_recorded]
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/AttributionTag"
     PhotoGraphThreadKind:
       type: string
       enum: [similar, duplicate, person, event, rights]
@@ -3143,9 +3243,11 @@ components:
             $ref: "#/components/schemas/PhotoProjectMembership"
         attributionTags:
           type: array
-          description: Attribution / usage-rights tags this photo is cleared for.
+          description: Usage-rights tags your team recorded on this photo (a record, not a legal clearance).
           items:
             $ref: "#/components/schemas/AttributionTag"
+        usageRights:
+          $ref: "#/components/schemas/UsageRights"
         aiDescription:
           type: ["string", "null"]
         latestAiStatus:

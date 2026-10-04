@@ -85,7 +85,7 @@ router.get("/onboarding/status", requireOrgAuth, async (req, res): Promise<void>
         .where(and(eq(collectionsTable.organizationId, orgId), eq(collectionsTable.kind, "person")))
         .limit(1),
     ),
-    // A photo cleared for usage rights via an attribution tag.
+    // A photo with usage rights recorded via an attribution tag.
     exists(
       db
         .select({ one })

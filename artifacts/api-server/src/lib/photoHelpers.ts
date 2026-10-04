@@ -1,5 +1,6 @@
 import { listPendingCollectionSuggestions, listPendingNewCollectionSuggestions } from "./collectionSuggestions";
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
+import { usageRightsFrom } from "./usageRights";
 import { eq, and, asc, avg, count, desc, ilike, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { photoFilterConditions } from "./searchFilters";
 import { ObjectStorageService } from "./objectStorage";
@@ -353,6 +354,8 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
     })),
     photoProjects: photoProjects.map((pr) => ({ id: pr.id, name: pr.name })),
     attributionTags: photoAttributionTags.map((t) => ({ id: t.id, name: t.name })),
+    // Explicit rights state (#207): no tag = not_recorded (unknown).
+    usageRights: usageRightsFrom(photoAttributionTags),
     averageRating: ratingData?.averageRating ? parseFloat(String(ratingData.averageRating)) : null,
     ratingCount: Number(ratingData?.ratingCount ?? 0),
     myRating,
@@ -534,6 +537,7 @@ export async function buildPhotosResponse(
         })),
         photoProjects: (projectsByPhoto.get(id) ?? []).map((pr) => ({ id: pr.id, name: pr.name })),
         attributionTags: (attributionByPhoto.get(id) ?? []).map((t) => ({ id: t.id, name: t.name })),
+        usageRights: usageRightsFrom(attributionByPhoto.get(id) ?? []),
         averageRating: ratingData?.averageRating ? parseFloat(String(ratingData.averageRating)) : null,
         ratingCount: Number(ratingData?.ratingCount ?? 0),
         myRating: myRatingByPhoto.get(id) ?? null,

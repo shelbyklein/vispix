@@ -5,13 +5,12 @@ import {
   db,
   photosTable,
   assetsTable,
-  attributionTagsTable,
-  photoAttributionTagsTable,
   imageGenerationSessionsTable,
   imageGenerationsTable,
   type GenerationInput,
   type ImageGeneration,
 } from "@workspace/db";
+import { loadUsageRights, snapshotOf, usageNote } from "../usageRights";
 import { getPrivateObjectDir, parseObjectPath, signObjectURL } from "../objectStorage";
 import { resolveImageForAI } from "../aiPhotoAnalysis";
 import { hiddenPhotoCondition } from "../photoHelpers";
@@ -46,6 +45,8 @@ export interface RequestedInput {
 interface ResolvedInput extends GenerationInput {
   dataUrl: string;
   usageNotes: string[];
+  /** Photo inputs (#207): rights re-read at generation time, frozen with the output. */
+  rights?: ImageGeneration["rightsSnapshot"][number];
 }
 
 // Role instructions (#167 §2): style influences, photos are preserved with a
@@ -89,20 +90,12 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
           .from(assetsTable)
           .where(and(inArray(assetsTable.id, assetIds), eq(assetsTable.organizationId, organizationId)))
       : Promise.resolve([]),
-    photoIds.length
-      ? db
-          .select({ photoId: photoAttributionTagsTable.photoId, name: attributionTagsTable.name })
-          .from(photoAttributionTagsTable)
-          .innerJoin(attributionTagsTable, eq(photoAttributionTagsTable.tagId, attributionTagsTable.id))
-          .where(inArray(photoAttributionTagsTable.photoId, photoIds))
-      : Promise.resolve([]),
+    // Current rights, re-read now (#207) — a change since shortlisting counts.
+    loadUsageRights(photoIds, organizationId),
   ]);
   const photoById = new Map(photos.map((p) => [p.id, p]));
   const assetById = new Map(assets.map((a) => [a.id, a]));
-  const rightsByPhoto = new Map<number, string[]>();
-  for (const r of photoRights) {
-    (rightsByPhoto.get(r.photoId) ?? rightsByPhoto.set(r.photoId, []).get(r.photoId)!).push(r.name);
-  }
+  const checkedAt = new Date();
 
   const resolved: ResolvedInput[] = [];
   for (const req of requested) {
@@ -110,6 +103,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
     let url = "";
     let name = req.name ?? null;
     const usageNotes: string[] = [];
+    let rights: ResolvedInput["rights"];
 
     if (req.kind === "photo") {
       const photo = req.refId != null ? photoById.get(req.refId) : undefined;
@@ -117,12 +111,11 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       storageKey = photo.storageKey;
       url = photo.url;
       name = name ?? photo.filename ?? `photo-${photo.id}`;
-      const rights = rightsByPhoto.get(photo.id) ?? [];
-      usageNotes.push(
-        rights.length > 0
-          ? `Photo "${name}" is cleared for: ${rights.join(", ")}.`
-          : `Photo "${name}" has NO recorded usage clearances — verify rights before publishing.`,
-      );
+      // Warning-only (#207): a photo with no recorded rights is still used;
+      // the note and snapshot say so, and never call a tag a clearance.
+      const current = photoRights.get(photo.id)!;
+      usageNotes.push(usageNote(name, current));
+      rights = { photoId: photo.id, name, ...snapshotOf(current, checkedAt) };
     } else if (req.kind === "asset") {
       const asset = req.refId != null ? assetById.get(req.refId) : undefined;
       if (!asset) throw badRequest(`Asset #${req.refId} not found in this organization.`);
@@ -155,6 +148,7 @@ async function resolveInputs(organizationId: number, requested: RequestedInput[]
       name,
       dataUrl,
       usageNotes,
+      rights,
     });
   }
   return resolved;
@@ -304,6 +298,10 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
   const usageNotesSnapshot = parent
     ? ((parent.usageNotesSnapshot as string[] | null) ?? [])
     : resolved.flatMap((i) => i.usageNotes);
+  // A revision keeps its parent's inputs, so it keeps the parent's snapshot too.
+  const rightsSnapshot = parent
+    ? (parent.rightsSnapshot ?? [])
+    : resolved.flatMap((i) => (i.rights ? [i.rights] : []));
   const storedInputs: GenerationInput[] = parent
     ? ((parent.inputs as GenerationInput[] | null) ?? [])
     : resolved.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name }));
@@ -328,6 +326,7 @@ async function runGenerationReserved(args: RunGenerationArgs, handoff: { transfe
         settings: { ...args.settings, format, size, variantIndex: variant, variantCount, imageModel: "" },
         inputs: storedInputs,
         usageNotesSnapshot,
+        rightsSnapshot,
         status: "pending",
       })
       .returning();

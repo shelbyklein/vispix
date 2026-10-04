@@ -1,3 +1,4 @@
+import { ProjectExportButton } from "@/components/usage-rights/ProjectExportDialog";
 import { useState } from "react";
 import { photoControlLabel, photoAltText } from "@/lib/photo-a11y";
 import { useParams, Link, useLocation } from "wouter";
@@ -265,14 +266,7 @@ export default function ProjectDetail() {
 
           <div className="flex items-center gap-2 shrink-0">
             {project.photoCount > 0 && (
-              <Button asChild variant="outline" size="sm" className="gap-1.5" data-testid="bulk-download-btn">
-                {/* Plain link: the browser streams the zip and shows its own
-                    download progress; no client-side buffering. */}
-                <a href={`/api/projects/${projectId}/download`}>
-                  <Download className="h-4 w-4" />
-                  <span className="hidden sm:inline">Bulk download</span>
-                </a>
-              </Button>
+              <ProjectExportButton projectId={projectId} projectName={project.name} photoCount={project.photoCount} />
             )}
             {canManage && (
               <>
