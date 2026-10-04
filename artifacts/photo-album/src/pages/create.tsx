@@ -18,6 +18,8 @@ import {
   type ImageGenerationResult,
   type GenerationPlan,
   type PlanCandidate,
+  type RequiredInput,
+  type RequiredInputRole,
 } from "@workspace/api-client-react";
 import { useUpload } from "@workspace/object-storage-web";
 import { Button } from "@/components/ui/button";
@@ -376,9 +378,103 @@ function CandidateInspectDialog({
   );
 }
 
+const ROLE_WORDS: Record<RequiredInputRole, { noun: string; choose: string }> = {
+  hero_photo: { noun: "photo", choose: "Choose a photo…" },
+  exact_asset: { noun: "logo", choose: "Choose a logo…" },
+};
+
+// Required inputs that still block Generate (#215): missing or ambiguous, with
+// nothing of that role attached and no explicit "continue without".
+function unresolvedRequiredInputs(
+  required: RequiredInput[] | undefined,
+  attachedRoles: ReadonlySet<string>,
+  acknowledged: ReadonlySet<RequiredInputRole>,
+): RequiredInput[] {
+  return (required ?? []).filter((r) => r.status !== "found" && !attachedRoles.has(r.role) && !acknowledged.has(r.role));
+}
+
+function RequiredInputPanels({
+  required,
+  attachedRoles,
+  acknowledged,
+  onChoose,
+  onContinueWithout,
+  onUndoContinue,
+}: {
+  required: RequiredInput[];
+  attachedRoles: ReadonlySet<string>;
+  acknowledged: ReadonlySet<RequiredInputRole>;
+  onChoose: (role: RequiredInputRole) => void;
+  onContinueWithout: (role: RequiredInputRole) => void;
+  onUndoContinue: (role: RequiredInputRole) => void;
+}) {
+  const items = required.filter((r) => r.status !== "found");
+  if (items.length === 0) return null;
+  return (
+    <div className="space-y-2">
+      {items.map((r) => {
+        const words = ROLE_WORDS[r.role];
+        const headingId = `required-input-title-${r.role}`;
+        const isAttached = attachedRoles.has(r.role);
+        const isAcknowledged = !isAttached && acknowledged.has(r.role);
+        if (isAttached || isAcknowledged) {
+          return (
+            <div
+              key={r.role}
+              className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-background/60 px-3 py-1.5 text-xs text-muted-foreground"
+              data-testid={`required-input-${r.role}`}
+              data-state={isAttached ? "attached" : "acknowledged"}
+            >
+              <Check className="h-3.5 w-3.5 shrink-0" />
+              <span className="min-w-0 flex-1">
+                {isAttached ? `${r.slot}: ${words.noun} attached.` : `Continuing without a ${words.noun}.`}
+              </span>
+              {isAcknowledged && (
+                <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onUndoContinue(r.role)} data-testid={`undo-continue-without-${r.role}`}>
+                  Undo
+                </Button>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div
+            key={r.role}
+            role="group"
+            aria-labelledby={headingId}
+            className="space-y-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2"
+            data-testid={`required-input-${r.role}`}
+            data-state={r.status}
+          >
+            {/* role=heading, not <h*>: global h1–h6 !important colours would override the amber. */}
+            <div id={headingId} role="heading" aria-level={4} className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+              {r.slot} {r.status === "ambiguous" ? "needs a decision" : "not found"}
+            </div>
+            <p className="text-xs text-foreground">{r.message}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChoose(r.role)} data-testid={`choose-${r.role}`}>
+                {words.choose}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" className="h-7 text-xs" onClick={() => onContinueWithout(r.role)} data-testid={`continue-without-${r.role}`}>
+                Continue without a {words.noun}
+              </Button>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PlanCard({
   plan,
   isLatest,
+  attachedRoles,
+  acknowledged,
+  onChoose,
+  onContinueWithout,
+  onUndoContinue,
   isAttached,
   onToggleCandidate,
   onApplyFormat,
@@ -390,6 +486,11 @@ function PlanCard({
 }: {
   plan: GenerationPlan;
   isLatest: boolean;
+  attachedRoles: ReadonlySet<string>;
+  acknowledged: ReadonlySet<RequiredInputRole>;
+  onChoose: (role: RequiredInputRole) => void;
+  onContinueWithout: (role: RequiredInputRole) => void;
+  onUndoContinue: (role: RequiredInputRole) => void;
   isAttached: (c: PlanCandidate) => boolean;
   onToggleCandidate: (c: PlanCandidate) => void;
   onApplyFormat: (f: GenerationFormatId) => void;
@@ -400,6 +501,8 @@ function PlanCard({
   currentFormatLabel: string;
 }) {
   const [inspecting, setInspecting] = useState<PlanCandidate | null>(null);
+  const unresolved = unresolvedRequiredInputs(plan.requiredInputs, attachedRoles, acknowledged);
+  const blocked = isLatest && unresolved.length > 0;
   return (
     <div className="mr-auto w-full max-w-[95%] space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-3" data-testid="plan-card">
       <CandidateInspectDialog
@@ -478,6 +581,16 @@ function PlanCard({
           )}
         </div>
       ))}
+      {isLatest && (
+        <RequiredInputPanels
+          required={plan.requiredInputs ?? []}
+          attachedRoles={attachedRoles}
+          acknowledged={acknowledged}
+          onChoose={onChoose}
+          onContinueWithout={onContinueWithout}
+          onUndoContinue={onUndoContinue}
+        />
+      )}
       <div className="flex flex-wrap items-center gap-2 pt-1">
         {plan.suggestedFormat && (
           <button
@@ -501,7 +614,8 @@ function PlanCard({
             size="sm"
             className="ml-auto gap-1.5"
             onClick={onGenerate}
-            disabled={generating}
+            disabled={generating || blocked}
+            title={blocked ? "Choose the missing input, or continue without it" : undefined}
             data-testid="plan-generate-btn"
           >
             {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
@@ -627,6 +741,9 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   const [attached, setAttached] = useState<AttachedInput[]>([]);
   const [reviseTarget, setReviseTarget] = useState<ImageGenerationResult | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // Required inputs (#215) the person chose to go without; cleared whenever a
+  // fresh plan recomputes the requirements.
+  const [acknowledged, setAcknowledged] = useState<ReadonlySet<RequiredInputRole>>(new Set());
   // The current exchange's transcript (user messages + assistant plans). When a
   // generation lands, the exchange is captured by the generation's prompt +
   // variants from the server, and the local transcript resets for the next one.
@@ -647,7 +764,16 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   // the session polls. Hold new submissions until the batch settles.
   const anyPending = generations.some((g) => g.status === "pending");
   const busy = generate.isPending || anyPending;
-  const latestPlanId = [...chatLog].reverse().find((t) => t.type === "plan")?.id ?? null;
+  const latestPlanTurn = [...chatLog].reverse().find((t): t is Extract<ChatTurn, { type: "plan" }> => t.type === "plan");
+  const latestPlanId = latestPlanTurn?.id ?? null;
+  const attachedRoles: ReadonlySet<string> = new Set(attached.map((a) => a.role));
+  const setRoleAcknowledged = (role: RequiredInputRole, on: boolean) =>
+    setAcknowledged((prev) => {
+      const next = new Set(prev);
+      if (on) next.add(role);
+      else next.delete(role);
+      return next;
+    });
   // The full request so far: every user message this exchange, in order.
   const conversationText = (extra?: string) =>
     [...chatLog.filter((t): t is Extract<ChatTurn, { type: "user" }> => t.type === "user").map((t) => t.text), ...(extra ? [extra] : [])]
@@ -663,6 +789,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     setDraft("");
     setAttached([]);
     setReviseTarget(null);
+    setAcknowledged(new Set());
   }
 
   function candidateAttached(c: PlanCandidate): boolean {
@@ -720,6 +847,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           // The suggested format is offered as a chip on the plan card only —
           // never auto-applied, so it can't stomp an explicit user choice.
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
+          setAcknowledged(new Set());
         },
         onError: (err) => {
           const limit = getGenerationLimit(err);
@@ -737,7 +865,12 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     );
   }
 
-  function runGenerate(prompt: string, parentGenerationId?: number, formatOverride?: GenerationFormatId) {
+  function runGenerate(
+    prompt: string,
+    parentGenerationId?: number,
+    formatOverride?: GenerationFormatId,
+    acknowledgedMissing?: RequiredInputRole[],
+  ) {
     if (!prompt || busy) return;
     generate.mutate(
       {
@@ -752,6 +885,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           parentGenerationId != null
             ? []
             : attached.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name })),
+        ...(acknowledgedMissing && acknowledgedMissing.length > 0 ? { acknowledgedMissing } : {}),
       },
       {
         onSuccess: (result) => {
@@ -781,7 +915,14 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
   function handleGenerateFromPlan() {
     const prompt = conversationText(draft.trim() || undefined);
     if (!prompt) return;
-    runGenerate(prompt);
+    // Required inputs (#215): refuse while one is unresolved; otherwise record
+    // the roles the person chose to go without.
+    const required = latestPlanTurn?.plan.requiredInputs;
+    if (unresolvedRequiredInputs(required, attachedRoles, acknowledged).length > 0) return;
+    const goingWithout = (required ?? [])
+      .filter((r) => r.status !== "found" && !attachedRoles.has(r.role) && acknowledged.has(r.role))
+      .map((r) => r.role);
+    runGenerate(prompt, undefined, undefined, [...new Set(goingWithout)]);
   }
 
   // Re-render an existing result on a different canvas (model revision keeps
@@ -899,6 +1040,11 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
                 key={turn.id}
                 plan={turn.plan}
                 isLatest={turn.id === latestPlanId}
+                attachedRoles={attachedRoles}
+                acknowledged={acknowledged}
+                onChoose={() => setPickerOpen(true)}
+                onContinueWithout={(role) => setRoleAcknowledged(role, true)}
+                onUndoContinue={(role) => setRoleAcknowledged(role, false)}
                 isAttached={candidateAttached}
                 onToggleCandidate={toggleCandidate}
                 onApplyFormat={setFormat}

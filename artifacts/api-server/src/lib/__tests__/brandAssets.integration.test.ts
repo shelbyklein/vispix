@@ -154,10 +154,10 @@ describe("campaign logo selection (TT-VPX-BRAND-04)", () => {
     return row;
   }
 
-  it("attaches no logo and says so when none is designated — never the first alphabetical asset", async () => {
+  it("renders nothing and asks for input when no primary is designated — never the first alphabetical asset (#215)", async () => {
     const result = await generateCampaignSuggestions(await campaign(), owner.id, 3);
-    expect(runs).toHaveLength(2);
-    for (const r of runs) expect(r.inputs.filter((i) => i.kind === "asset")).toEqual([]);
+    expect(runs).toHaveLength(0);
+    expect(result.concepts.map((c) => c.status)).toEqual(["needs_input", "needs_input"]);
     expect(result.notices).toEqual([NO_PRIMARY_LOGO_NOTICE]);
   });
 

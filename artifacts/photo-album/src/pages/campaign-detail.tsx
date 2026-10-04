@@ -11,8 +11,14 @@ import {
   generationDownloadUrl,
   getCampaignBriefConflict,
   isCampaignRequestUnanswered,
+  getGenerationSessionQueryKey,
   type ImageGenerationResult,
+  type GenerateCampaignSuggestionsResult,
+  type RequiredInput,
+  type RequiredInputRole,
 } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { getActiveOrgId } from "@/lib/active-org";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -32,6 +38,86 @@ import { useCapabilities } from "@/hooks/useCapabilities";
 
 // Campaign detail (#192): the brief on top (editable), suggested results below,
 // and a "Generate 3" that produces three distinct ad concepts on the spot.
+
+// A concept the server did not render because a required photo/logo couldn't
+// be found (#215). `resume` is what the server returned so the person can
+// continue it without the input; it isn't part of the shared client type.
+interface HeldConcept {
+  title: string;
+  missing: RequiredInput[];
+  resume: unknown;
+}
+
+function heldFrom(result: GenerateCampaignSuggestionsResult): HeldConcept[] {
+  return result.concepts
+    .filter((c) => c.status === "needs_input" && c.missing && c.missing.length > 0)
+    .map((c) => ({ title: c.title, missing: c.missing!, resume: (c as { resume?: unknown }).resume }));
+}
+
+const NEED_WORDS: Record<RequiredInputRole, { noun: string; choose: string; href: string }> = {
+  hero_photo: { noun: "photo", choose: "Choose a photo…", href: "/photos" },
+  exact_asset: { noun: "logo", choose: "Choose a logo…", href: "/assets" },
+};
+
+function NeedsInputCard({
+  concept,
+  canManage,
+  busy,
+  onGenerateWithout,
+}: {
+  concept: HeldConcept;
+  canManage: boolean;
+  busy: boolean;
+  onGenerateWithout: () => void;
+}) {
+  const nouns = concept.missing.map((m) => NEED_WORDS[m.role].noun);
+  const id = `needs-input-${concept.title.replace(/\W+/g, "-").toLowerCase()}`;
+  return (
+    <div
+      role="group"
+      aria-labelledby={id}
+      className="flex flex-col gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 p-3"
+      data-testid="needs-input-concept"
+    >
+      {/* role=heading, not <h*>: global h1–h6 !important colours would override the amber. */}
+      <div id={id} role="heading" aria-level={3} className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
+        <span className="min-w-0 truncate">{concept.title}</span>
+      </div>
+      <p className="text-xs font-medium text-foreground">Needs a {nouns.join(" and a ")}</p>
+      {concept.missing.map((m) => (
+        <p key={m.role} className="text-xs text-muted-foreground">
+          {m.message}
+        </p>
+      ))}
+      <div className="mt-auto flex flex-wrap gap-2 pt-1">
+        {concept.missing.map((m) => (
+          <Link
+            key={m.role}
+            href={NEED_WORDS[m.role].href}
+            className="inline-flex h-7 items-center rounded-md border border-input bg-background px-3 text-xs hover:bg-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+            data-testid={`needs-input-choose-${m.role}`}
+          >
+            {NEED_WORDS[m.role].choose}
+          </Link>
+        ))}
+        {canManage && (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 text-xs"
+            disabled={busy || !concept.resume}
+            onClick={onGenerateWithout}
+            data-testid="needs-input-generate-without"
+          >
+            Generate without a {nouns.join(" or a ")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function SuggestionCard({ generation }: { generation: ImageGenerationResult }) {
   // Concept prompts are stored as "Title: full instruction".
@@ -92,6 +178,10 @@ export default function CampaignDetailPage() {
   const { mutate: remove, isPending: deleting } = useDeleteCampaign();
   const generate = useGenerateCampaignSuggestions();
   const session = useGenerationSession(campaign?.sessionId ?? undefined);
+  const queryClient = useQueryClient();
+  // Concepts held back for a missing photo/logo (#215), shown until continued.
+  const [held, setHeld] = useState<HeldConcept[]>([]);
+  const [continuing, setContinuing] = useState<string | null>(null);
 
   // The draft in the editor, and the server brief/revision it was based on
   // (#216). The draft only follows the server while it has no unsaved edits, so
@@ -176,6 +266,7 @@ export default function CampaignDetailPage() {
           unansweredRequest.current = null;
           setBase({ id: campaignId, brief: result.brief, revision: result.briefRevision });
           if (result.duplicate) toast({ title: "Already generating these suggestions" });
+          else setHeld(heldFrom(result));
           for (const notice of result.notices ?? []) toast({ title: "Heads up", description: notice });
         },
         onError: (err) => {
@@ -198,6 +289,34 @@ export default function CampaignDetailPage() {
         },
       },
     );
+  }
+
+  // "Generate without": continue one held concept with every missing role
+  // acknowledged. The server re-checks and records the acknowledgement.
+  async function handleGenerateWithout(concept: HeldConcept) {
+    if (!campaign || continuing) return;
+    setContinuing(concept.title);
+    try {
+      const orgId = getActiveOrgId();
+      const res = await fetch(`/api/campaigns/${campaign.id}/generate-concept`, {
+        method: "POST",
+        headers: { "content-type": "application/json", ...(orgId != null ? { "x-organization-id": String(orgId) } : {}) },
+        body: JSON.stringify({ concept: concept.resume, acknowledgedMissing: concept.missing.map((m) => m.role) }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        toast({ title: "Suggestion generation failed", description: data?.error, variant: "destructive" });
+        return;
+      }
+      const result = (await res.json()) as GenerateCampaignSuggestionsResult;
+      setHeld((prev) => [...prev.filter((h) => h.title !== concept.title), ...heldFrom(result)]);
+      queryClient.invalidateQueries({ queryKey: getGenerationSessionQueryKey(result.sessionId ?? undefined) });
+      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
+    } catch {
+      toast({ title: "Suggestion generation failed", variant: "destructive" });
+    } finally {
+      setContinuing(null);
+    }
   }
 
   return (
@@ -333,7 +452,20 @@ export default function CampaignDetailPage() {
         {/* Suggested results */}
         <div className="space-y-2">
           <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Suggested results</p>
-          {suggestions.length === 0 && !generate.isPending ? (
+          {held.length > 0 && (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3" data-testid="needs-input-concepts">
+              {held.map((h) => (
+                <NeedsInputCard
+                  key={h.title}
+                  concept={h}
+                  canManage={canManage}
+                  busy={continuing != null}
+                  onGenerateWithout={() => handleGenerateWithout(h)}
+                />
+              ))}
+            </div>
+          )}
+          {suggestions.length === 0 && held.length === 0 && !generate.isPending ? (
             <p className="rounded-lg border border-dashed border-border py-10 text-center text-sm text-muted-foreground">
               No suggestions yet — hit "Generate 3 suggestions".
             </p>

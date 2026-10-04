@@ -44,6 +44,13 @@ const GenerateBody = z.object({
     )
     .max(8)
     .default([]),
+  // #215: required inputs the person explicitly chose to go without. The
+  // server records them; it doesn't re-derive requirements from the client.
+  acknowledgedMissing: z
+    .array(z.enum(["hero_photo", "exact_asset"]))
+    .max(4)
+    .optional()
+    .transform((roles) => (roles ? [...new Set(roles)] : [])),
 });
 
 function serializeGeneration(g: ImageGeneration, view: GenerationView) {
@@ -97,7 +104,9 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
     return;
   }
   try {
-    const result = await runGeneration({
+    // acknowledgedMissing is a Lane A run arg (#215); typed so this compiles
+    // whether or not RunGenerationArgs declares it yet.
+    const args: Parameters<typeof runGeneration>[0] & { acknowledgedMissing?: ("hero_photo" | "exact_asset")[] } = {
       organizationId: req.org!.id,
       userId: req.dbUser!.id,
       sessionId: body.data.sessionId,
@@ -107,7 +116,9 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
       variantCount: body.data.variantCount,
       inputs: body.data.inputs,
       canSeeHidden: canSeeHiddenPhotos(req),
-    });
+      ...(body.data.acknowledgedMissing.length > 0 ? { acknowledgedMissing: body.data.acknowledgedMissing } : {}),
+    };
+    const result = await runGeneration(args);
     const view = await loadGenerationView(req.org!.id, canSeeHiddenPhotos(req), result.generations);
     res.json({
       sessionId: result.sessionId,
