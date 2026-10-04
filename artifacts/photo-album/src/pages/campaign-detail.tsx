@@ -14,7 +14,6 @@ import {
   getCampaignBriefConflict,
   isCampaignRequestUnanswered,
   type ImageGenerationResult,
-  type GenerateCampaignSuggestionsResult,
   type RequiredInput,
   type RequiredInputRole,
 } from "@workspace/api-client-react";
@@ -45,12 +44,6 @@ interface HeldConcept {
   title: string;
   missing: RequiredInput[];
   resume: CampaignAdConcept | undefined;
-}
-
-function heldFrom(result: GenerateCampaignSuggestionsResult): HeldConcept[] {
-  return result.concepts
-    .filter((c) => c.status === "needs_input" && c.missing && c.missing.length > 0)
-    .map((c) => ({ title: c.title, missing: c.missing!, resume: c.resume }));
 }
 
 const NEED_WORDS: Record<RequiredInputRole, { noun: string; choose: string; href: string }> = {
@@ -178,8 +171,9 @@ export default function CampaignDetailPage() {
   const generate = useGenerateCampaignSuggestions();
   const { mutate: continueConcept } = useGenerateCampaignConcept();
   const session = useGenerationSession(campaign?.sessionId ?? undefined);
-  // Concepts held back for a missing photo/logo (#215), shown until continued.
-  const [held, setHeld] = useState<HeldConcept[]>([]);
+  // Concepts held back for a missing photo/logo (#215): stored on the campaign
+  // by the server, so they survive a reload and clear once continued.
+  const held: HeldConcept[] = campaign?.needsInputConcepts ?? [];
   const [continuing, setContinuing] = useState<string | null>(null);
 
   // The draft in the editor, and the server brief/revision it was based on
@@ -265,7 +259,6 @@ export default function CampaignDetailPage() {
           unansweredRequest.current = null;
           setBase({ id: campaignId, brief: result.brief, revision: result.briefRevision });
           if (result.duplicate) toast({ title: "Already generating these suggestions" });
-          else setHeld(heldFrom(result));
           for (const notice of result.notices ?? []) toast({ title: "Heads up", description: notice });
         },
         onError: (err) => {
@@ -299,9 +292,6 @@ export default function CampaignDetailPage() {
     continueConcept(
       { id: campaign.id, concept: concept.resume, acknowledgedMissing: concept.missing.map((m) => m.role) },
       {
-        onSuccess: (result) => {
-          setHeld((prev) => [...prev.filter((h) => h.title !== concept.title), ...heldFrom(result)]);
-        },
         onError: (err) => {
           toast({
             title: "Suggestion generation failed",

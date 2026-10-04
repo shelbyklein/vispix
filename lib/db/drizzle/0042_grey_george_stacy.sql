@@ -1,0 +1,1 @@
+ALTER TABLE "campaigns" ADD COLUMN "needs_input_concepts" jsonb;

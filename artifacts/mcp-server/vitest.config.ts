@@ -17,5 +17,8 @@ export default defineConfig({
     // Integration tests TRUNCATE a shared database between tests.
     sequence: { concurrent: false },
     fileParallelism: false,
+    // Shares the database with the api-server suite: take the same advisory
+    // lock per file so overlapping runs can't truncate each other's fixtures.
+    setupFiles: ["../api-server/src/lib/__tests__/dbLock.setup.ts"],
   },
 });
