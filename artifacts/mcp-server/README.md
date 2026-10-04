@@ -32,8 +32,10 @@ api-server libs' pino logging before they load; keep it that way.
 
 ## Client setup
 
-**Claude Code**: the repo's `.mcp.json` registers the server automatically for
-sessions in this checkout.
+**Claude Code**: the repo's `.mcp.json` registers the local stdio server as
+`vispix-local` for sessions in this checkout. It needs `pnpm` on the PATH and a
+root `.env` with a reachable database. The name differs from `vispix` so it
+doesn't shadow a user-scoped `vispix` connector pointing at the hosted server.
 
 **Claude Desktop** (`claude_desktop_config.json`) — same launcher, run from a
 checkout (`--dir` keeps it cwd-independent; swap in the dev worktree path to
