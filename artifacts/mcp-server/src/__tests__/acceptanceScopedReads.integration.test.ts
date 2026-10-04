@@ -48,7 +48,7 @@ describe("MCP scoped reads over the acceptance library", () => {
   it("list_albums returns only the token's organization's albums with counts", async () => {
     const a = await listAlbums(L.orgA);
     expect(a.map((x) => x.id).sort()).toEqual([L.albums.nationals, L.albums.spring, L.albums.practice].sort());
-    expect(a.reduce((n, x) => n + x.photoCount, 0)).toBe(L.photosA.length);
+    expect(a.reduce((n, x) => n + x.photoCount, 0)).toBe(L.photosA.filter((p) => !p.hidden).length); // hidden photos are not counted
     const b = await listAlbums(L.orgB);
     expect(b.map((x) => x.id)).toEqual([L.albums.nationalsB]);
   });

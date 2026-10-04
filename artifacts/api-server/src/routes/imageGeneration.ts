@@ -15,6 +15,7 @@ import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage"
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
 import { planGeneration } from "../lib/imageGeneration/plan";
 import { canSeeHiddenPhotos } from "../lib/capabilities";
+import { loadGenerationView, redactInputs, redactRights, redactUsageNotes, type GenerationView } from "../lib/imageGeneration/redact";
 import { generationRateLimit, sendGenerationError, GENERIC_GENERATION_ERROR } from "../lib/imageGeneration/limits";
 
 // AI image generation — the Create workspace backend (#167). All routes are
@@ -45,15 +46,15 @@ const GenerateBody = z.object({
     .default([]),
 });
 
-function serializeGeneration(g: ImageGeneration) {
+function serializeGeneration(g: ImageGeneration, view: GenerationView) {
   return {
     id: g.id,
     sessionId: g.sessionId,
     parentGenerationId: g.parentGenerationId,
     prompt: g.prompt,
     settings: g.settings,
-    inputs: g.inputs,
-    usageNotesSnapshot: g.usageNotesSnapshot,
+    inputs: redactInputs(g.inputs ?? [], view),
+    usageNotesSnapshot: redactUsageNotes(g.usageNotesSnapshot ?? [], g, view),
     storageKey: g.storageKey,
     // Served through the org-ACL'd private-object route, so <img> tags work.
     imageUrl: g.storageKey ? `/api/storage${g.storageKey}` : null,
@@ -107,9 +108,10 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
       inputs: body.data.inputs,
       canSeeHidden: canSeeHiddenPhotos(req),
     });
+    const view = await loadGenerationView(req.org!.id, canSeeHiddenPhotos(req), result.generations);
     res.json({
       sessionId: result.sessionId,
-      generations: result.generations.map(serializeGeneration),
+      generations: result.generations.map((g) => serializeGeneration(g, view)),
     });
   } catch (error) {
     sendGenerationError(req, res, error, GENERIC_GENERATION_ERROR, "Image generation request failed");
@@ -154,12 +156,13 @@ router.get("/image-generation/sessions/:id", requireOrgAuth, async (req: Request
     .from(imageGenerationsTable)
     .where(eq(imageGenerationsTable.sessionId, id))
     .orderBy(asc(imageGenerationsTable.createdAt));
+  const view = await loadGenerationView(req.org!.id, canSeeHiddenPhotos(req), generations);
   res.json({
     id: session.id,
     title: session.title,
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
-    generations: generations.map(serializeGeneration),
+    generations: generations.map((g) => serializeGeneration(g, view)),
   });
 });
 
@@ -233,6 +236,7 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
     .limit(limit + 1);
 
   const page = rows.slice(0, limit);
+  const view = await loadGenerationView(orgId, canSeeHiddenPhotos(req), page.map((r) => r.gen));
   const last = page[page.length - 1];
   res.json({
     items: page.map((r) => {
@@ -247,7 +251,7 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
         status: r.gen.status,
         createdAt: r.gen.createdAt.toISOString(),
         // Rights of each photo input, frozen at generation time (#207).
-        rightsConsidered: r.gen.rightsSnapshot ?? [],
+        rightsConsidered: redactRights(r.gen.rightsSnapshot ?? [], view),
         creator: r.creatorId != null ? { id: r.creatorId, name: r.creatorName } : null,
         source: r.campaignId != null
           ? { type: "campaign" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: r.campaignId, campaignName: r.campaignName }

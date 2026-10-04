@@ -361,7 +361,7 @@ export async function listAlbums(
   const rows = await db
     .select({ id: albumsTable.id, title: albumsTable.title, photoCount: count(photosTable.id) })
     .from(albumsTable)
-    .leftJoin(photosTable, eq(albumsTable.id, photosTable.albumId))
+    .leftJoin(photosTable, and(eq(albumsTable.id, photosTable.albumId), eq(photosTable.isHidden, false)))
     .where(organizationId != null ? eq(albumsTable.organizationId, organizationId) : undefined)
     .groupBy(albumsTable.id)
     .orderBy(sql`${albumsTable.sortOrder} asc, ${albumsTable.createdAt} desc`);
@@ -376,10 +376,11 @@ export async function listPeople(
       id: collectionsTable.id,
       name: collectionsTable.title,
       description: collectionsTable.description,
-      photoCount: count(photoCollectionsTable.photoId),
+      photoCount: count(photosTable.id),
     })
     .from(collectionsTable)
     .leftJoin(photoCollectionsTable, eq(collectionsTable.id, photoCollectionsTable.collectionId))
+    .leftJoin(photosTable, and(eq(photosTable.id, photoCollectionsTable.photoId), eq(photosTable.isHidden, false)))
     .where(
       and(
         eq(collectionsTable.kind, "person"),
@@ -395,9 +396,10 @@ export async function listUsageRights(
   organizationId?: number,
 ): Promise<{ id: number; name: string; photoCount: number }[]> {
   const rows = await db
-    .select({ id: attributionTagsTable.id, name: attributionTagsTable.name, photoCount: count(photoAttributionTagsTable.photoId) })
+    .select({ id: attributionTagsTable.id, name: attributionTagsTable.name, photoCount: count(photosTable.id) })
     .from(attributionTagsTable)
     .leftJoin(photoAttributionTagsTable, eq(attributionTagsTable.id, photoAttributionTagsTable.tagId))
+    .leftJoin(photosTable, and(eq(photosTable.id, photoAttributionTagsTable.photoId), eq(photosTable.isHidden, false)))
     .where(organizationId != null ? eq(attributionTagsTable.organizationId, organizationId) : undefined)
     .groupBy(attributionTagsTable.id)
     .orderBy(attributionTagsTable.name);
@@ -418,6 +420,7 @@ export async function getOriginalFile(
     .where(
       and(
         eq(photosTable.id, id),
+        eq(photosTable.isHidden, false),
         organizationId != null ? eq(photosTable.organizationId, organizationId) : undefined,
       ),
     );
@@ -454,6 +457,7 @@ export async function getThumbnailFile(
     .where(
       and(
         eq(photosTable.id, id),
+        eq(photosTable.isHidden, false),
         organizationId != null ? eq(photosTable.organizationId, organizationId) : undefined,
       ),
     );

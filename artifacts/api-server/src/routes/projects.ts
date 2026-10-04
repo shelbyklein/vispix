@@ -23,6 +23,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
 import { canManageItem, canSeeHiddenPhotos } from "../lib/capabilities";
+import { uniqueZipEntryName } from "../lib/zipEntryName";
 import { loadUsageRights, snapshotOf, rightsChange } from "../lib/usageRights";
 
 const router: IRouter = Router();
@@ -177,12 +178,7 @@ router.get("/projects/:id/download", requireOrgAuth, async (req, res): Promise<v
   const usedNames = new Set<string>();
   for (const p of photos) {
     if (!p.storageKey) continue;
-    let name = p.filename?.trim() || `photo-${p.id}.jpg`;
-    if (usedNames.has(name)) {
-      const dot = name.lastIndexOf(".");
-      name = dot > 0 ? `${name.slice(0, dot)}-${p.id}${name.slice(dot)}` : `${name}-${p.id}`;
-    }
-    usedNames.add(name);
+    const name = uniqueZipEntryName(p.filename, p.id, usedNames);
     try {
       const file = await objectStorageService.getObjectEntityFile(p.storageKey);
       archive.append(file.createReadStream(), { name });

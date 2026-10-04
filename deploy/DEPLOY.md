@@ -231,3 +231,24 @@ image; the web image rebuilds the static bundle. Zero manual DB steps.
 Still worth doing after go-live (not migration-blockers): bump `sharp` ≥ 0.35.0,
 fix the `coverPhotoId` cross-tenant check and the real-byte quota accounting, and
 work through the Low/Info hardening list in the issue.
+
+## Content-Security-Policy (report-only)
+
+`deploy/nginx.conf` sends `Content-Security-Policy-Report-Only` on every web
+response. Nothing is blocked; violations appear only in the browser console
+(no `report-uri`/`report-to` endpoint exists yet).
+
+Policy, from auditing what the SPA loads: `script-src 'self'` plus the sha256 of the
+inline theme script in index.html (recompute if it changes; otherwise no inline scripts); `style-src 'self' 'unsafe-inline'` plus `fonts.googleapis.com`
+(Tailwind/Radix set inline styles; Google Fonts stylesheet); `font-src`
+`fonts.gstatic.com`; `img-src 'self' data: blob:` plus `picsum.photos` and
+`fastly.picsum.photos` (home page placeholders) and `storage.googleapis.com`;
+`connect-src 'self' https://storage.googleapis.com` (API is same-origin; the
+browser PUTs uploads to signed GCS URLs); `object-src 'none'`,
+`base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`.
+
+Rollout: (1) ship report-only; (2) browse the main flows (home, sign-in, album
+and photo views, upload, download, share pages) with the console open and note
+any `[Report Only]` violations; (3) adjust the policy for legitimate ones;
+(4) rename the header to `Content-Security-Policy` to enforce. Optionally add a
+report endpoint first to collect violations from real users.
