@@ -3,12 +3,13 @@ import { GetPhotoGraphParams, GetPhotoGraphQueryParams, GetPhotoGraphResponse } 
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { canSeeHiddenPhotos } from "../lib/capabilities";
 import { buildPhotoGraph, DEFAULT_GRAPH_THREADS, GRAPH_THREAD_KINDS, type GraphThreadKind } from "../lib/photoGraph";
+import { graphRateLimit } from "../lib/graphRateLimit";
 import { logger } from "../lib/logger";
 
 const router: IRouter = Router();
 
 // Photo Graph (#202): the threads around one photo. Spec on the issue.
-router.get("/photos/:id/graph", requireOrgAuth, async (req, res): Promise<void> => {
+router.get("/photos/:id/graph", requireOrgAuth, graphRateLimit, async (req, res): Promise<void> => {
   const params = GetPhotoGraphParams.safeParse(req.params);
   const query = GetPhotoGraphQueryParams.safeParse(req.query);
   if (!params.success || !Number.isInteger(params.data.id) || params.data.id <= 0) {

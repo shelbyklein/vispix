@@ -1,5 +1,6 @@
 import { sql, type SQL } from "drizzle-orm";
 import { db } from "@workspace/db";
+import { GRAPH_DEPTH2_MAX_PER_THREAD } from "./graphRateLimit";
 
 // The Photo Graph (#202): the threads around one photo, for discovery. Every
 // thread comes from data we already store (embeddings, near-duplicate pairs,
@@ -117,7 +118,7 @@ async function person(tx: Tx, seed: number, k: number, opts: PhotoGraphOptions):
 async function event(tx: Tx, seed: number, k: number, opts: PhotoGraphOptions): Promise<Neighbour[]> {
   const rows = await tx.execute<{ id: number; label: string }>(sql`
     select p.id, a.title as label
-    from photos p join albums a on a.id = p.album_id
+    from photos p join albums a on a.id = p.album_id and a.organization_id = ${opts.organizationId}
     where p.album_id = (select s.album_id from photos s where s.id = ${seed}) and p.id <> ${seed} and ${visible(opts)}
     order by ${timeGap(seed)} nulls last, p.id
     limit ${k}`);
@@ -146,7 +147,10 @@ async function rights(tx: Tx, seed: number, k: number, opts: PhotoGraphOptions):
  * The graph around `seedId`, or null when that photo isn't visible to the
  * caller (another org's, or hidden from a member) — callers answer 404.
  */
-export async function buildPhotoGraph(seedId: number, opts: PhotoGraphOptions): Promise<PhotoGraph | null> {
+export async function buildPhotoGraph(seedId: number, requested: PhotoGraphOptions): Promise<PhotoGraph | null> {
+  // Depth 2 multiplies the queries, so bound the per-thread fan-out there.
+  const opts: PhotoGraphOptions =
+    requested.depth === 2 ? { ...requested, perThread: Math.min(requested.perThread, GRAPH_DEPTH2_MAX_PER_THREAD) } : requested;
   return db.transaction(async (tx) => {
     await tx.execute(sql`set local statement_timeout = '5s'`);
     await tx.execute(sql`set local hnsw.iterative_scan = strict_order`);
@@ -206,7 +210,7 @@ export async function buildPhotoGraph(seedId: number, opts: PhotoGraphOptions): 
     }>(sql`
       select p.id, p.filename, p.url, p.thumbnail_key, p.album_id, a.title as album_title, p.taken_at,
              exists (select 1 from photo_embeddings pe where pe.photo_id = p.id) as embedded
-      from photos p left join albums a on a.id = p.album_id
+      from photos p left join albums a on a.id = p.album_id and a.organization_id = ${opts.organizationId}
       where p.id in (${sql.join(ids.map((id) => sql`${id}`), sql`, `)}) and ${visible(opts)}`);
     const byId = new Map(meta.rows.map((r) => [Number(r.id), r]));
 
