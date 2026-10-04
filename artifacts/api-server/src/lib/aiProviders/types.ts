@@ -103,6 +103,8 @@ export const EVALUATION_SCHEMA_FRAGMENT = {
 
 export interface AnalysisProvider {
   id: ProviderId;
+  /** Model id used for analysis; recorded as suggestion provenance. */
+  readonly model?: string;
   analyze(req: AnalysisRequest): Promise<RawAnalysisResult | null>;
   generateText(systemPrompt: string, userText: string): Promise<string | null>;
 }

@@ -67,12 +67,32 @@ export const photoSuggestionStatusEnum = pgEnum("photo_suggestion_status", [
   "dismissed",
 ]);
 
+// Where a suggestion came from. Only AI analysis writes rows today ("model");
+// "heuristic" is reserved for word-overlap style hints so they can never be
+// mistaken for a model recommendation if they are ever persisted.
+export const photoSuggestionSourceEnum = pgEnum("photo_suggestion_source", ["model", "heuristic"]);
+
+// How a non-pending suggestion was resolved: "review" = the user accepted or
+// dismissed it in the suggestion UI; "manual" = the photo was added to the
+// collection by hand, which resolves the pending suggestion as accepted.
+export const photoSuggestionResolutionEnum = pgEnum("photo_suggestion_resolution", ["review", "manual"]);
+
 export const photoCollectionSuggestionsTable = pgTable(
   "photo_collection_suggestions",
   {
     photoId: integer("photo_id").notNull().references(() => photosTable.id, { onDelete: "cascade" }),
     collectionId: integer("collection_id").notNull().references(() => collectionsTable.id, { onDelete: "cascade" }),
     status: photoSuggestionStatusEnum("status").notNull().default("pending"),
+    // Provenance: what produced the suggestion. provider/model/analysisVersion
+    // are null on rows that predate tracking (all legacy rows are "model").
+    source: photoSuggestionSourceEnum("source").notNull().default("model"),
+    provider: text("provider"),
+    model: text("model"),
+    analysisVersion: text("analysis_version"),
+    reason: text("reason"),
+    resolution: photoSuggestionResolutionEnum("resolution"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedById: integer("decided_by_id").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [primaryKey({ columns: [table.photoId, table.collectionId] })],
@@ -85,6 +105,16 @@ export const photoNewCollectionSuggestionsTable = pgTable(
     photoId: integer("photo_id").notNull().references(() => photosTable.id, { onDelete: "cascade" }),
     suggestedName: text("suggested_name").notNull(),
     status: photoSuggestionStatusEnum("status").notNull().default("pending"),
+    // Provenance: what produced the suggestion. provider/model/analysisVersion
+    // are null on rows that predate tracking (all legacy rows are "model").
+    source: photoSuggestionSourceEnum("source").notNull().default("model"),
+    provider: text("provider"),
+    model: text("model"),
+    analysisVersion: text("analysis_version"),
+    reason: text("reason"),
+    resolution: photoSuggestionResolutionEnum("resolution"),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    decidedById: integer("decided_by_id").references(() => usersTable.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
 );

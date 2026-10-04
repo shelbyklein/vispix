@@ -17,6 +17,7 @@ import { LightboxImageArea } from "@/components/photo-lightbox/LightboxImageArea
 import { LightboxNavControls } from "@/components/photo-lightbox/LightboxNavControls";
 import type { LightboxPhoto } from "@/components/photo-lightbox/types";
 import { useCapabilities } from "@/hooks/useCapabilities";
+import { photoName } from "@/lib/photo-a11y";
 
 export type { LightboxPhoto };
 
@@ -55,6 +56,35 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
   useEffect(() => {
     setLocalCoverPhotoId(coverPhotoId);
   }, [coverPhotoId]);
+
+  // Remember what had focus when the lightbox opened so closing returns the
+  // keyboard user to that tile (Radix only restores focus to a Trigger, and this
+  // dialog is opened by state, not by a Trigger).
+  const openerRef = useRef<HTMLElement | null>(null);
+  const wasOpenRef = useRef(false);
+  const lastPhotoIdRef = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (photo && !wasOpenRef.current) {
+      const active = document.activeElement;
+      openerRef.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
+    wasOpenRef.current = photo !== null;
+    if (photo) lastPhotoIdRef.current = photo.id;
+  }, [photo]);
+
+  function restoreFocus(e: Event) {
+    e.preventDefault();
+    let target = openerRef.current;
+    // The tile may have been re-rendered (or removed, e.g. after a delete);
+    // fall back to the tile for the photo that was last shown.
+    if (!target || !target.isConnected) {
+      target = lastPhotoIdRef.current != null
+        ? document.querySelector<HTMLElement>(`[data-photo-id="${lastPhotoIdRef.current}"]`)
+        : null;
+    }
+    target?.focus();
+    openerRef.current = null;
+  }
 
   const [imageLoading, setImageLoading] = useState(false);
   const [imageError, setImageError] = useState(false);
@@ -180,13 +210,20 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
         <DialogPrimitive.Content
           className="fixed inset-0 z-50 overflow-y-auto overscroll-contain focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
           data-testid="photo-lightbox"
-          aria-label={photo?.name ?? "Photo preview"}
+          aria-label={photo ? photoName(photo) : "Photo preview"}
+          aria-describedby={undefined}
+          onCloseAutoFocus={restoreFocus}
           onTouchStart={handleTouchStart}
           onTouchEnd={handleTouchEnd}
         >
           <DialogPrimitive.Title className="sr-only">
-            {photo?.name ?? "Photo preview"}
+            {photo ? photoName(photo) : "Photo preview"}
           </DialogPrimitive.Title>
+          {/* One polite region for the whole lightbox: announces the photo on
+              open and on prev/next, and image load failures. */}
+          <div role="status" className="sr-only" data-testid="lightbox-status">
+            {photo ? (imageError ? `Failed to load ${photoName(photo)}` : imageLoading ? `Loading ${photoName(photo)}` : photoName(photo)) : ""}
+          </div>
 
           <LightboxNavControls
             onClose={onClose}
@@ -242,7 +279,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
                         className="flex items-center justify-center h-9 w-9 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white transition-colors"
                         data-testid="lightbox-view-details-link"
                         title="View full details"
-                        aria-label="View full details"
+                        aria-label={`View full details for ${photoName(photo)}`}
                       >
                         <ExternalLink className="h-4 w-4 shrink-0" />
                       </Link>
@@ -256,7 +293,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
                         className="flex items-center justify-center h-9 w-9 rounded-lg bg-white/15 hover:bg-white/25 border border-white/20 text-white transition-colors"
                         data-testid="lightbox-download"
                         title="Download"
-                        aria-label="Download"
+                        aria-label={`Download ${photoName(photo)}`}
                       >
                         <Download className="h-4 w-4 shrink-0" />
                       </a>
@@ -268,7 +305,7 @@ export function PhotoLightbox({ photo, onClose, onPrev, onNext, hasPrev, hasNext
                           className="flex items-center justify-center h-9 w-9 rounded-lg bg-white/15 hover:bg-destructive/70 border border-white/20 text-white transition-colors"
                           data-testid="lightbox-mark-not-applicable"
                           title="Not applicable — steer this collection's suggestions away from it"
-                          aria-label="Not applicable"
+                          aria-label={`Mark ${photoName(photo)} not applicable`}
                         >
                           <Ban className="h-4 w-4 shrink-0" />
                         </button>

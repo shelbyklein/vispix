@@ -21,6 +21,7 @@ export function LightboxNavControls({
   return (
     <>
       <button
+        type="button"
         onClick={onClose}
         className="fixed top-3 right-3 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10"
         aria-label="Close preview"
@@ -31,6 +32,7 @@ export function LightboxNavControls({
 
       {onPrev && (
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); onPrev(); }}
           disabled={!hasPrev}
           className="fixed top-3 left-3 lg:top-1/2 lg:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
@@ -43,10 +45,11 @@ export function LightboxNavControls({
 
       {onNext && (
         <button
+          type="button"
           onClick={(e) => { e.stopPropagation(); if (!isLoadingNext) onNext(); }}
           disabled={!hasNext || isLoadingNext}
           className="fixed top-3 right-16 lg:right-3 lg:top-1/2 lg:-translate-y-1/2 flex h-10 w-10 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors focus:outline-none focus:ring-2 focus:ring-white z-10 disabled:opacity-30 disabled:cursor-not-allowed"
-          aria-label="Next photo"
+          aria-label={isLoadingNext ? "Loading next photo" : "Next photo"}
           data-testid="lightbox-next"
         >
           {isLoadingNext ? (

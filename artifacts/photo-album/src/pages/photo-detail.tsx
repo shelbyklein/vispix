@@ -32,6 +32,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useGetMe } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { formatDate } from "@/lib/format-date";
+import { formatDimensions, formatFileSize, photoAltText, photoName } from "@/lib/photo-a11y";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Separator } from "@/components/ui/separator";
@@ -193,6 +194,8 @@ export default function PhotoDetail() {
     qc.invalidateQueries({ queryKey: getListPhotosQueryKey().slice(0, 1) });
     qc.invalidateQueries({ queryKey: getGetRecentPhotosQueryKey() });
     qc.invalidateQueries({ queryKey: getGetTopRatedPhotosQueryKey() });
+    // Membership and recommendation counts shown on collection cards.
+    qc.invalidateQueries({ queryKey: getListCollectionsQueryKey() });
   }
 
   function handleAcceptSuggestion(collectionId: number) {
@@ -369,6 +372,7 @@ export default function PhotoDetail() {
     return (
       <AppLayout>
         <div className="grid lg:grid-cols-[1fr_320px] gap-8">
+          <span role="status" className="sr-only">Loading photo…</span>
           <Skeleton className="aspect-[4/3] w-full rounded-xl" />
           <div className="space-y-4">
             <Skeleton className="h-6 w-48" />
@@ -383,8 +387,8 @@ export default function PhotoDetail() {
     return (
       <AppLayout>
         <div className="text-center py-24">
-          <p className="text-muted-foreground">Photo not found.</p>
-          <Link href="/albums"><Button variant="outline" className="mt-4">Back to Albums</Button></Link>
+          <h1 className="text-xl font-semibold" role="alert">Photo not found</h1>
+          <Button asChild variant="outline" className="mt-4"><Link href="/albums">Back to Albums</Link></Button>
         </div>
       </AppLayout>
     );
@@ -413,7 +417,7 @@ export default function PhotoDetail() {
             <div className="relative rounded-xl overflow-hidden bg-muted aspect-[4/3]">
               <img
                 src={photo.url}
-                alt="Photo"
+                alt={photoAltText(photo.aiDescription)}
                 className={`h-full w-full object-contain bg-black${photo.isHidden ? " opacity-60" : ""}`}
                 data-testid="photo-image"
               />
@@ -453,6 +457,33 @@ export default function PhotoDetail() {
 
           <div className="space-y-6">
             <div className="space-y-3">
+              <div>
+                <h1 className="text-xl font-semibold break-words" data-testid="photo-title">
+                  {photoName(photo)}
+                </h1>
+                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm text-muted-foreground" data-testid="photo-facts">
+                  <dt>Photo ID</dt>
+                  <dd data-testid="photo-id">{photo.id}</dd>
+                  {photo.albumTitle && (
+                    <>
+                      <dt>Album</dt>
+                      <dd>{photo.albumTitle}</dd>
+                    </>
+                  )}
+                  {formatDimensions(photo.width, photo.height) && (
+                    <>
+                      <dt>Dimensions</dt>
+                      <dd data-testid="photo-dimensions">{formatDimensions(photo.width, photo.height)}</dd>
+                    </>
+                  )}
+                  {formatFileSize(photo.filesize) && (
+                    <>
+                      <dt>File size</dt>
+                      <dd data-testid="photo-filesize">{formatFileSize(photo.filesize)}</dd>
+                    </>
+                  )}
+                </dl>
+              </div>
               <div className="space-y-1.5 text-sm text-muted-foreground">
                 {photo.takenAt && (
                   <div className="flex items-center gap-2">
@@ -475,7 +506,6 @@ export default function PhotoDetail() {
             <CollectionsPanel
               photoCollections={photo.photoCollections}
               availableCollections={availableCollections}
-              aiDescription={photo.aiDescription}
               projects={allProjects}
               newCollectionName={newCollectionName}
               setNewCollectionName={setNewCollectionName}

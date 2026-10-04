@@ -5,8 +5,31 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+import type { SuggestedCollectionSource } from "./suggestedCollectionSource";
 
+/**
+ * A pending AI collection recommendation. The API is the single authority for this list; the photo details page and the lightbox both render it.
+ */
 export interface SuggestedCollection {
   id: number;
   title: string;
+  /** Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation. */
+  source: SuggestedCollectionSource;
+  /**
+   * AI provider that produced the recommendation (null for rows that predate tracking).
+   * @nullable
+   */
+  provider: string | null;
+  /** @nullable */
+  model: string | null;
+  /**
+   * Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+   * @nullable
+   */
+  analysisVersion: string | null;
+  /**
+   * Human-readable reason shown beside the recommendation.
+   * @nullable
+   */
+  reason: string | null;
 }

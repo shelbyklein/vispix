@@ -274,6 +274,13 @@
       "when": 1790921430424,
       "tag": "0038_dashing_vertigo",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1790999581103,
+      "tag": "0039_collection_suggestion_lifecycle",
+      "breakpoints": true
     }
   ]
 }

@@ -25,10 +25,16 @@ function summary(id: PhotoId) {
 vi.mock("../photoLibrary.js", () => ({
   searchPhotos: async ({ organizationId }: { organizationId?: number }) => ({
     results: (Object.keys(PHOTOS).map(Number) as PhotoId[]).filter((id) => PHOTOS[id].org === organizationId).map(summary),
+    status: "ok",
+    error: null,
+    page: { nextCursor: null, exhausted: true, limited: false, total: null },
+    retrieval: null,
+    coverage: null,
+    degraded: null,
   }),
   getPhotoDetail: async (id: number, organizationId?: number) => {
     const p = PHOTOS[id as PhotoId];
-    return p && p.org === organizationId ? { photo: summary(id as PhotoId), fullResUrl: "http://storage.local/signed" } : null;
+    return p && p.org === organizationId ? { photo: summary(id as PhotoId), fullResUrl: "http://storage.local/signed", fullResExpiresAt: new Date(T0 + 3_600_000), hidden: false, fileSize: null, mimeType: PHOTOS[id as PhotoId].contentType } : null;
   },
   listAlbums: async () => [],
   listPeople: async () => [],
@@ -36,13 +42,15 @@ vi.mock("../photoLibrary.js", () => ({
   loadThumbnailImage: async () => null,
 }));
 vi.mock("../assetLibrary.js", () => ({
-  listAssets: async () => ({ assets: [] }),
+  MAX_ASSET_PAGE: 200,
+  listAssets: async () => ({ assets: [], page: { nextCursor: null, exhausted: true, total: null } }),
   getAssetDetail: async (id: number, organizationId?: number) => {
     const a = ASSETS[id as keyof typeof ASSETS];
     return a && a.org === organizationId
       ? {
-          asset: { id, kind: "brand", name: "Logo", variant: null, notes: null, projectName: null, storageKey: "/objects/a", contentType: a.contentType, filename: a.filename, fileSize: 6 },
+          asset: { id, kind: "brand", name: "Logo", variant: null, notes: null, projectName: null, storageKey: "/objects/a", contentType: a.contentType, filename: a.filename, fileSize: 6, isPrimary: false },
           fullResUrl: "http://storage.local/signed-asset",
+          fullResExpiresAt: new Date(T0 + 3_600_000),
         }
       : null;
   },

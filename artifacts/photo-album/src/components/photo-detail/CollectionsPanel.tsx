@@ -11,14 +11,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FolderOpen, FolderKanban, Loader2, Plus, Check, Sparkles } from "lucide-react";
+import { FolderOpen, FolderKanban, Loader2, Plus, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { suggestCollections } from "@/lib/aiSuggestions";
 
 export function CollectionsPanel({
   photoCollections,
   availableCollections,
-  aiDescription,
   projects,
   newCollectionName,
   setNewCollectionName,
@@ -30,7 +28,6 @@ export function CollectionsPanel({
 }: {
   photoCollections?: CollectionSummary[];
   availableCollections?: Collection[];
-  aiDescription?: string | null;
   projects?: Project[];
   newCollectionName: string;
   setNewCollectionName: (value: string) => void;
@@ -43,19 +40,14 @@ export function CollectionsPanel({
   const [showAll, setShowAll] = useState(false);
 
   // One toggle-pill cloud, mirroring the lightbox sidebar: members first (click
-  // removes), then AI-suggested (click adds), then the rest. Collapsed view
+  // removes), then the rest (click adds). AI recommendations are NOT marked here:
+  // they come from the server and render in the AI panel (#212). Collapsed view
   // shows the top 5 (always including all members) behind a "+N more" toggle.
   const members = photoCollections ?? [];
   const nonMembers = availableCollections ?? [];
-  const suggested = suggestCollections(aiDescription, nonMembers);
-  const sortedNonMembers = [...nonMembers].sort((a, b) => {
-    const aS = suggested.has(a.id) ? 0 : 1;
-    const bS = suggested.has(b.id) ? 0 : 1;
-    return aS - bS;
-  });
   const all = [
     ...members.map((c) => ({ id: c.id, title: c.title, isIn: true })),
-    ...sortedNonMembers.map((c) => ({ id: c.id, title: c.title, isIn: false })),
+    ...nonMembers.map((c) => ({ id: c.id, title: c.title, isIn: false })),
   ];
   const visibleCount = Math.max(5, members.length);
   const hiddenCount = all.length - visibleCount;
@@ -71,7 +63,6 @@ export function CollectionsPanel({
         {all.length > 0 ? (
           <div className="flex flex-wrap gap-1.5" data-testid="photo-collections">
             {shown.map((col) => {
-              const isSuggested = !col.isIn && suggested.has(col.id);
               return (
                 <button
                   key={col.id}
@@ -83,25 +74,14 @@ export function CollectionsPanel({
                     "flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
                     col.isIn
                       ? "bg-primary text-primary-foreground border-primary hover:bg-primary/85"
-                      : isSuggested
-                      ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/50 hover:bg-amber-500/25"
                       : "bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                   )}
                   data-testid={`photo-collection-pill-${col.id}`}
-                  aria-label={
-                    col.isIn
-                      ? `Remove from ${col.title}`
-                      : isSuggested
-                      ? `AI suggested: Add to ${col.title}`
-                      : `Add to ${col.title}`
-                  }
+                  aria-label={col.isIn ? `Remove from ${col.title}` : `Add to ${col.title}`}
                   aria-pressed={col.isIn}
-                  title={isSuggested ? "AI suggested based on photo description" : undefined}
                 >
                   {col.isIn ? (
                     <Check className="h-3 w-3 shrink-0" />
-                  ) : isSuggested ? (
-                    <Sparkles className="h-3 w-3 shrink-0" />
                   ) : (
                     <Plus className="h-3 w-3 shrink-0" />
                   )}

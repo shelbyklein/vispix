@@ -1,3 +1,4 @@
+import { resolveSuggestionAsManual } from "../lib/collectionSuggestions";
 import { Router, type IRouter } from "express";
 import { eq, count, sql, and } from "drizzle-orm";
 import { db, collectionsTable, photoCollectionsTable, collectionNegativePhotosTable, photosTable, collectionTagsTable, tagsTable } from "@workspace/db";
@@ -306,6 +307,8 @@ router.post("/collections/:id/photos", requireOrgAuth, async (req, res): Promise
   await db
     .delete(collectionNegativePhotosTable)
     .where(and(eq(collectionNegativePhotosTable.collectionId, params.data.id), eq(collectionNegativePhotosTable.photoId, body.data.photoId)));
+  // A hand-added membership resolves a pending AI suggestion for the pair.
+  await resolveSuggestionAsManual(params.data.id, body.data.photoId, req.dbUser?.id ?? null);
 
   res.sendStatus(204);
 });

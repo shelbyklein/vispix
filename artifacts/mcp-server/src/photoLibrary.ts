@@ -16,7 +16,13 @@ import {
   photoAiEvaluationsTable,
 } from "@workspace/db";
 import type { EmbedFailure } from "@workspace/api-server/src/lib/aiEmbedding";
-import { retrievePhotos } from "@workspace/api-server/src/lib/photoRetrieval";
+import {
+  retrievePhotos,
+  type RetrievalMatch,
+  type RetrievalMode,
+  type RetrievalResult,
+} from "@workspace/api-server/src/lib/photoRetrieval";
+import { MAX_INLINE_THUMBNAIL_BYTES, SIGNED_URL_TTL_MS, mimeFromFilename } from "./structured.js";
 import { keyBelongsToOrg } from "@workspace/api-server/src/lib/storageKeys";
 import {
   objectStorageClient,
@@ -49,6 +55,8 @@ export interface PhotoSummary {
   aiScore: number | null;
   /** AI-detected flaws (short phrases); empty when clean or unevaluated. */
   aiFlaws: string[];
+  /** Why the shared retrieval service returned it (search results only). */
+  match?: RetrievalMatch | null;
 }
 
 async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
@@ -132,6 +140,36 @@ export interface SearchOptions {
   person?: string;
   /** When set, restrict the search to a single organization's library. */
   organizationId?: number;
+  /**
+   * Retrieval mode (docs/PHOTO_RETRIEVAL.md). Default "concept", the tool's
+   * long-standing behaviour; "combined"/"keyword" add exact ID/filename lookup.
+   */
+  mode?: RetrievalMode;
+  /** Opaque continuation from a previous page's `page.nextCursor`. */
+  cursor?: string;
+}
+
+export interface SearchOutcome {
+  results: PhotoSummary[];
+  note?: string;
+  status: "ok" | "unavailable" | "invalid_request";
+  error: { code: string; message: string } | null;
+  page: { nextCursor: string | null; exhausted: boolean; limited: boolean; total: number | null };
+  retrieval: RetrievalResult["retrieval"] | null;
+  coverage: RetrievalResult["coverage"];
+  degraded: RetrievalResult["degraded"];
+}
+
+function outcome(partial: Partial<SearchOutcome> & Pick<SearchOutcome, "status">): SearchOutcome {
+  return {
+    results: [],
+    error: null,
+    page: { nextCursor: null, exhausted: true, limited: false, total: null },
+    retrieval: null,
+    coverage: null,
+    degraded: null,
+    ...partial,
+  };
 }
 
 /**
@@ -162,15 +200,15 @@ export async function searchPhotos({
   rightsTag,
   person,
   organizationId: scopedOrgId,
+  mode = "concept",
+  cursor,
   signal,
-}: SearchOptions & { signal?: AbortSignal }): Promise<{ results: PhotoSummary[]; note?: string }> {
+}: SearchOptions & { signal?: AbortSignal }): Promise<SearchOutcome> {
   // Every search is org-scoped (#213): the gateway passes the token's org.
   const organizationId = scopedOrgId ?? (await resolveLocalOrganizationId());
   if (organizationId == null) {
-    return {
-      results: [],
-      note: "Search needs an organization: set VISPIX_MCP_ORGANIZATION_ID for the local server.",
-    };
+    const message = "Search needs an organization: set VISPIX_MCP_ORGANIZATION_ID for the local server.";
+    return outcome({ status: "invalid_request", note: message, error: { code: "invalid_scope", message } });
   }
 
   // Name filters resolve inside the org; an unknown name is an explicit
@@ -187,10 +225,8 @@ export async function searchPhotos({
       .limit(1);
     if (!tag) {
       const tags = await listUsageRights(organizationId);
-      return {
-        results: [],
-        note: `No usage-rights tag named "${rightsTag}". Available: ${tags.map((t) => t.name).join(", ") || "(none)"}.`,
-      };
+      const message = `No usage-rights tag named "${rightsTag}". Available: ${tags.map((t) => t.name).join(", ") || "(none)"}.`;
+      return outcome({ status: "invalid_request", note: message, error: { code: "unknown_filter_value", message } });
     }
     rightsTagId = tag.id;
   }
@@ -208,10 +244,8 @@ export async function searchPhotos({
       );
     if (!match) {
       const people = await listPeople(organizationId);
-      return {
-        results: [],
-        note: `No person named "${person}". Available: ${people.map((p) => p.name).join(", ") || "(none yet)"}.`,
-      };
+      const message = `No person named "${person}". Available: ${people.map((p) => p.name).join(", ") || "(none yet)"}.`;
+      return outcome({ status: "invalid_request", note: message, error: { code: "unknown_filter_value", message } });
     }
     personId = match.id;
   }
@@ -221,21 +255,32 @@ export async function searchPhotos({
   const result = await retrievePhotos({
     organizationId,
     canSeeHidden: false,
-    mode: "concept",
+    mode,
     text: query,
     exclude: exclude?.trim() ? [exclude.trim()] : [],
     filters: { ratingMin: minRating, minQuality, rightsTagId, personId },
     limit: wanted,
+    cursor: cursor || null,
     signal,
   });
+  const meta = {
+    page: { ...result.page, total: result.total },
+    retrieval: result.retrieval,
+    coverage: result.coverage,
+    degraded: result.degraded,
+  };
   if (result.status === "unavailable") {
-    return { results: [], note: UNAVAILABLE_NOTES[result.degraded?.reason ?? "provider_error"] };
+    return outcome({ ...meta, status: "unavailable", note: UNAVAILABLE_NOTES[result.degraded?.reason ?? "provider_error"] });
   }
 
-  const results = await buildSummaries(result.items.map((i) => i.photoId));
+  const matchById = new Map(result.items.map((i) => [i.photoId, i.match]));
+  const results = (await buildSummaries(result.items.map((i) => i.photoId))).map((p) => ({
+    ...p,
+    match: matchById.get(p.id) ?? null,
+  }));
   const notes: string[] = [];
   const filtered = minRating != null || minQuality != null || rightsTagId != null || personId != null;
-  if (result.page.exhausted && results.length < wanted) {
+  if (result.page.exhausted && results.length < wanted && !cursor) {
     notes.push(
       results.length === 0
         ? filtered ? "No photos match these filters." : "No photos are indexed for semantic search yet."
@@ -248,15 +293,32 @@ export async function searchPhotos({
     );
   }
   if (result.degraded?.affects === "exclusions") notes.push("The exclusion couldn't be applied (embedding service unavailable).");
-  return { results, note: notes.length ? notes.join(" ") : undefined };
+  if (result.degraded?.affects === "concept") notes.push("Concept matching is unavailable right now, so these are exact and keyword matches only.");
+  if (result.page.limited) notes.push("Paging stopped at the depth cap; refine the query to see further.");
+  return outcome({ ...meta, status: "ok", results, note: notes.length ? notes.join(" ") : undefined });
+}
+
+export interface PhotoDetail {
+  photo: PhotoSummary;
+  fullResUrl: string | null;
+  /** Expiry of `fullResUrl` (a signed storage URL; gateway grants carry their own). */
+  fullResExpiresAt: Date;
+  /** Hidden from non-managers (#218); MCP connectors never see hidden photos. */
+  hidden: boolean;
+  fileSize: number | null;
+  mimeType: string;
 }
 
 export async function getPhotoDetail(
   id: number,
   organizationId?: number,
-): Promise<{ photo: PhotoSummary; fullResUrl: string | null } | null> {
+): Promise<PhotoDetail | null> {
   const [row] = await db
-    .select({ storageKey: photosTable.storageKey })
+    .select({
+      storageKey: photosTable.storageKey,
+      isHidden: photosTable.isHidden,
+      filesize: photosTable.filesize,
+    })
     .from(photosTable)
     .where(
       and(
@@ -270,15 +332,27 @@ export async function getPhotoDetail(
   if (!photo) return null;
 
   let fullResUrl: string | null = null;
+  let mimeType = mimeFromFilename(photo.filename);
   if (row?.storageKey?.startsWith("/objects/")) {
     try {
-      const { bucketName, objectName } = resolveObjectFile(row.storageKey);
+      const { bucketName, objectName, file } = resolveObjectFile(row.storageKey);
       fullResUrl = await signObjectURL({ bucketName, objectName, method: "GET", ttlSec: 3600 });
+      // Storage metadata is authoritative; optimization may have rewritten the
+      // original (e.g. to WebP) under its old filename.
+      const [metadata] = await file.getMetadata().catch(() => [{ contentType: undefined }]);
+      if (typeof metadata?.contentType === "string" && metadata.contentType) mimeType = metadata.contentType;
     } catch {
       fullResUrl = null; // photo still useful without a download link
     }
   }
-  return { photo, fullResUrl };
+  return {
+    photo,
+    fullResUrl,
+    fullResExpiresAt: new Date(Date.now() + SIGNED_URL_TTL_MS),
+    hidden: row?.isHidden ?? false,
+    fileSize: row?.filesize ?? null,
+    mimeType,
+  };
 }
 
 export async function listAlbums(
@@ -296,9 +370,10 @@ export async function listAlbums(
 
 export async function listPeople(
   organizationId?: number,
-): Promise<{ name: string; description: string | null; photoCount: number }[]> {
+): Promise<{ id: number; name: string; description: string | null; photoCount: number }[]> {
   const rows = await db
     .select({
+      id: collectionsTable.id,
       name: collectionsTable.title,
       description: collectionsTable.description,
       photoCount: count(photoCollectionsTable.photoId),
@@ -318,9 +393,9 @@ export async function listPeople(
 
 export async function listUsageRights(
   organizationId?: number,
-): Promise<{ name: string; photoCount: number }[]> {
+): Promise<{ id: number; name: string; photoCount: number }[]> {
   const rows = await db
-    .select({ name: attributionTagsTable.name, photoCount: count(photoAttributionTagsTable.photoId) })
+    .select({ id: attributionTagsTable.id, name: attributionTagsTable.name, photoCount: count(photoAttributionTagsTable.photoId) })
     .from(attributionTagsTable)
     .leftJoin(photoAttributionTagsTable, eq(attributionTagsTable.id, photoAttributionTagsTable.tagId))
     .where(organizationId != null ? eq(attributionTagsTable.organizationId, organizationId) : undefined)
@@ -402,14 +477,17 @@ export async function getThumbnailFile(
 
 export async function loadThumbnailImage(
   thumbnailKey: string | null,
+  maxBytes = MAX_INLINE_THUMBNAIL_BYTES,
 ): Promise<{ base64: string; mimeType: string } | null> {
   if (!thumbnailKey?.startsWith("/objects/")) return null;
   try {
     const { file } = resolveObjectFile(thumbnailKey);
     const [exists] = await file.exists();
     if (!exists) return null;
+    const [metadata] = await file.getMetadata().catch(() => [{ contentType: undefined, size: undefined }]);
+    if (metadata?.size != null && Number(metadata.size) > maxBytes) return null;
     const [buffer] = await file.download();
-    const [metadata] = await file.getMetadata().catch(() => [{ contentType: undefined }]);
+    if ((buffer as Buffer).length > maxBytes) return null;
     return {
       base64: (buffer as Buffer).toString("base64"),
       mimeType: (metadata?.contentType as string) || "image/jpeg",

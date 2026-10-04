@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/select";
 import { Camera, Search, SlidersHorizontal, X, Star, ChevronLeft, ChevronRight, Sparkles, EyeOff, Eye, Bot, Check, AlertCircle, FolderOpen, Loader2, Trash2, CheckSquare, Upload } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { photoControlLabel } from "@/lib/photo-a11y";
 import { useToast } from "@/hooks/use-toast";
 import { useCapabilities } from "@/hooks/useCapabilities";
 
@@ -611,6 +612,7 @@ export default function PhotosPage() {
 
         {isInitialLoading ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3" data-testid="photos-loading">
+            <span role="status" className="sr-only">Loading photos…</span>
             {Array.from({ length: PAGE_SIZE }).map((_, i) => (
               <Skeleton key={i} className="aspect-square rounded-lg" />
             ))}
@@ -648,7 +650,10 @@ export default function PhotosPage() {
                     )}
                     <button
                       type="button"
-                      className="block w-full h-full cursor-pointer"
+                      className="block w-full h-full cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                      aria-label={photoControlLabel(isSelectMode ? "Select" : "Open", photo, { albumTitle: photo.albumTitle })}
+                      aria-pressed={isSelectMode ? isSelected : undefined}
+                      data-photo-id={photo.id}
                       onClick={() => {
                         if (isSelectMode) {
                           toggleSelection(photo.id);
@@ -666,7 +671,7 @@ export default function PhotosPage() {
                     >
                       <FadeImage
                         src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-                        alt="Photo"
+                        alt=""
                         className={cn(
                           "w-full h-full object-cover transition-transform duration-200 group-hover:scale-105",
                           photo.isHidden && "opacity-60"

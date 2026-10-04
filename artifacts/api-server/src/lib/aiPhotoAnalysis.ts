@@ -1,8 +1,9 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   db,
   photosTable,
   collectionsTable,
+  photoCollectionsTable,
   photoCollectionSuggestionsTable,
   photoNewCollectionSuggestionsTable,
   photoAiEvaluationsTable,
@@ -17,6 +18,7 @@ import type { ProviderId } from "./aiProviders";
 import { normalizeEvaluation, type PhotoEvaluationScores } from "./aiEvaluation";
 import { notifyAiQuotaIncident, isQuotaError } from "./orgIncidentAlerts";
 import { createLimiter } from "./concurrencyLimit";
+import { ANALYSIS_VERSION, normalizeSuggestedName } from "./collectionSuggestions";
 
 const storageService = new ObjectStorageService();
 
@@ -92,7 +94,7 @@ export interface PhotoAnalysisResult {
 }
 
 export type AnalyzePhotoOutcome =
-  | { status: "success"; provider: ProviderId; result: PhotoAnalysisResult }
+  | { status: "success"; provider: ProviderId; model: string | null; result: PhotoAnalysisResult }
   | { status: "skipped"; provider: ProviderId | null; reason: string }
   | { status: "failed"; provider: ProviderId | null; error: string };
 
@@ -169,6 +171,7 @@ export async function analyzePhoto(
   return {
     status: "success",
     provider: provider.id,
+    model: provider.model ?? null,
     result: {
       description: result.description,
       suggestedCollectionIds,
@@ -305,29 +308,70 @@ async function runAndRecordPhotoAnalysisUnbounded(
           .onConflictDoUpdate({ target: photoAiEvaluationsTable.photoId, set: evalValues });
       }
 
+      // Re-analysis only ever (re)offers *undecided* recommendations: accepted
+      // and dismissed rows are kept (decisions survive), the pending set was
+      // cleared above, and a collection the photo is already in is not offered.
+      // Dismissals are never resurrected automatically (docs/COLLECTION_SUGGESTIONS.md).
+      const provenance = {
+        source: "model" as const,
+        provider: outcome.provider,
+        model: outcome.model,
+        analysisVersion: ANALYSIS_VERSION,
+      };
+
       if (result.suggestedCollectionIds.length > 0) {
-        await tx
-          .insert(photoCollectionSuggestionsTable)
-          .values(
-            result.suggestedCollectionIds.map((cid) => ({
-              photoId: photo.id,
-              collectionId: cid,
-              status: "pending" as const,
-            })),
-          )
-          .onConflictDoNothing();
+        const alreadyIn = await tx
+          .select({ collectionId: photoCollectionsTable.collectionId })
+          .from(photoCollectionsTable)
+          .where(
+            and(
+              eq(photoCollectionsTable.photoId, photo.id),
+              inArray(photoCollectionsTable.collectionId, result.suggestedCollectionIds),
+            ),
+          );
+        const memberIds = new Set(alreadyIn.map((r) => r.collectionId));
+        const offer = result.suggestedCollectionIds.filter((cid) => !memberIds.has(cid));
+        if (offer.length > 0) {
+          await tx
+            .insert(photoCollectionSuggestionsTable)
+            .values(
+              offer.map((cid) => ({
+                photoId: photo.id,
+                collectionId: cid,
+                status: "pending" as const,
+                reason: "Matched to this collection by AI analysis of the photo",
+                ...provenance,
+              })),
+            )
+            .onConflictDoNothing();
+        }
       }
 
       if (result.suggestedNewCollectionNames.length > 0) {
-        await tx
-          .insert(photoNewCollectionSuggestionsTable)
-          .values(
-            result.suggestedNewCollectionNames.map((name) => ({
+        // A name the user already accepted or dismissed for this photo is not
+        // offered again (compared case/whitespace-insensitively).
+        const decided = await tx
+          .select({ suggestedName: photoNewCollectionSuggestionsTable.suggestedName })
+          .from(photoNewCollectionSuggestionsTable)
+          .where(eq(photoNewCollectionSuggestionsTable.photoId, photo.id));
+        const seen = new Set(decided.map((d) => normalizeSuggestedName(d.suggestedName)));
+        const names = result.suggestedNewCollectionNames.filter((n) => {
+          const key = normalizeSuggestedName(n);
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+        if (names.length > 0) {
+          await tx.insert(photoNewCollectionSuggestionsTable).values(
+            names.map((name) => ({
               photoId: photo.id,
               suggestedName: name,
               status: "pending" as const,
+              reason: "No existing collection fit; suggested by AI analysis of the photo",
+              ...provenance,
             })),
           );
+        }
       }
 
       const [row] = await tx

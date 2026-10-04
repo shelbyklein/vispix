@@ -5,8 +5,28 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+import type { SuggestedNewCollectionSource } from "./suggestedNewCollectionSource";
 
 export interface SuggestedNewCollection {
   id: number;
   suggestedName: string;
+  /** Where the recommendation came from. "model" is an AI analysis result; "heuristic" would be a word-overlap hint and is never shown as a model recommendation. */
+  source: SuggestedNewCollectionSource;
+  /**
+   * AI provider that produced the recommendation (null for rows that predate tracking).
+   * @nullable
+   */
+  provider: string | null;
+  /** @nullable */
+  model: string | null;
+  /**
+   * Version of the suggestion logic that produced it; recorded so re-offering policy can use it later.
+   * @nullable
+   */
+  analysisVersion: string | null;
+  /**
+   * Human-readable reason shown beside the recommendation.
+   * @nullable
+   */
+  reason: string | null;
 }

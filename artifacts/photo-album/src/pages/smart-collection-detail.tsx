@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { photoControlLabel } from "@/lib/photo-a11y";
 import { useParams, Link } from "wouter";
 import { useQueryClient, useInfiniteQuery } from "@tanstack/react-query";
 import {
@@ -417,27 +418,36 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
               const inCollection = collectionPhotoIds.has(photo.id);
               const isAdding = addingIds.has(photo.id);
               return (
-                <button
+                // The tile is a div so the preview button and the per-photo
+                // actions are siblings, not nested buttons.
+                <div
                   key={photo.id}
                   draggable
                   onDragStart={(e) => startPhotoDrag(e, photo.id)}
-                  onClick={() => setSelectedPhoto(toLight(photo))}
-                  className="relative w-full h-full rounded-lg overflow-hidden group cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
+                  className="relative w-full h-full rounded-lg overflow-hidden group"
                   data-testid="smart-photo-item"
-                  aria-label={`Preview ${photo.filename ?? "photo"}`}
+                  data-photo-id={photo.id}
                 >
-                  <FadeImage
-                    loading="lazy"
-                    src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-                    alt={photo.filename ?? "Photo"}
-                    className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPhoto(toLight(photo))}
+                    className="absolute inset-0 w-full h-full cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
+                    aria-label={photoControlLabel("Preview", photo, { extra: inCollection ? "in this collection" : null })}
+                    data-testid="smart-photo-preview-btn"
+                  >
+                    <FadeImage
+                      loading="lazy"
+                      src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
+                      alt=""
+                      className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
+                    />
+                  </button>
 
                   {/* Members carry an always-visible check so they read apart
                       from the semantic suggestions in the combined grid. */}
                   {inCollection && (
                     <div
-                      className="absolute top-1.5 left-1.5 z-10 flex items-center justify-center rounded-full w-5 h-5 bg-emerald-500/90 text-white shadow"
+                      className="absolute top-1.5 left-1.5 z-10 flex items-center justify-center rounded-full w-5 h-5 bg-emerald-500/90 text-white shadow pointer-events-none"
                       title="In this collection"
                       data-testid="member-badge"
                     >
@@ -458,7 +468,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                         className={`absolute top-1.5 right-1.5 z-10 flex items-center justify-center rounded-full w-7 h-7 transition-all focus:outline-none focus:ring-2 focus:ring-white/60 ${
                           isCover
                             ? "bg-primary text-primary-foreground shadow-md"
-                            : "bg-black/40 text-white opacity-0 group-hover:opacity-100 hover:bg-black/70 backdrop-blur-sm"
+                            : "bg-black/40 text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 hover:bg-black/70 backdrop-blur-sm"
                         } ${isSetting ? "opacity-100" : ""}`}
                       >
                         {isSetting ? (
@@ -470,7 +480,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                     );
                   })()}
 
-                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end p-2 opacity-0 group-hover:opacity-100">
+                  <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors duration-200 flex items-end p-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 pointer-events-none [&>*]:pointer-events-auto">
                     <button
                       onClick={(e) => handleAddPhoto(photo.id, e)}
                       disabled={inCollection || isAdding}
@@ -519,7 +529,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                       </div>
                     )}
                   </div>
-                </button>
+                </div>
               );
             }}
           />
@@ -548,7 +558,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                 >
                   <img
                     src={p.thumbnailKey ? `/api/storage${p.thumbnailKey}` : p.url}
-                    alt={p.filename ?? "Photo"}
+                    alt=""
                     className="h-full w-full object-cover opacity-70"
                     loading="lazy"
                   />

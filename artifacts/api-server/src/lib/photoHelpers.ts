@@ -1,3 +1,4 @@
+import { listPendingCollectionSuggestions, listPendingNewCollectionSuggestions } from "./collectionSuggestions";
 import { db, photosTable, ratingsTable, albumsTable, collectionsTable, photoCollectionsTable, photoCollectionSuggestionsTable, photoNewCollectionSuggestionsTable, usersTable, aiAnalysisEventsTable, photoAiEvaluationsTable, projectsTable, projectPhotosTable, attributionTagsTable, photoAttributionTagsTable, type PhotoAiEvaluation } from "@workspace/db";
 import { eq, and, asc, avg, count, desc, ilike, inArray, isNotNull, or, sql, type SQL } from "drizzle-orm";
 import { photoFilterConditions } from "./searchFilters";
@@ -250,6 +251,11 @@ export async function deletePhotoStorageObjects(photo: {
   }
 }
 
+/** Wire shape of a pending suggestion: id/title plus provenance (drops the internal photoId). */
+function serializeSuggestion<T extends { photoId?: number }>({ photoId: _photoId, ...rest }: T) {
+  return rest;
+}
+
 export async function buildPhotoResponse(photoId: number, orgId: number, currentUserId?: number) {
   const [photo] = await db
     .select({
@@ -303,28 +309,8 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
       .leftJoin(usersTable, eq(ratingsTable.userId, usersTable.id))
       .where(eq(ratingsTable.photoId, photoId))
       .orderBy(ratingsTable.createdAt),
-    db
-      .select({ id: collectionsTable.id, title: collectionsTable.title })
-      .from(photoCollectionSuggestionsTable)
-      .innerJoin(collectionsTable, eq(photoCollectionSuggestionsTable.collectionId, collectionsTable.id))
-      .where(
-        and(
-          eq(photoCollectionSuggestionsTable.photoId, photoId),
-          eq(photoCollectionSuggestionsTable.status, "pending"),
-        ),
-      ),
-    db
-      .select({
-        id: photoNewCollectionSuggestionsTable.id,
-        suggestedName: photoNewCollectionSuggestionsTable.suggestedName,
-      })
-      .from(photoNewCollectionSuggestionsTable)
-      .where(
-        and(
-          eq(photoNewCollectionSuggestionsTable.photoId, photoId),
-          eq(photoNewCollectionSuggestionsTable.status, "pending"),
-        ),
-      ),
+    listPendingCollectionSuggestions([photoId], orgId),
+    listPendingNewCollectionSuggestions([photoId]),
     db
       .select({ status: aiAnalysisEventsTable.status })
       .from(aiAnalysisEventsTable)
@@ -376,8 +362,8 @@ export async function buildPhotoResponse(photoId: number, orgId: number, current
       score: r.score,
       createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
     })),
-    suggestedCollections,
-    suggestedNewCollections,
+    suggestedCollections: suggestedCollections.map(serializeSuggestion),
+    suggestedNewCollections: suggestedNewCollections.map(serializeSuggestion),
     latestAiStatus,
     aiEvaluation,
   };
@@ -472,33 +458,8 @@ export async function buildPhotosResponse(
       .leftJoin(usersTable, eq(ratingsTable.userId, usersTable.id))
       .where(inArray(ratingsTable.photoId, photoIds))
       .orderBy(ratingsTable.createdAt),
-    db
-      .select({
-        photoId: photoCollectionSuggestionsTable.photoId,
-        id: collectionsTable.id,
-        title: collectionsTable.title,
-      })
-      .from(photoCollectionSuggestionsTable)
-      .innerJoin(collectionsTable, eq(photoCollectionSuggestionsTable.collectionId, collectionsTable.id))
-      .where(
-        and(
-          inArray(photoCollectionSuggestionsTable.photoId, photoIds),
-          eq(photoCollectionSuggestionsTable.status, "pending"),
-        ),
-      ),
-    db
-      .select({
-        photoId: photoNewCollectionSuggestionsTable.photoId,
-        id: photoNewCollectionSuggestionsTable.id,
-        suggestedName: photoNewCollectionSuggestionsTable.suggestedName,
-      })
-      .from(photoNewCollectionSuggestionsTable)
-      .where(
-        and(
-          inArray(photoNewCollectionSuggestionsTable.photoId, photoIds),
-          eq(photoNewCollectionSuggestionsTable.status, "pending"),
-        ),
-      ),
+    listPendingCollectionSuggestions(photoIds, orgId),
+    listPendingNewCollectionSuggestions(photoIds),
     // Latest AI event per photo: DISTINCT ON (photo_id) ordered by created_at DESC.
     db
       .selectDistinctOn([aiAnalysisEventsTable.photoId], {
@@ -582,8 +543,8 @@ export async function buildPhotosResponse(
           score: r.score,
           createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : r.createdAt,
         })),
-        suggestedCollections: (suggestedByPhoto.get(id) ?? []).map((s) => ({ id: s.id, title: s.title })),
-        suggestedNewCollections: (suggestedNewByPhoto.get(id) ?? []).map((s) => ({ id: s.id, suggestedName: s.suggestedName })),
+        suggestedCollections: (suggestedByPhoto.get(id) ?? []).map(serializeSuggestion),
+        suggestedNewCollections: (suggestedNewByPhoto.get(id) ?? []).map(serializeSuggestion),
         latestAiStatus: latestAiByPhoto.get(id) ?? null,
         aiEvaluation: serializeAiEvaluation(aiEvaluationByPhoto.get(id)),
       };

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { photoControlLabel, photoAltText } from "@/lib/photo-a11y";
 import { useParams, Link, useLocation } from "wouter";
 import {
   useGetProject,
@@ -351,12 +352,13 @@ export default function ProjectDetail() {
                   type="button"
                   onClick={() => setSelectedPhoto(toLight(photo))}
                   className="block w-full h-full focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2"
-                  aria-label={`Preview ${photo.filename ?? "photo"}`}
+                  aria-label={photoControlLabel("Preview", photo)}
+                  data-photo-id={photo.id}
                 >
                   <FadeImage
                     loading="lazy"
                     src={photo.thumbnailKey ? `/api/storage${photo.thumbnailKey}` : photo.url}
-                    alt={photo.aiDescription ?? "Photo"}
+                    alt={photoAltText(photo.aiDescription)}
                     className="w-full h-full object-cover cursor-pointer transition-transform duration-200 group-hover:scale-105"
                   />
                 </button>
@@ -364,7 +366,7 @@ export default function ProjectDetail() {
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200 pointer-events-none" />
 
                 {photo.averageRating != null && (
-                  <div className="absolute top-2 left-2 flex items-center gap-0.5 bg-black/60 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 left-2 flex items-center gap-0.5 bg-black/60 rounded px-1.5 py-0.5 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity">
                     <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                     <span className="text-xs text-white font-medium">
                       {photo.averageRating.toFixed(1)}
@@ -389,7 +391,7 @@ export default function ProjectDetail() {
                         }
                       )
                     }
-                    className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/70 hover:bg-red-600 text-white rounded px-2 py-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute bottom-2 left-2 flex items-center gap-1 bg-black/70 hover:bg-red-600 text-white rounded px-2 py-1 text-[10px] font-medium opacity-0 group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity"
                   >
                     <X className="h-2.5 w-2.5" />
                     Remove
