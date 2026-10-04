@@ -16,6 +16,7 @@ import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib
 import { planGeneration } from "../lib/imageGeneration/plan";
 import { canSeeHiddenPhotos } from "../lib/capabilities";
 import { loadGenerationView, redactInputs, redactRights, redactUsageNotes, type GenerationView } from "../lib/imageGeneration/redact";
+import { generationProvenance, visibleHeroPhotos } from "../lib/imageGeneration/provenance";
 import { generationRateLimit, sendGenerationError, GENERIC_GENERATION_ERROR } from "../lib/imageGeneration/limits";
 
 // AI image generation — the Create workspace backend (#167). All routes are
@@ -71,6 +72,8 @@ function serializeGeneration(g: ImageGeneration, view: GenerationView) {
     status: g.status,
     error: g.error,
     createdAt: g.createdAt instanceof Date ? g.createdAt.toISOString() : String(g.createdAt),
+    // How it was made (#215): composition, photo treatment, grounding, format, model.
+    fidelity: generationProvenance(g, { canSeeHidden: view.canSeeHidden }),
   };
 }
 
@@ -263,6 +266,8 @@ router.get("/image-generation/all", requireOrgAuth, async (req: Request, res: Re
         createdAt: r.gen.createdAt.toISOString(),
         // Rights of each photo input, frozen at generation time (#207).
         rightsConsidered: redactRights(r.gen.rightsSnapshot ?? [], view),
+        fidelity: generationProvenance(r.gen, { canSeeHidden: view.canSeeHidden }),
+        heroPhotos: visibleHeroPhotos(r.gen.inputs ?? [], view),
         creator: r.creatorId != null ? { id: r.creatorId, name: r.creatorName } : null,
         source: r.campaignId != null
           ? { type: "campaign" as const, sessionId: r.gen.sessionId, sessionTitle: r.sessionTitle, campaignId: r.campaignId, campaignName: r.campaignName }

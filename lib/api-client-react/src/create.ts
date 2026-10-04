@@ -235,6 +235,10 @@ export interface PastGeneration {
     tags: { id: number; name: string }[];
     checkedAt: string;
   }[];
+  /** How it was made (#215); null fields on generations made before #215. */
+  fidelity?: GenerationFidelity;
+  /** Hero-photo inputs the viewer may link to (hidden photos omitted). */
+  heroPhotos?: { photoId: number; name: string | null }[];
   creator: { id: number; name: string } | null;
   source: {
     type: "session" | "campaign";
