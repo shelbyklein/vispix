@@ -3,7 +3,7 @@ import { z } from "zod/v4";
 import { and, desc, eq, sql, type SQL } from "drizzle-orm";
 import { db, campaignsTable, type Campaign } from "@workspace/db";
 import { requireOrgAuth } from "../middlewares/requireOrg";
-import { generateCampaignSuggestions } from "../lib/imageGeneration/campaignSuggestions";
+import { generateCampaignSuggestions, generateCampaignConcept } from "../lib/imageGeneration/campaignSuggestions";
 import { generationRateLimit, sendGenerationError } from "../lib/imageGeneration/limits";
 import { canManageItem } from "../lib/capabilities";
 
@@ -233,6 +233,49 @@ router.post("/campaigns/:id/generate", requireOrgAuth, generationRateLimit, asyn
         .where(and(eq(campaignsTable.id, id), eq(campaignsTable.lastGenerateRequestId, requestId)));
     }
     sendGenerationError(req, res, error, "Suggestion generation failed. Please try again.", "Campaign suggestion generation failed");
+  }
+});
+
+// Continue ONE needs_input concept without its missing photo/logo (#215). The
+// client sends back the concept the server returned (`resume`) plus the roles
+// the person chose to go without; roles not listed still block it. Same
+// permission and rate limit as generating.
+const ConceptBody = z.object({
+  concept: z.object({
+    title: z.string().trim().min(1).max(200),
+    prompt: z.string().trim().min(1).max(4000),
+    format: z.string().trim().min(1).max(20),
+    heroPhotoQuery: z.string().max(300).nullable(),
+    useLogo: z.boolean(),
+  }),
+  acknowledgedMissing: z.array(z.enum(["hero_photo", "exact_asset"])).max(2).default([]),
+});
+
+router.post("/campaigns/:id/generate-concept", requireOrgAuth, generationRateLimit, async (req: Request, res: Response) => {
+  const id = parseInt(String(req.params.id), 10);
+  if (!Number.isInteger(id)) {
+    res.status(400).json({ error: "Invalid campaign id" });
+    return;
+  }
+  const body = ConceptBody.safeParse(req.body ?? {});
+  if (!body.success) {
+    res.status(400).json({ error: "Invalid concept request" });
+    return;
+  }
+  const campaign = await findOrgCampaign(id, req.org!.id);
+  if (!campaign) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+  if (!canManageItem(req, campaign.createdById)) {
+    res.status(403).json({ error: "Only the campaign's creator or an organization owner/admin can change it" });
+    return;
+  }
+  try {
+    const result = await generateCampaignConcept(campaign, req.dbUser!.id, body.data.concept, body.data.acknowledgedMissing);
+    res.json({ ...result, brief: campaign.brief, briefRevision: campaign.briefRevision });
+  } catch (error) {
+    sendGenerationError(req, res, error, "Suggestion generation failed. Please try again.", "Campaign concept generation failed");
   }
 });
 

@@ -2,7 +2,7 @@ import OpenAI from "openai";
 import { eq } from "drizzle-orm";
 import { db, campaignsTable, imageGenerationSessionsTable, type Campaign } from "@workspace/db";
 import { getOpenAIKeyForOrg } from "../aiProviders";
-import { findPhotoCandidates, findDesignatedPrimaryLogo } from "./plan";
+import { findPhotoCandidates, findDesignatedPrimaryLogo, REQUIRED_INPUT_MESSAGES, type RequiredInput } from "./plan";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat, type RequestedInput, type RunGenerationResult } from "./orchestrate";
 import { logger } from "../logger";
 import { assertGenerationCapacity, GenerationLimitError } from "./limits";
@@ -15,7 +15,7 @@ import { assertGenerationCapacity, GenerationLimitError } from "./limits";
 
 const CONCEPT_MODEL = process.env.OPENAI_IMAGE_TEXT_MODEL || "gpt-5-mini";
 
-interface AdConcept {
+export interface AdConcept {
   title: string;
   prompt: string;
   format: string;
@@ -77,18 +77,159 @@ async function generateConcepts(
   return (parsed.concepts ?? []).slice(0, count);
 }
 
+export type AcknowledgedRole = RequiredInput["role"];
+
+export interface CampaignConceptResult {
+  title: string;
+  /** "needs_input": a required photo/logo couldn't be grounded, so nothing was rendered (#215). */
+  status: "generated" | "needs_input";
+  missing?: RequiredInput[];
+  /** needs_input only: everything needed to continue this concept without its missing inputs. */
+  resume?: AdConcept;
+}
+
 export interface CampaignSuggestionResult {
   sessionId: number;
   generations: RunGenerationResult["generations"];
-  concepts: { title: string }[];
+  concepts: CampaignConceptResult[];
   /** Things the user should know about the inputs, e.g. no primary logo. */
   notices: string[];
 }
 
 export const NO_PRIMARY_LOGO_NOTICE =
-  "No primary logo is designated, so these suggestions were generated without a logo. Mark your primary logo in Assets to include it.";
+  "No primary logo is designated, so suggestions that need your logo were not generated. Mark your primary logo in Assets, or generate those suggestions without a logo.";
 
 const LIMIT_NOTICE = "Only some suggestions were started because your organization hit its image generation limit. Generate again once these finish.";
+
+const GROUNDING_FAILED_MESSAGE = "We couldn't search your library for this just now. Try again, or continue without it.";
+
+/** Nearest supported canvas for a requested ratio like "16:9" ("1:1" if unparseable). */
+export function nearestSupportedFormat(requested: string): GenerationFormat {
+  if (Object.hasOwn(GENERATION_FORMATS, requested)) return requested as GenerationFormat;
+  const m = /^\s*(\d+(?:\.\d+)?)\s*[:x/]\s*(\d+(?:\.\d+)?)\s*$/.exec(requested);
+  const ratio = m ? Number(m[1]) / Number(m[2]) : NaN;
+  if (!Number.isFinite(ratio) || ratio <= 0) return "1:1";
+  let best: GenerationFormat = "1:1";
+  let bestDistance = Infinity;
+  for (const [id, f] of Object.entries(GENERATION_FORMATS) as [GenerationFormat, { size: string }][]) {
+    const [w, h] = f.size.split("x").map(Number);
+    const distance = Math.abs(Math.log(ratio / (w / h)));
+    if (distance < bestDistance) {
+      best = id;
+      bestDistance = distance;
+    }
+  }
+  return best;
+}
+
+type PrimaryLogo = Awaited<ReturnType<typeof findDesignatedPrimaryLogo>>;
+
+// Passing Lane A's optional run args (#215) through without depending on
+// whether this base's RunGenerationArgs declares them yet.
+type RunArgsWithFidelity = Parameters<typeof runGeneration>[0] & {
+  acknowledgedMissing?: AcknowledgedRole[];
+  requestedFormat?: string;
+};
+
+async function ensureCampaignSession(campaign: Campaign, userId: number): Promise<number> {
+  if (campaign.sessionId != null) return campaign.sessionId;
+  const [session] = await db
+    .insert(imageGenerationSessionsTable)
+    .values({
+      organizationId: campaign.organizationId,
+      userId,
+      title: `Campaign: ${campaign.name}`.slice(0, 120),
+    })
+    .returning({ id: imageGenerationSessionsTable.id });
+  await db
+    .update(campaignsTable)
+    .set({ sessionId: session.id, updatedAt: new Date() })
+    .where(eq(campaignsTable.id, campaign.id));
+  return session.id;
+}
+
+/**
+ * Ground one concept in the library: its best-matching hero photo (when it
+ * asks for one) and the designated primary logo (when it wants a logo). An
+ * input that can't be found is reported as missing — never silently dropped —
+ * unless the person acknowledged going without that role.
+ */
+async function groundConcept(
+  campaign: Campaign,
+  concept: AdConcept,
+  acknowledged: AcknowledgedRole[],
+  logo: { value?: PrimaryLogo },
+): Promise<{ inputs: RequestedInput[]; missing: RequiredInput[]; acknowledgedUsed: AcknowledgedRole[] }> {
+  const inputs: RequestedInput[] = [];
+  const missing: RequiredInput[] = [];
+  const acknowledgedUsed: AcknowledgedRole[] = [];
+  const handle = (role: AcknowledgedRole, slot: string, message: string) => {
+    if (acknowledged.includes(role)) acknowledgedUsed.push(role);
+    else missing.push({ role, slot, status: "missing", message });
+  };
+
+  if (concept.heroPhotoQuery?.trim()) {
+    try {
+      const [photo] = await findPhotoCandidates(campaign.organizationId, concept.heroPhotoQuery.trim());
+      if (photo) inputs.push({ kind: "photo", refId: photo.refId, role: "hero_photo", name: photo.name });
+      else handle("hero_photo", "Hero photo", REQUIRED_INPUT_MESSAGES.heroMissing);
+    } catch (err) {
+      logger.warn({ err, campaignId: campaign.id }, "Campaign concept photo grounding failed");
+      handle("hero_photo", "Hero photo", GROUNDING_FAILED_MESSAGE);
+    }
+  }
+  if (concept.useLogo) {
+    // Only the designated primary mark is attached automatically (#206).
+    try {
+      if (logo.value === undefined) logo.value = await findDesignatedPrimaryLogo(campaign.organizationId);
+      if (logo.value) inputs.push({ kind: "asset", refId: logo.value.refId, role: logo.value.role, name: logo.value.name });
+      else handle("exact_asset", "Primary logo", REQUIRED_INPUT_MESSAGES.primaryLogoMissing);
+    } catch (err) {
+      logger.warn({ err, campaignId: campaign.id }, "Campaign concept logo grounding failed");
+      handle("exact_asset", "Primary logo", GROUNDING_FAILED_MESSAGE);
+    }
+  }
+  return { inputs, missing, acknowledgedUsed };
+}
+
+/** Ground and (when every required input is satisfied) start one concept. */
+async function processConcept(
+  campaign: Campaign,
+  userId: number,
+  sessionId: number,
+  concept: AdConcept,
+  acknowledged: AcknowledgedRole[],
+  logo: { value?: PrimaryLogo },
+  context: { requestId?: string },
+): Promise<{ result: CampaignConceptResult; generations: RunGenerationResult["generations"] }> {
+  const { inputs, missing, acknowledgedUsed } = await groundConcept(campaign, concept, acknowledged, logo);
+  if (missing.length > 0) {
+    return { result: { title: concept.title, status: "needs_input", missing, resume: concept }, generations: [] };
+  }
+  // An unsupported ratio is rendered on the nearest canvas and the request is
+  // recorded alongside it — never relabelled (#215).
+  const requestedFormat = concept.format.trim().slice(0, 20) || "1:1";
+  const args: RunArgsWithFidelity = {
+    organizationId: campaign.organizationId,
+    userId,
+    sessionId,
+    prompt: `${concept.title}: ${concept.prompt}`,
+    inputs,
+    format: nearestSupportedFormat(requestedFormat),
+    requestedFormat,
+    variantCount: 1,
+    ...(acknowledgedUsed.length > 0 ? { acknowledgedMissing: acknowledgedUsed } : {}),
+    // Which brief revision (and request) this suggestion came from (#216),
+    // so outputs stay attributable after the brief is edited again.
+    settings: {
+      campaignId: campaign.id,
+      campaignBriefRevision: campaign.briefRevision,
+      ...(context.requestId ? { campaignRequestId: context.requestId } : {}),
+    },
+  };
+  const run = await runGeneration(args);
+  return { result: { title: concept.title, status: "generated" }, generations: run.generations };
+}
 
 export async function generateCampaignSuggestions(
   campaign: Campaign,
@@ -114,88 +255,63 @@ export async function generateCampaignSuggestions(
   }
 
   // The campaign's dedicated session (lazily created + linked).
-  let sessionId = campaign.sessionId;
-  if (sessionId == null) {
-    const [session] = await db
-      .insert(imageGenerationSessionsTable)
-      .values({
-        organizationId: campaign.organizationId,
-        userId,
-        title: `Campaign: ${campaign.name}`.slice(0, 120),
-      })
-      .returning({ id: imageGenerationSessionsTable.id });
-    sessionId = session.id;
-    await db
-      .update(campaignsTable)
-      .set({ sessionId, updatedAt: new Date() })
-      .where(eq(campaignsTable.id, campaign.id));
-  }
+  const sessionId = await ensureCampaignSession(campaign, userId);
 
-  // Ground each concept in the library: best-matching hero photo + top brand
-  // asset when a logo is wanted. Then fire the (async) generation — pending
-  // rows return immediately and the client polls the session.
+  // Ground each concept, then fire the (async) generation — pending rows
+  // return immediately and the client polls the session. A concept whose
+  // required inputs can't be grounded is NOT rendered: it comes back as
+  // needs_input and the person decides (#215).
   const generations: RunGenerationResult["generations"] = [];
-  let primaryLogo: Awaited<ReturnType<typeof findDesignatedPrimaryLogo>> | undefined;
-  let missingLogo = false;
+  const results: CampaignConceptResult[] = [];
+  const logo: { value?: PrimaryLogo } = {};
   let limitHit = false;
+  let started = 0;
   for (const concept of concepts) {
-    const inputs: RequestedInput[] = [];
     try {
-      if (concept.heroPhotoQuery?.trim()) {
-        const [photo] = await findPhotoCandidates(campaign.organizationId, concept.heroPhotoQuery.trim());
-        if (photo) inputs.push({ kind: "photo", refId: photo.refId, role: "hero_photo", name: photo.name });
-      }
-      if (concept.useLogo) {
-        // Only the designated primary mark is attached automatically (#206);
-        // with none designated the concept is generated without a logo.
-        if (primaryLogo === undefined) primaryLogo = await findDesignatedPrimaryLogo(campaign.organizationId);
-        if (primaryLogo) inputs.push({ kind: "asset", refId: primaryLogo.refId, role: primaryLogo.role, name: primaryLogo.name });
-        else missingLogo = true;
-      }
-    } catch (err) {
-      logger.warn({ err, campaignId: campaign.id }, "Campaign concept grounding failed — generating without inputs");
-    }
-
-    const format: GenerationFormat = (Object.hasOwn(GENERATION_FORMATS, concept.format) ? concept.format : "1:1") as GenerationFormat;
-    let result: RunGenerationResult;
-    try {
-      result = await runGeneration({
-        organizationId: campaign.organizationId,
-        userId,
-        sessionId,
-        prompt: `${concept.title}: ${concept.prompt}`,
-        inputs,
-        format,
-        variantCount: 1,
-        // Which brief revision (and request) this suggestion came from (#216),
-        // so outputs stay attributable after the brief is edited again.
-        settings: {
-          campaignId: campaign.id,
-          campaignBriefRevision: campaign.briefRevision,
-          ...(context.requestId ? { campaignRequestId: context.requestId } : {}),
-        },
-      });
+      const out = await processConcept(campaign, userId, sessionId, concept, [], logo, context);
+      results.push(out.result);
+      generations.push(...out.generations);
+      if (out.result.status === "generated") started++;
     } catch (err) {
       // A concurrent request took the slots we pre-checked: keep what was
       // already queued rather than failing a half-started batch.
-      if (err instanceof GenerationLimitError && generations.length > 0) {
+      if (err instanceof GenerationLimitError && started > 0) {
         limitHit = true;
         break;
       }
       throw err;
     }
-    generations.push(...result.generations);
   }
 
   await db.update(campaignsTable).set({ updatedAt: new Date() }).where(eq(campaignsTable.id, campaign.id));
 
+  const missingLogo = results.some((r) => r.missing?.some((m) => m.role === "exact_asset" && m.message === REQUIRED_INPUT_MESSAGES.primaryLogoMissing));
   return {
     sessionId,
     generations,
-    concepts: concepts.map((c) => ({ title: c.title })),
+    concepts: results,
     notices: [
       ...(missingLogo ? [NO_PRIMARY_LOGO_NOTICE] : []),
       ...(limitHit ? [LIMIT_NOTICE] : []),
     ],
   };
+}
+
+/**
+ * Continue one needs_input concept (#215): the person chose to go without the
+ * roles in `acknowledgedMissing`. Re-grounds the concept (a photo or logo added
+ * since is used), then generates it. Roles not acknowledged still block it.
+ */
+export async function generateCampaignConcept(
+  campaign: Campaign,
+  userId: number,
+  concept: AdConcept,
+  acknowledgedMissing: AcknowledgedRole[],
+  context: { requestId?: string } = {},
+): Promise<CampaignSuggestionResult> {
+  assertGenerationCapacity(campaign.organizationId, userId, 1);
+  const sessionId = await ensureCampaignSession(campaign, userId);
+  const out = await processConcept(campaign, userId, sessionId, concept, [...new Set(acknowledgedMissing)], {}, context);
+  await db.update(campaignsTable).set({ updatedAt: new Date() }).where(eq(campaignsTable.id, campaign.id));
+  return { sessionId, generations: out.generations, concepts: [out.result], notices: [] };
 }

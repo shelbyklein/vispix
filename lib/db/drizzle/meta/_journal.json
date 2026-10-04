@@ -288,6 +288,13 @@
       "when": 1791098980746,
       "tag": "0040_usage_rights_snapshots",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1791110836204,
+      "tag": "0041_generation_fidelity",
+      "breakpoints": true
     }
   ]
 }

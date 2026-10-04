@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, customFetch } from "./custom-fetch";
-import { getGenerationSessionQueryKey, type ImageGenerationResult } from "./create";
+import { getGenerationSessionQueryKey, type ImageGenerationResult, type RequiredInput, type RequiredInputRole } from "./create";
 
 // Campaigns (#192): text briefs that drive AI ad suggestions. Suggestions live
 // in the campaign's generation session — fetch them with useGenerationSession.
@@ -88,10 +88,28 @@ export function useDeleteCampaign() {
   });
 }
 
+/** The planned ad concept a needs_input result carries so it can be continued (server `AdConcept`). */
+export interface CampaignAdConcept {
+  title: string;
+  prompt: string;
+  format: string;
+  heroPhotoQuery: string | null;
+  useLogo: boolean;
+}
+
+export interface CampaignConcept {
+  title: string;
+  status?: "generated" | "needs_input";
+  missing?: RequiredInput[];
+  /** needs_input only: send back to generate-concept to continue without the missing inputs. */
+  resume?: CampaignAdConcept;
+}
+
 export interface GenerateCampaignSuggestionsResult {
   sessionId: number | null;
   generations: ImageGenerationResult[];
-  concepts: { title: string }[];
+  /** #215: a concept whose required inputs are missing is not rendered silently. */
+  concepts: CampaignConcept[];
   /** The brief (and its revision) the suggestions were generated from. */
   brief: string;
   briefRevision: number;
@@ -111,6 +129,28 @@ export function useGenerateCampaignSuggestions() {
   return useMutation({
     mutationFn: ({ id, ...body }: { id: number; brief?: string; expectedRevision?: number; requestId?: string }) =>
       customFetch<GenerateCampaignSuggestionsResult>(`/api/campaigns/${id}/generate`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      }),
+    onSettled: (result, _err, { id }) => {
+      queryClient.invalidateQueries({ queryKey: CAMPAIGNS_KEY });
+      queryClient.invalidateQueries({ queryKey: getCampaignQueryKey(id) });
+      if (result?.sessionId != null) {
+        queryClient.invalidateQueries({ queryKey: getGenerationSessionQueryKey(result.sessionId) });
+      }
+    },
+  });
+}
+
+/**
+ * Continue one needs_input concept (#215): the server re-grounds it and only
+ * skips the roles in `acknowledgedMissing`.
+ */
+export function useGenerateCampaignConcept() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: number; concept: CampaignAdConcept; acknowledgedMissing: RequiredInputRole[] }) =>
+      customFetch<GenerateCampaignSuggestionsResult>(`/api/campaigns/${id}/generate-concept`, {
         method: "POST",
         body: JSON.stringify(body),
       }),

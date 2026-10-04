@@ -2,13 +2,14 @@ import { RightsPills, RIGHTS_DISCLAIMER } from "@/components/usage-rights/UsageR
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { usePastGenerations, generationDownloadUrl, type PastGeneration } from "@workspace/api-client-react";
+import { usePastGenerations, generationDownloadUrl, type PastGeneration, type GenerationFidelity } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { History, Loader2, Info, Download, Wand2, Megaphone, ImageOff } from "lucide-react";
+import { History, Loader2, Info, Download, Wand2, Megaphone, ImageOff, Stamp, Sparkles } from "lucide-react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatDate } from "@/lib/format-date";
+import { fidelityLines } from "@/lib/fidelity";
 
 // Past generations (#194): every image the org has generated, from Create
 // sessions and campaign suggestions. Read-only, and deliberately outside the AI
@@ -40,13 +41,73 @@ function SourceLink({ g }: { g: PastGeneration }) {
   );
 }
 
-function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: () => void }) {
+// #215: the /image-generation/all serializer adds `fidelity` (generationProvenance)
+// and `heroPhotos` (visibleHeroPhotos: already redacted, so a hidden photo is
+// never linked for members). Both are optional - older rows and servers omit them.
+type DetailGeneration = PastGeneration & {
+  fidelity?: GenerationFidelity;
+  heroPhotos?: { photoId: number; name: string | null }[];
+};
+
+function FidelityPanel({ g }: { g: DetailGeneration }) {
+  const f = g.fidelity;
+  if (!f) return null;
+  const lines = fidelityLines(g);
+  const how: string[] = [];
+  if (f.provenance?.model) how.push(`Model: ${f.provenance.model}`);
+  if (f.formatResolution) how.push(`Canvas: ${f.formatResolution.rendered}`);
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3" data-testid="generation-fidelity">
+      <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
+        How this was made
+      </p>
+      {lines.length > 0 && (
+        <ul className="space-y-1.5">
+          {lines.map((l) => (
+            <li key={l.label} className="flex items-start gap-2 text-sm" data-testid="fidelity-line">
+              {l.kind === "logo" ? (
+                <Stamp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              ) : (
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <span>
+                <span className="font-medium text-foreground">{l.label}</span>
+                {l.detail && <span className="text-muted-foreground"> - {l.detail}</span>}
+                {l.photoLinks && l.photoLinks.length > 0 && (
+                  <span className="ml-1">
+                    {l.photoLinks.map((p, i) => (
+                      <span key={p.photoId}>
+                        {i > 0 && ", "}
+                        <Link href={`/photos/${p.photoId}`} className="text-primary hover:underline">
+                          View original{p.name ? `: ${p.name}` : ""}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {how.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground" data-testid="fidelity-how">
+          {how.map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function GenerationDetail({ g, onClose }: { g: DetailGeneration | null; onClose: () => void }) {
   return (
     <Dialog open={g != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" data-testid="generation-detail">
+      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0" data-testid="generation-detail">
         {g && (
           <>
-            <DialogHeader>
+            <DialogHeader className="shrink-0 px-6 pb-3 pt-6 pr-12">
               <DialogTitle>Generated image</DialogTitle>
               <DialogDescription>
                 {formatDate(g.createdAt)}
@@ -55,12 +116,14 @@ function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: (
                 {g.format ? ` · ${g.format}` : ""}
               </DialogDescription>
             </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-1" data-testid="generation-detail-body">
             {g.imageUrl ? (
               <img src={g.imageUrl} alt={summarize(g.prompt, 200)} className="mx-auto max-h-[55vh] rounded-md object-contain" />
             ) : (
               <p className="text-sm text-muted-foreground">This generation did not produce an image.</p>
             )}
             <p className="whitespace-pre-wrap text-sm text-foreground">{g.prompt}</p>
+            <FidelityPanel g={g} />
             {g.rightsConsidered.length > 0 && (
               <div className="space-y-1.5 rounded-md border border-border p-3" data-testid="generation-rights">
                 <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
@@ -78,7 +141,8 @@ function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: (
                 <p className="text-[11px] text-muted-foreground">Frozen when the image was generated. {RIGHTS_DISCLAIMER}.</p>
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3 text-sm" data-testid="generation-detail-footer">
               <SourceLink g={g} />
               {g.imageUrl && (
                 <div className="flex gap-2">

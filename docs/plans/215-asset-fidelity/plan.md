@@ -45,6 +45,29 @@ flowchart TD
   G --> R[Revision: re-generate from the BASE image, then re-composite the same logo at the recorded layout]
 ```
 
+## Result (synthetic harness, branch `feature/215-asset-fidelity`)
+
+Local app with synthetic data; the image provider, planner and embeddings are mocked (the mock returns a fixture image with the magenta placeholder, so the real `compose.ts` composites the logo).
+
+| State | Screenshot |
+|---|---|
+| Primary logo found → auto-attached, Generate enabled | ![](after-create-logo-auto-attached.png) |
+| Logo removed → stop and ask, Generate disabled | ![](after-create-logo-removed.png) |
+| No logo in Assets → stop and ask | ![](after-create-missing-logo.png) |
+| Continue without (recorded) | ![](after-create-continue-without.png) |
+| Result: logo stamped from the original file, labelled | ![](after-create-exact-logo.png) |
+| Provenance: logo layout and file revision | ![](after-generations-logo-placed.png) |
+| Provenance: photo reinterpreted (original linked), asked 9:16 → made 2:3 | ![](after-generations-provenance.png) |
+| Provenance: "No logo used" | ![](after-generations-no-logo-used.png) |
+| Campaign concepts needing a logo/photo | ![](after-campaign-needs-input.png) |
+
+Validation at the PR head: `pnpm run typecheck` 0 errors; api-server 542 passed + 5 todo; mcp-server 73 passed; web and api builds pass. Pixel tests were mutation-checked (removing the composite step fails 3 of them).
+
+Behaviour notes:
+- Required inputs are satisfied only by an attached input of that role or an explicit "continue without". Found inputs are auto-attached in Create. The server returns 409 `input_required` when the client sends the plan's `requiredInputs` and one is unresolved; callers without a plan (MCP, direct API, revisions) aren't checked.
+- Campaign `needs_input` concepts are returned by the generate call only (not persisted); "Generate without…" uses `POST /campaigns/:id/generate-concept`.
+- Still open: FIDELITY-04 real-provider run (needs spend authorization), FIDELITY-06 dev-stack demo, FIDELITY-07 release.
+
 ## Decisions (settled 2026-10-04 with Shelby)
 
 | Question | Decision |
