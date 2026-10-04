@@ -1,4 +1,5 @@
-import { FolderOpen, FolderKanban, Copyright, Loader2, EyeOff, Eye, Check, Plus, ImageIcon, Trash2, Users } from "lucide-react";
+import { UsageRightsSection, usageRightsOf } from "@/components/usage-rights/UsageRights";
+import { FolderOpen, FolderKanban, Loader2, EyeOff, Eye, Check, Plus, ImageIcon, Trash2, Users } from "lucide-react";
 import { useRef, useState } from "react";
 import {
   useGetPhoto,
@@ -651,27 +652,16 @@ export function PhotoSidebarContent({
         )}
       </div>
 
-      {/* Read-only: attribution is set per album, photos just display it. */}
-      {currentAttributionTags.length > 0 && (
-        <div className="space-y-2 border-t border-white/10 pt-3">
-          <div className="flex items-center gap-1.5 text-white/70">
-            <Copyright className="h-3.5 w-3.5" />
-            <span className="text-xs font-semibold uppercase tracking-wide">Attribution</span>
-          </div>
-          <div className="flex flex-wrap gap-1.5" data-testid="lightbox-attribution-pills">
-            {currentAttributionTags.map((tag) => (
-              <span
-                key={tag.id}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-white/15 text-white border border-white/25"
-                data-testid={`lightbox-attribution-pill-${tag.id}`}
-              >
-                <Check className="h-3 w-3 shrink-0" />
-                {tag.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Usage rights (#207): always shown — "not recorded" is a state. Set per album. */}
+      <div className="border-t border-white/10 pt-3">
+        <UsageRightsSection
+          rights={usageRightsOf({ usageRights: fullPhoto?.usageRights, attributionTags: currentAttributionTags })}
+          albumId={fullPhoto?.albumId ?? null}
+          tone="dark"
+          pillsTestId="lightbox-attribution-pills"
+          pillTestIdPrefix="lightbox-attribution-pill-"
+        />
+      </div>
     </div>
   );
 }

@@ -27,6 +27,14 @@ Affected: anyone choosing photos for marketing (members and admins), and agents 
 
 Target (wireframe): ![target](target-mockup.svg)
 
+## Result (synthetic harness, branch 207-usage-rights)
+
+| After | |
+|---|---|
+| ![details](after-details-unknown.png) | ![lightbox](after-lightbox-unknown.png) |
+| ![create](after-create-candidates.png) | ![selection](after-selection.png) |
+| ![export](after-project-export.png) | ![generation](after-generation-rights.png) |
+
 ## Rights-state and enforcement matrix (TT-VPX-RIGHTS-01)
 
 Policy decided by Shelby (2026-10-04): **warning-only**; unknown is preserved explicitly; no hard blocking.
