@@ -2,11 +2,11 @@ import { RightsPills, RIGHTS_DISCLAIMER } from "@/components/usage-rights/UsageR
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { usePastGenerations, generationDownloadUrl, type PastGeneration } from "@workspace/api-client-react";
+import { usePastGenerations, generationDownloadUrl, type PastGeneration, type GenerationFidelity } from "@workspace/api-client-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { History, Loader2, Info, Download, Wand2, Megaphone, ImageOff } from "lucide-react";
+import { History, Loader2, Info, Download, Wand2, Megaphone, ImageOff, Stamp, Sparkles } from "lucide-react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatDate } from "@/lib/format-date";
 
@@ -40,7 +40,97 @@ function SourceLink({ g }: { g: PastGeneration }) {
   );
 }
 
-function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: () => void }) {
+// #215: the /image-generation/all serializer adds `fidelity` (generationProvenance)
+// and `heroPhotos` (visibleHeroPhotos: already redacted, so a hidden photo is
+// never linked for members). Both are optional - older rows and servers omit them.
+type DetailGeneration = PastGeneration & {
+  fidelity?: GenerationFidelity;
+  heroPhotos?: { photoId: number; name: string | null }[];
+};
+
+/** Plain-language lines describing how an image was made; also drives the compact list. */
+export function fidelityLines(g: DetailGeneration): { label: string; detail?: string; photoLinks?: { photoId: number; name: string | null }[] }[] {
+  const f = g.fidelity;
+  if (!f) return [];
+  const lines: ReturnType<typeof fidelityLines> = [];
+  if (f.composition) {
+    lines.push({
+      label: f.composition.placement === "default_corner" ? "Logo placed exactly, at default position" : "Logo placed exactly",
+      detail:
+        `${f.composition.assetName} (original file, revision ${f.composition.assetRevision.split("#").pop()}) at ` +
+        `${f.composition.layout.width}x${f.composition.layout.height}px` +
+        (f.composition.placement === "default_corner" ? ", bottom-right because the model left no placement box" : ""),
+    });
+  } else if (f.grounding.acknowledgedMissing.includes("exact_asset")) {
+    lines.push({ label: "No logo used", detail: "Generated without a logo, as chosen." });
+  }
+  if (f.photoTreatment === "reinterpreted") {
+    lines.push({ label: "Photo reinterpreted by AI", detail: "Not pixel-exact; the model redrew the photo.", photoLinks: g.heroPhotos ?? [] });
+  } else if (f.grounding.acknowledgedMissing.includes("hero_photo")) {
+    lines.push({ label: "No photo used", detail: "Generated without a photo, as chosen." });
+  }
+  if (f.formatResolution && !f.formatResolution.supported) {
+    lines.push({
+      label: "Format changed",
+      detail: `Asked for ${f.formatResolution.requested}; rendered at ${f.formatResolution.rendered} (the closest supported canvas).`,
+    });
+  }
+  return lines;
+}
+
+function FidelityPanel({ g }: { g: DetailGeneration }) {
+  const f = g.fidelity;
+  if (!f) return null;
+  const lines = fidelityLines(g);
+  const how: string[] = [];
+  if (f.provenance?.model) how.push(`Model: ${f.provenance.model}`);
+  how.push(f.composition ? "Logo composited from the original file" : "No logo composited");
+  how.push(f.photoTreatment === "reinterpreted" ? "Photo reinterpreted by the model" : "No photo reinterpreted");
+  if (f.formatResolution) how.push(`Canvas: ${f.formatResolution.rendered}${f.formatResolution.supported ? "" : ` (asked for ${f.formatResolution.requested})`}`);
+  return (
+    <div className="space-y-2 rounded-md border border-border p-3" data-testid="generation-fidelity">
+      <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
+        How this was made
+      </p>
+      {lines.length > 0 && (
+        <ul className="space-y-1.5">
+          {lines.map((l) => (
+            <li key={l.label} className="flex items-start gap-2 text-sm" data-testid="fidelity-line">
+              {l.label.startsWith("Logo") ? (
+                <Stamp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              ) : (
+                <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+              )}
+              <span>
+                <span className="font-medium text-foreground">{l.label}</span>
+                {l.detail && <span className="text-muted-foreground"> - {l.detail}</span>}
+                {l.photoLinks && l.photoLinks.length > 0 && (
+                  <span className="ml-1">
+                    {l.photoLinks.map((p, i) => (
+                      <span key={p.photoId}>
+                        {i > 0 && ", "}
+                        <Link href={`/photos/${p.photoId}`} className="text-primary hover:underline">
+                          View original{p.name ? `: ${p.name}` : ""}
+                        </Link>
+                      </span>
+                    ))}
+                  </span>
+                )}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground" data-testid="fidelity-how">
+        {how.map((h) => (
+          <li key={h}>{h}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function GenerationDetail({ g, onClose }: { g: DetailGeneration | null; onClose: () => void }) {
   return (
     <Dialog open={g != null} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" data-testid="generation-detail">
@@ -61,6 +151,7 @@ function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: (
               <p className="text-sm text-muted-foreground">This generation did not produce an image.</p>
             )}
             <p className="whitespace-pre-wrap text-sm text-foreground">{g.prompt}</p>
+            <FidelityPanel g={g} />
             {g.rightsConsidered.length > 0 && (
               <div className="space-y-1.5 rounded-md border border-border p-3" data-testid="generation-rights">
                 <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
