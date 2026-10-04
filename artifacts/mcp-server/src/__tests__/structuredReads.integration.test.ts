@@ -29,7 +29,7 @@ vi.mock("../photoLibrary.js", async (importOriginal) => ({
 import { db, pool, photosTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { resetDb } from "@workspace/api-server/src/lib/__tests__/testDb";
-import { clearQueryEmbeddingCache, CONCEPT_QUALITY_WEIGHT, NEUTRAL_QUALITY_SCORE } from "@workspace/api-server/src/lib/photoRetrieval";
+import { clearQueryEmbeddingCache, CONCEPT_QUALITY_WEIGHT, NEUTRAL_QUALITY_SCORE, retrievePhotos } from "@workspace/api-server/src/lib/photoRetrieval";
 import {
   buildAcceptanceLibrary,
   expectedConceptOrder,
@@ -272,6 +272,34 @@ describe("get_photo", () => {
     expect(parse(getPhotoOutput, r)).toMatchObject({ status: "not_found", photo: null, error: { code: "not_found" } });
     expect(text(r)).not.toMatch(/hidden|forbidden/i);
     expect(parse(getPhotoOutput, r).error?.message.replace(/#\d+/, "#")).toBe(parse(getPhotoOutput, missing).error?.message.replace(/#\d+/, "#"));
+  });
+});
+
+describe("usage rights (#207)", () => {
+  it("get_photo states not_recorded explicitly for an untagged photo and recorded for a tagged one", async () => {
+    const untagged = L.photosA.find((p) => p.rights.length === 0 && !p.hidden)!;
+    const tagged = L.photosA.find((p) => p.rights.length > 0 && !p.hidden)!;
+    const u = await call(A, "get_photo", { id: untagged.id, includeImages: false });
+    const t = await call(A, "get_photo", { id: tagged.id, includeImages: false });
+    expect(parse(getPhotoOutput, u).photo).toMatchObject({ rights: [], rightsStatus: "not_recorded" });
+    expect(text(u)).toMatch(/not recorded/);
+    expect(parse(getPhotoOutput, t).photo).toMatchObject({ rightsStatus: "recorded" });
+    expect(text(t)).not.toMatch(/cleared/i);
+  });
+
+  it("search results carry rightsStatus and don't hide photos whose rights aren't recorded", async () => {
+    const out = parse(searchPhotosOutput, await call(A, "search_photos", { query: "Nationals", mode: "keyword", count: 50, includeImages: false }));
+    expect(out.results.length).toBeGreaterThan(10);
+    for (const r of out.results) expect(r.rightsStatus).toBe(r.rights.length > 0 ? "recorded" : "not_recorded");
+    expect(out.results.some((r) => r.rightsStatus === "not_recorded")).toBe(true); // warning-only: not filtered out
+  });
+
+  it("the same intended-use query yields the same permitted photos on the web and through MCP", async () => {
+    const mcp = parse(searchPhotosOutput, await call(A, "search_photos", { query: "Nationals", mode: "keyword", rightsTag: "Sponsor OK", count: 50, includeImages: false }));
+    const web = await retrievePhotos({ organizationId: L.orgA, canSeeHidden: false, text: "Nationals", mode: "keyword", limit: 50, filters: { rightsTagId: L.tags.sponsorA } });
+    expect(web.items.length).toBeGreaterThan(3); // a real comparison, not empty vs empty
+    expect(mcp.results.map((r) => r.id)).toEqual(web.items.map((i) => i.photoId));
+    expect(mcp.results.every((r) => r.rights.includes("Sponsor OK") && r.rightsStatus === "recorded")).toBe(true);
   });
 });
 

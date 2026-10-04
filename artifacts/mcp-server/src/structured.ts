@@ -64,7 +64,10 @@ const photoItem = z.object({
   takenAt: z.string().nullable(),
   rating: z.object({ average: z.number().nullable(), count: z.number().int() }),
   quality: z.object({ score: z.number().nullable(), flaws: z.array(z.string()) }),
-  rights: z.array(z.string()).describe("Usage-rights tags the photo is cleared for."),
+  rights: z.array(z.string()).describe("Usage-rights tags your team recorded on the photo. A record, not a legal clearance."),
+  rightsStatus: z
+    .enum(["recorded", "not_recorded"])
+    .describe("'not_recorded' means unknown: nobody has recorded rights for this photo. Check before publishing (#207)."),
   match: match.nullable().describe("Why it matched (search only)."),
   thumbnail: mediaLink.nullable(),
 });

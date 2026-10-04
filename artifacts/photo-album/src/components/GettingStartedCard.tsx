@@ -99,7 +99,7 @@ export function GettingStartedCard() {
     {
       key: "attribution",
       label: "Mark attribution",
-      blurb: "Attribution tags record what a photo is cleared for — web, print, social.",
+      blurb: "Usage-rights tags record what your team allows a photo to be used for — web, print, social.",
       href: "/photos",
       done: status.hasAttribution,
     },

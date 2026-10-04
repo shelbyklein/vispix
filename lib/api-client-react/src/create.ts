@@ -131,6 +131,10 @@ export interface PlanCandidate {
   isPrimary?: boolean;
   reasons?: string[];
   confidence?: "high" | "medium" | "low";
+  /** Photo candidates (#207): explicit rights state; not_recorded = unknown. */
+  usageRights?: { status: "recorded" | "not_recorded"; tags: { id: number; name: string }[] };
+  /** Photo candidates (#207): AI quality, or null when not evaluated. */
+  quality?: { overallScore: number } | null;
 }
 
 export interface PlanCandidateSlot {
@@ -170,6 +174,14 @@ export interface PastGeneration {
   height: number | null;
   status: "succeeded" | "failed";
   createdAt: string;
+  /** Rights of each photo input, frozen at generation time (#207). */
+  rightsConsidered: {
+    photoId: number;
+    name: string;
+    status: "recorded" | "not_recorded";
+    tags: { id: number; name: string }[];
+    checkedAt: string;
+  }[];
   creator: { id: number; name: string } | null;
   source: {
     type: "session" | "campaign";

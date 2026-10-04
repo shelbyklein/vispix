@@ -77,6 +77,7 @@ import type {
   Project,
   ProjectInput,
   ProjectPhotoInput,
+  ProjectRightsCheck,
   ProjectSummary,
   ProjectUpdate,
   RatingInput,
@@ -7025,6 +7026,95 @@ export const useReorderProjects = <
 > => {
   return useMutation(getReorderProjectsMutationOptions(options));
 };
+
+/**
+ * Re-reads each photo's usage rights at request time. Warning-only: export is never blocked. not_recorded means unknown; recorded tags are your team's records, not a legal clearance.
+ * @summary Usage rights of a project's photos right now, and changes since shortlisting (#207)
+ */
+export const getGetProjectRightsCheckUrl = (id: number) => {
+  return `/api/projects/${id}/rights-check`;
+};
+
+export const getProjectRightsCheck = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ProjectRightsCheck> => {
+  return customFetch<ProjectRightsCheck>(getGetProjectRightsCheckUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetProjectRightsCheckQueryKey = (id: number) => {
+  return [`/api/projects/${id}/rights-check`] as const;
+};
+
+export const getGetProjectRightsCheckQueryOptions = <
+  TData = Awaited<ReturnType<typeof getProjectRightsCheck>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProjectRightsCheck>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetProjectRightsCheckQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getProjectRightsCheck>>
+  > = ({ signal }) => getProjectRightsCheck(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getProjectRightsCheck>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetProjectRightsCheckQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getProjectRightsCheck>>
+>;
+export type GetProjectRightsCheckQueryError = ErrorType<void>;
+
+/**
+ * @summary Usage rights of a project's photos right now, and changes since shortlisting (#207)
+ */
+
+export function useGetProjectRightsCheck<
+  TData = Awaited<ReturnType<typeof getProjectRightsCheck>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getProjectRightsCheck>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetProjectRightsCheckQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get a single project with its photos

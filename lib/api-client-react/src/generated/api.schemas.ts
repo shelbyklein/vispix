@@ -5,6 +5,70 @@
  * Team Photo Album API
  * OpenAPI spec version: 0.1.0
  */
+export type UsageRightsSnapshotStatus =
+  (typeof UsageRightsSnapshotStatus)[keyof typeof UsageRightsSnapshotStatus];
+
+export const UsageRightsSnapshotStatus = {
+  recorded: "recorded",
+  not_recorded: "not_recorded",
+} as const;
+
+export interface AttributionTag {
+  id: number;
+  name: string;
+}
+
+export interface UsageRightsSnapshot {
+  status: UsageRightsSnapshotStatus;
+  tags: AttributionTag[];
+  checkedAt: string;
+}
+
+export type ProjectRightsCheckCounts = {
+  total: number;
+  recorded: number;
+  notRecorded: number;
+  changedSinceShortlist: number;
+  /** Photos shortlisted before rights snapshots existed, so changes can't be compared. */
+  notCapturedAtShortlist: number;
+};
+
+export type ProjectRightsCheckPhotosItemChangedSinceShortlist = {
+  added: AttributionTag[];
+  removed: AttributionTag[];
+} | null;
+
+export type UsageRightsStatus =
+  (typeof UsageRightsStatus)[keyof typeof UsageRightsStatus];
+
+export const UsageRightsStatus = {
+  recorded: "recorded",
+  not_recorded: "not_recorded",
+} as const;
+
+/**
+ * Explicit usage-rights state (#207). not_recorded means unknown (no tag recorded), never "no rights". recorded lists the tags your team recorded; it is not a legal clearance. Warning-only: nothing is blocked on it.
+ */
+export interface UsageRights {
+  status: UsageRightsStatus;
+  tags: AttributionTag[];
+}
+
+export type ProjectRightsCheckPhotosItem = {
+  photoId: number;
+  /** @nullable */
+  filename: string | null;
+  usageRights: UsageRights;
+  shortlistedRights: UsageRightsSnapshot | null;
+  changedSinceShortlist: ProjectRightsCheckPhotosItemChangedSinceShortlist;
+};
+
+export interface ProjectRightsCheck {
+  checkedAt: string;
+  counts: ProjectRightsCheckCounts;
+  photos: ProjectRightsCheckPhotosItem[];
+}
+
 export type PhotoGraphThreadKind =
   (typeof PhotoGraphThreadKind)[keyof typeof PhotoGraphThreadKind];
 
@@ -287,11 +351,6 @@ export interface PhotoProjectMembership {
   name: string;
 }
 
-export interface AttributionTag {
-  id: number;
-  name: string;
-}
-
 /**
  * AI criteria scores for a photo (0-10 each; overallScore is a weighted mean).
  */
@@ -435,8 +494,9 @@ export interface Photo {
   photoCollections?: CollectionSummary[];
   /** Projects this photo currently belongs to (membership only). */
   photoProjects?: PhotoProjectMembership[];
-  /** Attribution / usage-rights tags this photo is cleared for. */
+  /** Usage-rights tags your team recorded on this photo (a record, not a legal clearance). */
   attributionTags?: AttributionTag[];
+  usageRights?: UsageRights;
   /** @nullable */
   aiDescription?: string | null;
   /**

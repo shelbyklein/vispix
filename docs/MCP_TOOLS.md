@@ -54,7 +54,8 @@ links. A link is never an MCP credential.
   width, height, takenAt,                              // null when unknown
   rating:  { average: number | null, count },
   quality: { score: number | null, flaws: string[] },  // AI overall 0-10
-  rights:  string[],                                   // usage-rights tags the photo is cleared for
+  rights:  string[],                                   // usage-rights tags your team recorded (not a legal clearance)
+  rightsStatus: "recorded" | "not_recorded",           // not_recorded = unknown (#207)
   match:   { type: "exact", fields: ("photo_id" | "filename")[] }
          | { type: "keyword", fields: string[] }
          | { type: "concept", similarity, qualityScore, score }

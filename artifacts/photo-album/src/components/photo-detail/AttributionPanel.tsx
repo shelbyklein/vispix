@@ -4,7 +4,7 @@ import { Copyright, Check } from "lucide-react";
 
 // Read-only usage-rights badges for the photo page. Attribution is decided at
 // the album level (the album page's Attribution pills tag every photo in the
-// album); individual photos only display what they're cleared for.
+// album); individual photos display what has been recorded for them.
 export function AttributionPanel({ photoTags }: { photoTags?: AttributionTag[] }) {
   const tags = photoTags ?? [];
   if (tags.length === 0) return null;

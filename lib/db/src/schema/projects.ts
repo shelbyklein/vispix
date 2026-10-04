@@ -1,9 +1,10 @@
-import { pgTable, text, serial, timestamp, integer, primaryKey, index } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, timestamp, integer, primaryKey, index, jsonb } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 import { usersTable } from "./users";
 import { photosTable } from "./photos";
 import { organizationsTable } from "./organizations";
+import type { UsageRightsSnapshot } from "./attributionTags";
 
 // A Project is a user-curated bucket of photos gathered for use in an actual
 // deliverable — distinct from Albums (storage/ownership) and Smart Collections
@@ -30,6 +31,9 @@ export const projectPhotosTable = pgTable(
     photoId: integer("photo_id").notNull().references(() => photosTable.id, { onDelete: "cascade" }),
     // Ordering within a project is by date added (v1 has no manual reorder).
     addedAt: timestamp("added_at", { withTimezone: true }).notNull().defaultNow(),
+    // Usage rights when the photo was shortlisted (#207), so export can report
+    // changes since. Null for photos added before this was recorded.
+    rightsSnapshot: jsonb("rights_snapshot").$type<UsageRightsSnapshot>(),
   },
   (table) => [
     primaryKey({ columns: [table.projectId, table.photoId] }),
