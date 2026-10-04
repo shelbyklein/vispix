@@ -26,11 +26,11 @@
     "exif-reader": "^2.0.3",
     "express": "^5",
     "google-auth-library": "^10.9.0",
-    "nodemailer": "^9.0.1",
+    "nodemailer": "^9.1.1",
     "openai": "^6.37.0",
     "pino": "^9",
     "pino-http": "^10",
-    "sharp": "^0.35.0",
+    "sharp": "^0.35.5",
     "stripe": "^22.3.2",
     "zod": "catalog:"
   },
