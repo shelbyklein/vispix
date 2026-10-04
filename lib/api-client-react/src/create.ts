@@ -9,6 +9,53 @@ export type GenerationInputRole = "style" | "hero_photo" | "exact_asset";
 // Exactly the image model's native canvases — no fake ratios.
 export type GenerationFormatId = "1:1" | "2:3" | "3:2";
 
+// ---- #215 asset fidelity contract (docs/IMAGE_FIDELITY.md) ----------------
+// Optional until both lanes land; old generations have none of these.
+
+/** Roles a plan may mark as required before generating. */
+export type RequiredInputRole = "hero_photo" | "exact_asset";
+
+/** A required input the plan looked for (Lane B). */
+export interface RequiredInput {
+  role: RequiredInputRole;
+  /** Human label of the slot, e.g. "Primary logo". */
+  slot: string;
+  status: "found" | "missing" | "ambiguous";
+  message: string;
+}
+
+/** An exact logo composited from the original file (Lane A). */
+export interface GenerationComposition {
+  mode: "exact_logo";
+  assetId: number;
+  assetName: string;
+  /** Identifies the exact file revision used (e.g. storage key + content hash). */
+  assetRevision: string;
+  /** Pixel box on the final image. */
+  layout: { x: number; y: number; width: number; height: number };
+  /** Where the box came from: the model's placeholder, or the default corner. */
+  placement: "model_placeholder" | "default_corner";
+}
+
+/** How a generation was made (Lane A). */
+export interface GenerationFidelity {
+  composition: GenerationComposition | null;
+  /** "reinterpreted" when a hero photo was redrawn by the model (not pixel-exact). */
+  photoTreatment: "reinterpreted" | null;
+  /** Required inputs the person chose to continue without. */
+  grounding: { acknowledgedMissing: RequiredInputRole[] };
+  /** Canvas asked for vs rendered; supported=false when it had to change. */
+  formatResolution: { requested: string; rendered: GenerationFormatId; supported: boolean } | null;
+  provenance: { model: string | null; settings: Record<string, unknown> } | null;
+}
+
+/** Error body when a required input is missing and not acknowledged (409). */
+export interface InputRequiredError {
+  error: string;
+  code: "input_required";
+  missing: RequiredInput[];
+}
+
 export interface GenerationRequestInput {
   kind: GenerationInputKind;
   refId?: number;
@@ -33,6 +80,8 @@ export interface ImageGenerationResult {
   status: "pending" | "succeeded" | "failed";
   error: string | null;
   createdAt: string;
+  /** #215: present on generations made after asset fidelity shipped. */
+  fidelity?: GenerationFidelity;
 }
 
 export interface GenerationSessionSummary {
@@ -55,6 +104,8 @@ export interface GenerateImagesBody {
   format?: GenerationFormatId;
   variantCount: number;
   inputs: GenerationRequestInput[];
+  /** #215: required inputs the person explicitly chose to go without. */
+  acknowledgedMissing?: RequiredInputRole[];
 }
 
 /**
@@ -149,6 +200,8 @@ export interface GenerationPlan {
   questions: string[];
   suggestedFormat: GenerationFormatId | null;
   slots: PlanCandidateSlot[];
+  /** #215: inputs this design needs; Generate stays blocked while any is missing/ambiguous and unacknowledged. */
+  requiredInputs?: RequiredInput[];
 }
 
 export function usePlanGeneration() {

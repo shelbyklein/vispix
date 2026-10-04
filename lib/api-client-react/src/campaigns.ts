@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ApiError, customFetch } from "./custom-fetch";
-import { getGenerationSessionQueryKey, type ImageGenerationResult } from "./create";
+import { getGenerationSessionQueryKey, type ImageGenerationResult, type RequiredInput } from "./create";
 
 // Campaigns (#192): text briefs that drive AI ad suggestions. Suggestions live
 // in the campaign's generation session — fetch them with useGenerationSession.
@@ -91,7 +91,8 @@ export function useDeleteCampaign() {
 export interface GenerateCampaignSuggestionsResult {
   sessionId: number | null;
   generations: ImageGenerationResult[];
-  concepts: { title: string }[];
+  /** #215: a concept whose required inputs are missing is not rendered silently. */
+  concepts: { title: string; status?: "generated" | "needs_input"; missing?: RequiredInput[] }[];
   /** The brief (and its revision) the suggestions were generated from. */
   brief: string;
   briefRevision: number;
