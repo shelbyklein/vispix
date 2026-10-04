@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { History, Loader2, Info, Download, Wand2, Megaphone, ImageOff, Stamp, Sparkles } from "lucide-react";
 import { useInfiniteScroll } from "@/hooks/useInfiniteScroll";
 import { formatDate } from "@/lib/format-date";
+import { fidelityLines } from "@/lib/fidelity";
 
 // Past generations (#194): every image the org has generated, from Create
 // sessions and campaign suggestions. Read-only, and deliberately outside the AI
@@ -48,45 +49,13 @@ type DetailGeneration = PastGeneration & {
   heroPhotos?: { photoId: number; name: string | null }[];
 };
 
-/** Plain-language lines describing how an image was made; also drives the compact list. */
-export function fidelityLines(g: DetailGeneration): { label: string; detail?: string; photoLinks?: { photoId: number; name: string | null }[] }[] {
-  const f = g.fidelity;
-  if (!f) return [];
-  const lines: ReturnType<typeof fidelityLines> = [];
-  if (f.composition) {
-    lines.push({
-      label: f.composition.placement === "default_corner" ? "Logo placed exactly, at default position" : "Logo placed exactly",
-      detail:
-        `${f.composition.assetName} (original file, revision ${f.composition.assetRevision.split("#").pop()}) at ` +
-        `${f.composition.layout.width}x${f.composition.layout.height}px` +
-        (f.composition.placement === "default_corner" ? ", bottom-right because the model left no placement box" : ""),
-    });
-  } else if (f.grounding.acknowledgedMissing.includes("exact_asset")) {
-    lines.push({ label: "No logo used", detail: "Generated without a logo, as chosen." });
-  }
-  if (f.photoTreatment === "reinterpreted") {
-    lines.push({ label: "Photo reinterpreted by AI", detail: "Not pixel-exact; the model redrew the photo.", photoLinks: g.heroPhotos ?? [] });
-  } else if (f.grounding.acknowledgedMissing.includes("hero_photo")) {
-    lines.push({ label: "No photo used", detail: "Generated without a photo, as chosen." });
-  }
-  if (f.formatResolution && !f.formatResolution.supported) {
-    lines.push({
-      label: "Format changed",
-      detail: `Asked for ${f.formatResolution.requested}; rendered at ${f.formatResolution.rendered} (the closest supported canvas).`,
-    });
-  }
-  return lines;
-}
-
 function FidelityPanel({ g }: { g: DetailGeneration }) {
   const f = g.fidelity;
   if (!f) return null;
   const lines = fidelityLines(g);
   const how: string[] = [];
   if (f.provenance?.model) how.push(`Model: ${f.provenance.model}`);
-  how.push(f.composition ? "Logo composited from the original file" : "No logo composited");
-  how.push(f.photoTreatment === "reinterpreted" ? "Photo reinterpreted by the model" : "No photo reinterpreted");
-  if (f.formatResolution) how.push(`Canvas: ${f.formatResolution.rendered}${f.formatResolution.supported ? "" : ` (asked for ${f.formatResolution.requested})`}`);
+  if (f.formatResolution) how.push(`Canvas: ${f.formatResolution.rendered}`);
   return (
     <div className="space-y-2 rounded-md border border-border p-3" data-testid="generation-fidelity">
       <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
@@ -96,7 +65,7 @@ function FidelityPanel({ g }: { g: DetailGeneration }) {
         <ul className="space-y-1.5">
           {lines.map((l) => (
             <li key={l.label} className="flex items-start gap-2 text-sm" data-testid="fidelity-line">
-              {l.label.startsWith("Logo") ? (
+              {l.kind === "logo" ? (
                 <Stamp className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
               ) : (
                 <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
@@ -121,11 +90,13 @@ function FidelityPanel({ g }: { g: DetailGeneration }) {
           ))}
         </ul>
       )}
-      <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground" data-testid="fidelity-how">
-        {how.map((h) => (
-          <li key={h}>{h}</li>
-        ))}
-      </ul>
+      {how.length > 0 && (
+        <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground" data-testid="fidelity-how">
+          {how.map((h) => (
+            <li key={h}>{h}</li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -133,10 +104,10 @@ function FidelityPanel({ g }: { g: DetailGeneration }) {
 function GenerationDetail({ g, onClose }: { g: DetailGeneration | null; onClose: () => void }) {
   return (
     <Dialog open={g != null} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[90vh] max-w-3xl overflow-y-auto" data-testid="generation-detail">
+      <DialogContent className="flex max-h-[90vh] max-w-3xl flex-col gap-0 overflow-hidden p-0" data-testid="generation-detail">
         {g && (
           <>
-            <DialogHeader>
+            <DialogHeader className="shrink-0 px-6 pb-3 pt-6 pr-12">
               <DialogTitle>Generated image</DialogTitle>
               <DialogDescription>
                 {formatDate(g.createdAt)}
@@ -145,6 +116,7 @@ function GenerationDetail({ g, onClose }: { g: DetailGeneration | null; onClose:
                 {g.format ? ` · ${g.format}` : ""}
               </DialogDescription>
             </DialogHeader>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-1" data-testid="generation-detail-body">
             {g.imageUrl ? (
               <img src={g.imageUrl} alt={summarize(g.prompt, 200)} className="mx-auto max-h-[55vh] rounded-md object-contain" />
             ) : (
@@ -169,7 +141,8 @@ function GenerationDetail({ g, onClose }: { g: DetailGeneration | null; onClose:
                 <p className="text-[11px] text-muted-foreground">Frozen when the image was generated. {RIGHTS_DISCLAIMER}.</p>
               </div>
             )}
-            <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border px-6 py-3 text-sm" data-testid="generation-detail-footer">
               <SourceLink g={g} />
               {g.imageUrl && (
                 <div className="flex gap-2">

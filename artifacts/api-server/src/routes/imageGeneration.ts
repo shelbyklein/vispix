@@ -124,7 +124,7 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
     const attachedRoles = new Set<string>(body.data.inputs.map((i) => i.role));
     const acknowledged = new Set<string>(body.data.acknowledgedMissing);
     const unresolved = body.data.requiredInputs.filter(
-      (r) => r.status !== "found" && !attachedRoles.has(r.role) && !acknowledged.has(r.role),
+      (r) => !attachedRoles.has(r.role) && !acknowledged.has(r.role),
     );
     if (unresolved.length > 0) {
       // Same shape as the client's InputRequiredError.

@@ -204,8 +204,25 @@ describe("generate requiredInputs enforcement (server-side 409)", () => {
     const data = (await res.json()) as { code: string; error: string; missing: unknown[] };
     expect(data.code).toBe("input_required");
     expect(data.error).toBe("A required input is missing");
-    expect(data.missing).toEqual([missingLogo]);
+    expect(data.missing).toEqual([foundPhoto, missingLogo]);
     expect(runs).toHaveLength(0);
+  });
+
+  it("refuses a found entry that is not attached or acknowledged", async () => {
+    const res = await post("/image-generation/generate", { ...base, requiredInputs: [foundPhoto] });
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { missing: unknown[] }).missing).toEqual([foundPhoto]);
+    expect(runs).toHaveLength(0);
+  });
+
+  it("allows a found entry when an input of that role is attached", async () => {
+    const res = await post("/image-generation/generate", {
+      ...base,
+      inputs: [{ kind: "photo", refId: 1, role: "hero_photo" }],
+      requiredInputs: [foundPhoto],
+    });
+    expect(res.status).toBe(200);
+    expect(runs).toHaveLength(1);
   });
 
   it("also refuses an ambiguous entry", async () => {

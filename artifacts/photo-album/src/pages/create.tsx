@@ -65,10 +65,12 @@ import {
   Settings2,
   Maximize2,
   ZoomIn,
+  Stamp,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useOrg } from "@/contexts/OrgContext";
 import { cn } from "@/lib/utils";
+import { fidelityLines } from "@/lib/fidelity";
 
 // The Create workspace (#167): a chat between the user and a planning
 // assistant. Every submit is a chat message — the assistant replies with a
@@ -384,14 +386,15 @@ const ROLE_WORDS: Record<RequiredInputRole, { noun: string; choose: string }> = 
   exact_asset: { noun: "logo", choose: "Choose a logo…" },
 };
 
-// Required inputs that still block Generate (#215): missing or ambiguous, with
-// nothing of that role attached and no explicit "continue without".
+// Required inputs that still block Generate (#215): any status (even "found" -
+// found inputs are auto-attached, so one only blocks if the person removed it),
+// with nothing of that role attached and no explicit "continue without".
 function unresolvedRequiredInputs(
   required: RequiredInput[] | undefined,
   attachedRoles: ReadonlySet<string>,
   acknowledged: ReadonlySet<RequiredInputRole>,
 ): RequiredInput[] {
-  return (required ?? []).filter((r) => r.status !== "found" && !attachedRoles.has(r.role) && !acknowledged.has(r.role));
+  return (required ?? []).filter((r) => !attachedRoles.has(r.role) && !acknowledged.has(r.role));
 }
 
 function RequiredInputPanels({
@@ -409,7 +412,7 @@ function RequiredInputPanels({
   onContinueWithout: (role: RequiredInputRole) => void;
   onUndoContinue: (role: RequiredInputRole) => void;
 }) {
-  const items = required.filter((r) => r.status !== "found");
+  const items = required;
   if (items.length === 0) return null;
   return (
     <div className="space-y-2">
@@ -450,9 +453,13 @@ function RequiredInputPanels({
             {/* role=heading, not <h*>: global h1–h6 !important colours would override the amber. */}
             <div id={headingId} role="heading" aria-level={4} className="flex items-center gap-1.5 text-sm font-medium text-foreground">
               <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" aria-hidden="true" />
-              {r.slot} {r.status === "ambiguous" ? "needs a decision" : "not found"}
+              {r.slot} {r.status === "found" ? "removed" : r.status === "ambiguous" ? "needs a decision" : "not found"}
             </div>
-            <p className="text-xs text-foreground">{r.message}</p>
+            <p className="text-xs text-foreground">
+              {r.status === "found"
+                ? `Your ${r.slot.toLowerCase()} was removed. Choose a ${words.noun} or continue without one.`
+                : r.message}
+            </p>
             <div className="flex flex-wrap gap-2">
               <Button type="button" size="sm" variant="outline" className="h-7 text-xs" onClick={() => onChoose(r.role)} data-testid={`choose-${r.role}`}>
                 {words.choose}
@@ -628,6 +635,30 @@ function PlanCard({
   );
 }
 
+// #215: how the image was made, in a compact row under the picture.
+function FidelityLabels({ generation }: { generation: ImageGenerationResult }) {
+  const lines = fidelityLines(generation);
+  if (lines.length === 0) return null;
+  return (
+    <ul className="flex flex-wrap gap-1 border-t border-border/60 px-1.5 py-1" data-testid={`fidelity-labels-${generation.id}`}>
+      {lines.map((l) => (
+        <li
+          key={l.compact}
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-foreground"
+          data-testid="fidelity-label"
+        >
+          {l.kind === "logo" ? (
+            <Stamp className="h-3 w-3 shrink-0 text-primary" aria-hidden="true" />
+          ) : (
+            <Sparkles className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+          )}
+          {l.compact}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function GenerationCard({
   generation,
   onRevise,
@@ -672,6 +703,7 @@ function GenerationCard({
       {generation.imageUrl && (
         <img src={generation.imageUrl} alt={generation.prompt} className="w-full object-contain" loading="lazy" />
       )}
+      <FidelityLabels generation={generation} />
       {/* Always-visible actions (hover overlays don't exist on touch screens). */}
       <div className="flex items-center justify-between gap-1 border-t border-border/60 bg-background/60 px-1.5 py-1">
         <Button
@@ -808,6 +840,29 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     });
   }
 
+  // #215: a required input the planner found is used, not just offered. Attach
+  // the top candidate (the designated primary logo / the best photo) the same
+  // way a click does, unless something of that role is already attached. The
+  // person can still remove it; Generate then waits for a decision.
+  function autoAttachFound(plan: GenerationPlan) {
+    const picks: PlanCandidate[] = [];
+    for (const r of plan.requiredInputs ?? []) {
+      if (r.status !== "found") continue;
+      const items = plan.slots.filter((s) => s.role === r.role).flatMap((s) => s.items);
+      const top = (r.role === "exact_asset" ? items.find((c) => c.isPrimary) : undefined) ?? items[0];
+      if (top) picks.push(top);
+    }
+    if (picks.length === 0) return;
+    setAttached((prev) => {
+      const next = [...prev];
+      for (const c of picks) {
+        if (next.some((a) => a.role === c.role)) continue;
+        next.push({ localId: crypto.randomUUID(), kind: c.kind, refId: c.refId, role: c.role, name: c.name, previewUrl: c.previewUrl });
+      }
+      return next.length === prev.length ? prev : next;
+    });
+  }
+
   async function handleUploadReference(file: File) {
     const uploaded = await uploadFile(file);
     if (!uploaded) {
@@ -849,6 +904,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           // never auto-applied, so it can't stomp an explicit user choice.
           setChatLog((prev) => [...prev, { id: crypto.randomUUID(), type: "plan", plan }]);
           setAcknowledged(new Set());
+          autoAttachFound(plan);
         },
         onError: (err) => {
           const limit = getGenerationLimit(err);
@@ -935,7 +991,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     const required = latestPlanTurn?.plan.requiredInputs;
     if (unresolvedRequiredInputs(required, attachedRoles, acknowledged).length > 0) return;
     const goingWithout = (required ?? [])
-      .filter((r) => r.status !== "found" && !attachedRoles.has(r.role) && acknowledged.has(r.role))
+      .filter((r) => !attachedRoles.has(r.role) && acknowledged.has(r.role))
       .map((r) => r.role);
     runGenerate(prompt, undefined, undefined, [...new Set(goingWithout)], required);
   }
