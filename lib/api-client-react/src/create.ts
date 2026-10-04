@@ -106,6 +106,17 @@ export interface GenerateImagesBody {
   inputs: GenerationRequestInput[];
   /** #215: required inputs the person explicitly chose to go without. */
   acknowledgedMissing?: RequiredInputRole[];
+  /** #215: the plan's required inputs; when sent, the server refuses (409 input_required) unless each is found, attached or acknowledged. */
+  requiredInputs?: RequiredInput[];
+}
+
+/** The server's 409 when a required input is missing and unacknowledged (#215), else null. */
+export function getInputRequired(err: unknown): InputRequiredError | null {
+  if (!(err instanceof ApiError) || err.status !== 409) return null;
+  const data = err.data as Partial<InputRequiredError> | null;
+  return data?.code === "input_required" && Array.isArray(data.missing)
+    ? { error: data.error ?? err.message, code: "input_required", missing: data.missing }
+    : null;
 }
 
 /**

@@ -6,19 +6,18 @@ import {
   useUpdateCampaign,
   useDeleteCampaign,
   useGenerateCampaignSuggestions,
+  useGenerateCampaignConcept,
+  type CampaignAdConcept,
   getGenerationLimit,
   useGenerationSession,
   generationDownloadUrl,
   getCampaignBriefConflict,
   isCampaignRequestUnanswered,
-  getGenerationSessionQueryKey,
   type ImageGenerationResult,
   type GenerateCampaignSuggestionsResult,
   type RequiredInput,
   type RequiredInputRole,
 } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
-import { getActiveOrgId } from "@/lib/active-org";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -41,17 +40,17 @@ import { useCapabilities } from "@/hooks/useCapabilities";
 
 // A concept the server did not render because a required photo/logo couldn't
 // be found (#215). `resume` is what the server returned so the person can
-// continue it without the input; it isn't part of the shared client type.
+// continue it without the input.
 interface HeldConcept {
   title: string;
   missing: RequiredInput[];
-  resume: unknown;
+  resume: CampaignAdConcept | undefined;
 }
 
 function heldFrom(result: GenerateCampaignSuggestionsResult): HeldConcept[] {
   return result.concepts
     .filter((c) => c.status === "needs_input" && c.missing && c.missing.length > 0)
-    .map((c) => ({ title: c.title, missing: c.missing!, resume: (c as { resume?: unknown }).resume }));
+    .map((c) => ({ title: c.title, missing: c.missing!, resume: c.resume }));
 }
 
 const NEED_WORDS: Record<RequiredInputRole, { noun: string; choose: string; href: string }> = {
@@ -177,8 +176,8 @@ export default function CampaignDetailPage() {
   const { mutate: update, isPending: saving } = useUpdateCampaign();
   const { mutate: remove, isPending: deleting } = useDeleteCampaign();
   const generate = useGenerateCampaignSuggestions();
+  const { mutate: continueConcept } = useGenerateCampaignConcept();
   const session = useGenerationSession(campaign?.sessionId ?? undefined);
-  const queryClient = useQueryClient();
   // Concepts held back for a missing photo/logo (#215), shown until continued.
   const [held, setHeld] = useState<HeldConcept[]>([]);
   const [continuing, setContinuing] = useState<string | null>(null);
@@ -293,30 +292,26 @@ export default function CampaignDetailPage() {
 
   // "Generate without": continue one held concept with every missing role
   // acknowledged. The server re-checks and records the acknowledgement.
-  async function handleGenerateWithout(concept: HeldConcept) {
+  function handleGenerateWithout(concept: HeldConcept) {
     if (!campaign || continuing) return;
+    if (!concept.resume) return;
     setContinuing(concept.title);
-    try {
-      const orgId = getActiveOrgId();
-      const res = await fetch(`/api/campaigns/${campaign.id}/generate-concept`, {
-        method: "POST",
-        headers: { "content-type": "application/json", ...(orgId != null ? { "x-organization-id": String(orgId) } : {}) },
-        body: JSON.stringify({ concept: concept.resume, acknowledgedMissing: concept.missing.map((m) => m.role) }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        toast({ title: "Suggestion generation failed", description: data?.error, variant: "destructive" });
-        return;
-      }
-      const result = (await res.json()) as GenerateCampaignSuggestionsResult;
-      setHeld((prev) => [...prev.filter((h) => h.title !== concept.title), ...heldFrom(result)]);
-      queryClient.invalidateQueries({ queryKey: getGenerationSessionQueryKey(result.sessionId ?? undefined) });
-      queryClient.invalidateQueries({ queryKey: ["campaigns"] });
-    } catch {
-      toast({ title: "Suggestion generation failed", variant: "destructive" });
-    } finally {
-      setContinuing(null);
-    }
+    continueConcept(
+      { id: campaign.id, concept: concept.resume, acknowledgedMissing: concept.missing.map((m) => m.role) },
+      {
+        onSuccess: (result) => {
+          setHeld((prev) => [...prev.filter((h) => h.title !== concept.title), ...heldFrom(result)]);
+        },
+        onError: (err) => {
+          toast({
+            title: "Suggestion generation failed",
+            description: err instanceof Error ? err.message : undefined,
+            variant: "destructive",
+          });
+        },
+        onSettled: () => setContinuing(null),
+      },
+    );
   }
 
   return (

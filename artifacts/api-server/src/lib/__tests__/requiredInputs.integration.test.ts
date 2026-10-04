@@ -193,6 +193,61 @@ describe("generate acknowledgedMissing (TT-VPX-FIDELITY-02)", () => {
   });
 });
 
+describe("generate requiredInputs enforcement (server-side 409)", () => {
+  const base = { prompt: "Poster", variantCount: 1, inputs: [] as unknown[] };
+  const missingLogo = { role: "exact_asset", slot: "Primary logo", status: "missing", message: "No logo." };
+  const foundPhoto = { role: "hero_photo", slot: "Hero photo", status: "found", message: "" };
+
+  it("refuses with 409 input_required when missing and unacknowledged", async () => {
+    const res = await post("/image-generation/generate", { ...base, requiredInputs: [foundPhoto, missingLogo] });
+    expect(res.status).toBe(409);
+    const data = (await res.json()) as { code: string; error: string; missing: unknown[] };
+    expect(data.code).toBe("input_required");
+    expect(data.error).toBe("A required input is missing");
+    expect(data.missing).toEqual([missingLogo]);
+    expect(runs).toHaveLength(0);
+  });
+
+  it("also refuses an ambiguous entry", async () => {
+    const res = await post("/image-generation/generate", { ...base, requiredInputs: [{ ...missingLogo, status: "ambiguous" }] });
+    expect(res.status).toBe(409);
+    expect(runs).toHaveLength(0);
+  });
+
+  it("allows it when the role is acknowledged", async () => {
+    const res = await post("/image-generation/generate", { ...base, requiredInputs: [missingLogo], acknowledgedMissing: ["exact_asset"] });
+    expect(res.status).toBe(200);
+    expect(runs).toHaveLength(1);
+  });
+
+  it("allows it when an input of that role is attached", async () => {
+    const res = await post("/image-generation/generate", {
+      ...base,
+      inputs: [{ kind: "asset", refId: 1, role: "exact_asset" }],
+      requiredInputs: [missingLogo],
+    });
+    expect(res.status).toBe(200);
+    expect(runs).toHaveLength(1);
+  });
+
+  it("behaves as before when requiredInputs is omitted", async () => {
+    expect((await post("/image-generation/generate", base)).status).toBe(200);
+  });
+
+  it("rejects malformed requiredInputs with 400", async () => {
+    for (const bad of [
+      "nope",
+      [{ ...missingLogo, role: "style" }],
+      [{ ...missingLogo, status: "weird" }],
+      [{ ...missingLogo, slot: "x".repeat(500) }],
+      [missingLogo, missingLogo, missingLogo, missingLogo, missingLogo],
+    ]) {
+      expect((await post("/image-generation/generate", { ...base, requiredInputs: bad })).status).toBe(400);
+    }
+    expect(runs).toHaveLength(0);
+  });
+});
+
 describe("campaign concepts with required inputs (TT-VPX-FIDELITY-03)", () => {
   async function campaign() {
     const [row] = await db.insert(campaignsTable).values({ organizationId: orgId, createdById: owner.id, name: "Spring Open", brief: "Brief" }).returning();

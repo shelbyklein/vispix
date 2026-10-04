@@ -13,7 +13,7 @@ import {
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { ObjectStorageService, ObjectNotFoundError } from "../lib/objectStorage";
 import { runGeneration, GENERATION_FORMATS, type GenerationFormat } from "../lib/imageGeneration/orchestrate";
-import { planGeneration } from "../lib/imageGeneration/plan";
+import { planGeneration, type RequiredInput } from "../lib/imageGeneration/plan";
 import { canSeeHiddenPhotos } from "../lib/capabilities";
 import { loadGenerationView, redactInputs, redactRights, redactUsageNotes, type GenerationView } from "../lib/imageGeneration/redact";
 import { generationProvenance, visibleHeroPhotos } from "../lib/imageGeneration/provenance";
@@ -52,6 +52,20 @@ const GenerateBody = z.object({
     .max(4)
     .optional()
     .transform((roles) => (roles ? [...new Set(roles)] : [])),
+  // #215: the plan's required inputs, sent by clients that planned first
+  // (Create). When present the server enforces them; callers without a plan
+  // (MCP, direct API, revisions) omit it and are not checked.
+  requiredInputs: z
+    .array(
+      z.object({
+        role: z.enum(["hero_photo", "exact_asset"]),
+        slot: z.string().max(100),
+        status: z.enum(["found", "missing", "ambiguous"]),
+        message: z.string().max(400),
+      }),
+    )
+    .max(4)
+    .optional(),
 });
 
 function serializeGeneration(g: ImageGeneration, view: GenerationView) {
@@ -105,6 +119,23 @@ router.post("/image-generation/generate", requireOrgAuth, generationRateLimit, a
   if (!body.success) {
     res.status(400).json({ error: "Invalid generation request" });
     return;
+  }
+  if (body.data.requiredInputs) {
+    const attachedRoles = new Set<string>(body.data.inputs.map((i) => i.role));
+    const acknowledged = new Set<string>(body.data.acknowledgedMissing);
+    const unresolved = body.data.requiredInputs.filter(
+      (r) => r.status !== "found" && !attachedRoles.has(r.role) && !acknowledged.has(r.role),
+    );
+    if (unresolved.length > 0) {
+      // Same shape as the client's InputRequiredError.
+      const refusal: { error: string; code: "input_required"; missing: RequiredInput[] } = {
+        error: "A required input is missing",
+        code: "input_required",
+        missing: unresolved,
+      };
+      res.status(409).json(refusal);
+      return;
+    }
   }
   try {
     // acknowledgedMissing is a Lane A run arg (#215); typed so this compiles

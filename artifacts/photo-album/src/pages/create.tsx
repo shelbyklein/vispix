@@ -4,6 +4,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import {
   useGenerateImages,
   getGenerationLimit,
+  getInputRequired,
   useGenerationSessions,
   useGenerationSession,
   usePlanGeneration,
@@ -870,6 +871,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     parentGenerationId?: number,
     formatOverride?: GenerationFormatId,
     acknowledgedMissing?: RequiredInputRole[],
+    requiredInputs?: RequiredInput[],
   ) {
     if (!prompt || busy) return;
     generate.mutate(
@@ -886,6 +888,8 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
             ? []
             : attached.map(({ kind, refId, storageKey, role, name }) => ({ kind, refId, storageKey, role, name })),
         ...(acknowledgedMissing && acknowledgedMissing.length > 0 ? { acknowledgedMissing } : {}),
+        // The server enforces the plan's requirements (409 input_required).
+        ...(requiredInputs && requiredInputs.length > 0 ? { requiredInputs } : {}),
       },
       {
         onSuccess: (result) => {
@@ -895,6 +899,17 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
           resetExchange();
         },
         onError: (err) => {
+          // The server refused because a required input is still unresolved:
+          // drop the acknowledgements so the amber panel asks again.
+          if (getInputRequired(err)) {
+            setAcknowledged(new Set());
+            toast({
+              title: "A required input is missing",
+              description: "Choose one in the plan card, or continue without it.",
+              variant: "destructive",
+            });
+            return;
+          }
           const limit = getGenerationLimit(err);
           if (limit) {
             toast({ title: "Image generation is busy", description: limit.message, variant: "destructive" });
@@ -922,7 +937,7 @@ export function CreateWorkspace({ className, compact = false }: { className?: st
     const goingWithout = (required ?? [])
       .filter((r) => r.status !== "found" && !attachedRoles.has(r.role) && acknowledged.has(r.role))
       .map((r) => r.role);
-    runGenerate(prompt, undefined, undefined, [...new Set(goingWithout)]);
+    runGenerate(prompt, undefined, undefined, [...new Set(goingWithout)], required);
   }
 
   // Re-render an existing result on a different canvas (model revision keeps
