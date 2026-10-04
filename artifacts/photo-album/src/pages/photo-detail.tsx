@@ -516,7 +516,7 @@ export default function PhotoDetail() {
               onAddProject={handleAddProject}
             />
 
-            <AttributionPanel photoTags={photo.attributionTags} />
+            <AttributionPanel photoTags={photo.attributionTags} usageRights={photo.usageRights} albumId={photo.albumId} />
 
             <Separator />
 

@@ -90,7 +90,7 @@ export default function AdminAttributionTagsPage() {
     <AdminSectionShell
       title="Attribution Tags"
       icon={Copyright}
-      description="User-defined usage-rights tags (e.g. Web, Print, Social). Photos marked with a tag are cleared for that kind of use."
+      description="User-defined usage-rights tags (e.g. Web, Print, Social). A tag records that your team allows that kind of use. It is your own record, not a legal clearance; photos without a tag show as “rights not recorded”."
     >
       <div className="rounded-xl border border-border bg-card overflow-hidden max-w-2xl">
         <div className="px-5 py-4 border-b border-border">

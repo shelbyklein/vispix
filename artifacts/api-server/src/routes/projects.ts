@@ -15,6 +15,7 @@ import {
   RemovePhotoFromProjectParams,
   ReorderProjectsBody,
   ReorderProjectsResponse,
+  GetProjectRightsCheckResponse,
 } from "@workspace/api-zod";
 import { requireOrgAuth } from "../middlewares/requireOrg";
 import { buildPhotosResponse, hiddenPhotoCondition } from "../lib/photoHelpers";
@@ -22,6 +23,7 @@ import { ObjectStorageService } from "../lib/objectStorage";
 import { logger } from "../lib/logger";
 import { ZipArchive } from "archiver";
 import { canManageItem, canSeeHiddenPhotos } from "../lib/capabilities";
+import { loadUsageRights, snapshotOf, rightsChange } from "../lib/usageRights";
 
 const router: IRouter = Router();
 const objectStorageService = new ObjectStorageService();
@@ -69,6 +71,56 @@ async function buildProjectResponse(projectId: number, orgId: number, canSeeHidd
 // Streams a zip of every photo in the project (original files, store-level —
 // JPEGs don't recompress). Entries keep their original filenames; collisions
 // get a "-<photoId>" suffix. Missing storage objects are skipped, not fatal.
+// Usage rights of a project's photos, re-read now (#207): the current status
+// of each, and what changed since it was shortlisted. Warning-only — export
+// is never blocked; this feeds the export confirmation and the zip manifest.
+async function projectRightsCheck(projectId: number, orgId: number, canSeeHidden: boolean) {
+  const rows = await db
+    .select({ id: photosTable.id, filename: photosTable.filename, snapshot: projectPhotosTable.rightsSnapshot })
+    .from(projectPhotosTable)
+    .innerJoin(photosTable, eq(projectPhotosTable.photoId, photosTable.id))
+    .where(and(eq(projectPhotosTable.projectId, projectId), eq(photosTable.organizationId, orgId), hiddenPhotoCondition(canSeeHidden)))
+    .orderBy(sql`${projectPhotosTable.addedAt} asc`);
+  const checkedAt = new Date();
+  const current = await loadUsageRights(rows.map((r) => r.id), orgId);
+  const photos = rows.map((r) => {
+    const usageRights = current.get(r.id)!;
+    return {
+      photoId: r.id,
+      filename: r.filename,
+      usageRights,
+      shortlistedRights: r.snapshot ?? null,
+      changedSinceShortlist: rightsChange(r.snapshot, usageRights),
+    };
+  });
+  return {
+    checkedAt: checkedAt.toISOString(),
+    counts: {
+      total: photos.length,
+      recorded: photos.filter((p) => p.usageRights.status === "recorded").length,
+      notRecorded: photos.filter((p) => p.usageRights.status === "not_recorded").length,
+      changedSinceShortlist: photos.filter((p) => p.changedSinceShortlist).length,
+      notCapturedAtShortlist: photos.filter((p) => !p.shortlistedRights).length,
+    },
+    photos,
+  };
+}
+
+router.get("/projects/:id/rights-check", requireOrgAuth, async (req, res): Promise<void> => {
+  const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const projectId = parseInt(raw, 10);
+  if (!Number.isInteger(projectId)) {
+    res.status(400).json({ error: "Invalid project id" });
+    return;
+  }
+  const [project] = await db.select({ id: projectsTable.id }).from(projectsTable).where(and(eq(projectsTable.id, projectId), eq(projectsTable.organizationId, req.org!.id)));
+  if (!project) {
+    res.status(404).json({ error: "Project not found" });
+    return;
+  }
+  res.json(GetProjectRightsCheckResponse.parse(await projectRightsCheck(projectId, req.org!.id, canSeeHiddenPhotos(req))));
+});
+
 router.get("/projects/:id/download", requireOrgAuth, async (req, res): Promise<void> => {
   const raw = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const projectId = parseInt(raw, 10);
@@ -105,6 +157,22 @@ router.get("/projects/:id/download", requireOrgAuth, async (req, res): Promise<v
     res.destroy(err);
   });
   archive.pipe(res);
+
+  // What was recorded at download time (#207). Recorded rights are the team's
+  // own records, not a legal clearance; not_recorded means unknown.
+  const rights = await projectRightsCheck(projectId, req.org!.id, canSeeHiddenPhotos(req));
+  archive.append(
+    JSON.stringify(
+      {
+        project: { id: project.id, name: project.name },
+        ...rights,
+        note: "Usage rights as recorded in Vispix by your team at download time. 'recorded' is not a legal clearance; 'not_recorded' means nobody has recorded rights for the photo.",
+      },
+      null,
+      2,
+    ),
+    { name: "usage-rights.json" },
+  );
 
   const usedNames = new Set<string>();
   for (const p of photos) {
@@ -317,9 +385,12 @@ router.post("/projects/:id/photos", requireOrgAuth, async (req, res): Promise<vo
     return;
   }
 
+  // Record the rights as they stand when shortlisted, so export can report
+  // later changes (#207). Re-adding keeps the original snapshot.
+  const rights = await loadUsageRights([body.data.photoId], req.org!.id);
   await db
     .insert(projectPhotosTable)
-    .values({ projectId: params.data.id, photoId: body.data.photoId })
+    .values({ projectId: params.data.id, photoId: body.data.photoId, rightsSnapshot: snapshotOf(rights.get(body.data.photoId)!, new Date()) })
     .onConflictDoNothing();
 
   await db.update(projectsTable).set({ updatedAt: new Date() }).where(eq(projectsTable.id, params.data.id));

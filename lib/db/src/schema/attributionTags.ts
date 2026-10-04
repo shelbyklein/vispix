@@ -27,4 +27,15 @@ export const photoAttributionTagsTable = pgTable("photo_attribution_tags", {
 ]);
 
 export type AttributionTag = typeof attributionTagsTable.$inferSelect;
+
+/**
+ * Usage-rights state of one photo at a moment in time (#207). `not_recorded`
+ * means unknown — nobody has recorded rights — never "no rights". A recorded
+ * tag is the team's own record, not a legal clearance.
+ */
+export interface UsageRightsSnapshot {
+  status: "recorded" | "not_recorded";
+  tags: { id: number; name: string }[];
+  checkedAt: string;
+}
 export type PhotoAttributionTag = typeof photoAttributionTagsTable.$inferSelect;

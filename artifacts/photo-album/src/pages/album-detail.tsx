@@ -1,3 +1,4 @@
+import { SelectionRightsSummary } from "@/components/usage-rights/UsageRights";
 import { useState, useRef, useEffect } from "react";
 import { photoControlLabel } from "@/lib/photo-a11y";
 import { FadeImage } from "@/components/ui/fade-image";
@@ -1133,8 +1134,11 @@ export default function AlbumDetail() {
 
       {isSelectMode && (
         <div className="fixed bottom-0 left-0 right-0 z-40 border-t border-border bg-background/95 backdrop-blur-sm px-4 py-3 flex items-center justify-between gap-4 shadow-lg" data-testid="select-action-bar">
-          <span className="text-sm text-muted-foreground">
-            {selectedIds.size} photo{selectedIds.size !== 1 ? "s" : ""} selected
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="text-sm text-muted-foreground">
+              {selectedIds.size} photo{selectedIds.size !== 1 ? "s" : ""} selected
+            </span>
+            <SelectionRightsSummary photos={sortedPhotos.filter((p) => selectedIds.has(p.id))} />
           </span>
           <div className="flex items-center gap-2 flex-wrap justify-end">
             {caps.isOrgManager && selectedIds.size > 0 && (

@@ -1,8 +1,9 @@
 import OpenAI from "openai";
 import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
-import { db, photosTable, assetsTable, projectsTable } from "@workspace/db";
+import { db, photosTable, assetsTable, projectsTable, photoAiEvaluationsTable } from "@workspace/db";
 import { rankBrandAssets, type MatchConfidence } from "./assetRanking";
 import { retrievePhotos } from "../photoRetrieval";
+import { loadUsageRights, type UsageRights } from "../usageRights";
 import { getOpenAIKeyForOrg } from "../aiProviders";
 import { GENERATION_FORMATS, type GenerationFormat } from "./orchestrate";
 import { logger } from "../logger";
@@ -28,6 +29,11 @@ export interface PlanCandidate {
   isPrimary?: boolean;
   reasons?: string[];
   confidence?: MatchConfidence;
+  // Photo candidates (#207): rights at planning time (warning-only — a
+  // not_recorded photo is still offered) and AI quality, null when the photo
+  // hasn't been evaluated.
+  usageRights?: UsageRights;
+  quality?: { overallScore: number } | null;
 }
 
 export interface CandidateSlot {
@@ -117,11 +123,19 @@ export async function findPhotoCandidates(organizationId: number, query: string)
   }
   const ids = result.items.map((i) => i.photoId);
   if (ids.length === 0) return [];
-  const rows = await db
-    .select({ id: photosTable.id, filename: photosTable.filename, url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
-    .from(photosTable)
-    .where(inArray(photosTable.id, ids));
+  const [rows, rights, evaluations] = await Promise.all([
+    db
+      .select({ id: photosTable.id, filename: photosTable.filename, url: photosTable.url, thumbnailKey: photosTable.thumbnailKey })
+      .from(photosTable)
+      .where(inArray(photosTable.id, ids)),
+    loadUsageRights(ids, organizationId),
+    db
+      .select({ photoId: photoAiEvaluationsTable.photoId, overallScore: photoAiEvaluationsTable.overallScore })
+      .from(photoAiEvaluationsTable)
+      .where(inArray(photoAiEvaluationsTable.photoId, ids)),
+  ]);
   const byId = new Map(rows.map((r) => [r.id, r]));
+  const scoreById = new Map(evaluations.map((e) => [e.photoId, e.overallScore]));
   return ids
     .map((id) => byId.get(id))
     .filter((r): r is NonNullable<typeof r> => !!r)
@@ -131,6 +145,8 @@ export async function findPhotoCandidates(organizationId: number, query: string)
       name: r.filename ?? `photo-${r.id}`,
       previewUrl: r.thumbnailKey ? `/api/storage${r.thumbnailKey}` : r.url,
       role: "hero_photo" as const,
+      usageRights: rights.get(r.id)!,
+      quality: scoreById.has(r.id) ? { overallScore: Math.round(scoreById.get(r.id)! * 10) / 10 } : null,
     }));
 }
 

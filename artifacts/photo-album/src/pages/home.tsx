@@ -244,7 +244,7 @@ export default function Home() {
               <div className="h-full rounded-3xl border border-border bg-card p-7">
                 <ShieldCheck className="h-6 w-6 text-primary" aria-hidden />
                 <h3 className="mt-3 text-xl font-semibold">Rights on every photo</h3>
-                <p className="mt-1.5 text-sm text-muted-foreground">Tag what each photo is cleared for, then search only what you can use.</p>
+                <p className="mt-1.5 text-sm text-muted-foreground">Record what each photo can be used for, then search only what you can use.</p>
               </div>
             </Reveal>
             <Reveal delay={0.08} className="md:col-span-2">

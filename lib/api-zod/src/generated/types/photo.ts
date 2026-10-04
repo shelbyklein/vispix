@@ -13,6 +13,7 @@ import type { PhotoProjectMembership } from "./photoProjectMembership";
 import type { PhotoRating } from "./photoRating";
 import type { SuggestedCollection } from "./suggestedCollection";
 import type { SuggestedNewCollection } from "./suggestedNewCollection";
+import type { UsageRights } from "./usageRights";
 
 export interface Photo {
   id: number;
@@ -56,8 +57,9 @@ export interface Photo {
   photoCollections?: CollectionSummary[];
   /** Projects this photo currently belongs to (membership only). */
   photoProjects?: PhotoProjectMembership[];
-  /** Attribution / usage-rights tags this photo is cleared for. */
+  /** Usage-rights tags your team recorded on this photo (a record, not a legal clearance). */
   attributionTags?: AttributionTag[];
+  usageRights?: UsageRights;
   /** @nullable */
   aiDescription?: string | null;
   /**

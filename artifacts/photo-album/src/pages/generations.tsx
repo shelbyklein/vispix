@@ -1,3 +1,4 @@
+import { RightsPills, RIGHTS_DISCLAIMER } from "@/components/usage-rights/UsageRights";
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AppLayout } from "@/components/layout/AppLayout";
@@ -60,6 +61,23 @@ function GenerationDetail({ g, onClose }: { g: PastGeneration | null; onClose: (
               <p className="text-sm text-muted-foreground">This generation did not produce an image.</p>
             )}
             <p className="whitespace-pre-wrap text-sm text-foreground">{g.prompt}</p>
+            {g.rightsConsidered.length > 0 && (
+              <div className="space-y-1.5 rounded-md border border-border p-3" data-testid="generation-rights">
+                <p role="heading" aria-level={3} className="text-sm font-medium text-foreground">
+                  Rights considered{" "}
+                  <span className="font-normal text-muted-foreground">(checked {new Date(g.rightsConsidered[0].checkedAt).toLocaleString()})</span>
+                </p>
+                <ul className="space-y-1">
+                  {g.rightsConsidered.map((r) => (
+                    <li key={r.photoId} className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="font-medium text-foreground">{r.name}</span>
+                      <RightsPills rights={{ status: r.status, tags: r.tags }} />
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-[11px] text-muted-foreground">Frozen when the image was generated. {RIGHTS_DISCLAIMER}.</p>
+              </div>
+            )}
             <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
               <SourceLink g={g} />
               {g.imageUrl && (

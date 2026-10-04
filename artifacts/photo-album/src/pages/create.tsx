@@ -1,3 +1,4 @@
+import { RightsPills, usageRightsOf, RIGHTS_DISCLAIMER } from "@/components/usage-rights/UsageRights";
 import { useEffect, useRef, useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import {
@@ -287,6 +288,12 @@ function AssetCandidateList({
   );
 }
 
+/** AI quality for a photo candidate (#207): the score, or "not evaluated". */
+function qualityLabel(c: PlanCandidate): string | null {
+  if (c.quality === undefined) return null;
+  return c.quality ? `Quality ${c.quality.overallScore.toFixed(1)}/10` : "Quality not evaluated";
+}
+
 // Opens the larger inspection view for a candidate (sibling of the attach
 // button, not nested in it). Always visible so it works on touch; keyboard
 // reachable right after the card it belongs to.
@@ -342,6 +349,15 @@ function CandidateInspectDialog({
                 data-testid="candidate-inspect-image"
               />
             </div>
+            {candidate.usageRights && (
+              <div className="space-y-1" data-testid="candidate-inspect-rights">
+                <RightsPills rights={usageRightsOf({ usageRights: candidate.usageRights })} />
+                <p className="text-xs text-muted-foreground">
+                  {candidate.usageRights.status === "recorded" ? RIGHTS_DISCLAIMER : "No usage rights are recorded for this photo. Check before using it."}
+                  {candidate.quality !== undefined && ` · ${qualityLabel(candidate)}`}
+                </p>
+              </div>
+            )}
             {(candidate.reasons?.length || candidate.notes) && (
               <ul className="list-disc space-y-0.5 pl-5 text-xs text-muted-foreground">
                 {candidate.reasons?.map((r) => <li key={r}>{r}</li>)}
@@ -418,14 +434,17 @@ function PlanCard({
           ) : slot.items[0].kind === "asset" ? (
             <AssetCandidateList items={slot.items} isAttached={isAttached} onToggle={onToggleCandidate} onInspect={setInspecting} />
           ) : (
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(5.5rem,1fr))] gap-2">
+            // 7.5rem min so the rights pill and quality line stay legible (#207).
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))] gap-2">
               {slot.items.map((c) => {
                 const attached = isAttached(c);
+                const rights = c.usageRights ? usageRightsOf({ usageRights: c.usageRights }) : null;
                 return (
                   <div key={`${c.kind}-${c.refId}`} className="relative min-w-0">
                     <button
                       type="button"
                       title={c.name}
+                      aria-label={[`Attach ${c.name}`, rights && (rights.status === "recorded" ? `rights recorded: ${rights.tags.map((t) => t.name).join(", ")}` : "rights not recorded"), qualityLabel(c)].filter(Boolean).join(", ")}
                       onClick={() => onToggleCandidate(c)}
                       className={cn(
                         "flex w-full flex-col overflow-hidden rounded-md border text-left",
@@ -441,7 +460,15 @@ function PlanCard({
                           </span>
                         )}
                       </span>
-                      <span className="truncate px-1.5 py-1 text-[11px] text-foreground">{c.name}</span>
+                      <span className="block space-y-1 px-1.5 py-1">
+                        <span className="block truncate text-[11px] text-foreground">{c.name}</span>
+                        {rights && <RightsPills rights={rights} className="max-w-full" testId={`plan-candidate-rights-${c.refId}`} />}
+                        {c.quality !== undefined && (
+                          <span className="block text-[11px] text-muted-foreground" data-testid={`plan-candidate-quality-${c.refId}`}>
+                            {qualityLabel(c)}
+                          </span>
+                        )}
+                      </span>
                     </button>
                     <InspectButton candidate={c} onInspect={setInspecting} />
                   </div>
