@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import { and, eq, ilike, inArray, isNull } from "drizzle-orm";
 import { db, photosTable, assetsTable, projectsTable, photoAiEvaluationsTable } from "@workspace/db";
-import { rankBrandAssets, type MatchConfidence } from "./assetRanking";
+import { rankBrandAssets, parseAssetQuery, type MatchConfidence } from "./assetRanking";
 import { retrievePhotos } from "../photoRetrieval";
 import { loadUsageRights, type UsageRights } from "../usageRights";
 import { getOpenAIKeyForOrg } from "../aiProviders";
@@ -45,11 +45,71 @@ export interface CandidateSlot {
   items: PlanCandidate[];
 }
 
+/** An input the design needs (#215); mirrors the client's RequiredInput. */
+export interface RequiredInput {
+  role: "hero_photo" | "exact_asset";
+  /** Human label of the slot, e.g. "Primary logo". */
+  slot: string;
+  status: "found" | "missing" | "ambiguous";
+  message: string;
+}
+
 export interface GenerationPlan {
   summary: string;
   questions: string[];
   suggestedFormat: GenerationFormat | null;
   slots: CandidateSlot[];
+  requiredInputs: RequiredInput[];
+}
+
+// Fixed, human messages (#215) — never model-written text.
+export const REQUIRED_INPUT_MESSAGES = {
+  heroMissing: "This design calls for a photo, but no matching photo was found in your library.",
+  primaryLogoMissing: "This design asks for your primary logo, but none is marked in Assets.",
+  logoMissing: "This design needs a logo, but no matching logo was found in Assets.",
+  logoAmbiguous: "We found logos in Assets, but none is a confident match. Choose the one to use.",
+} as const;
+
+/** Does the request itself name a logo even though the planner proposed no query? */
+const LOGO_WORDS = /\b(logo|logos|wordmark|brand ?mark|brandmark)\b/i;
+
+/**
+ * What the design needs, and whether the library can supply it (#215). A hero
+ * photo is required when the planner proposed a photo query; a logo when it
+ * proposed a brand-asset query or the request itself names the logo. Found =
+ * a candidate to offer (logos: a confident one); missing = nothing to offer;
+ * ambiguous = logo candidates exist but the best match is low-confidence.
+ */
+export function computeRequiredInputs(slots: CandidateSlot[]): RequiredInput[] {
+  const out: RequiredInput[] = [];
+  const hero = slots.find((s) => s.role === "hero_photo");
+  if (hero) {
+    out.push(
+      hero.items.length > 0
+        ? { role: "hero_photo", slot: "Hero photo", status: "found", message: "" }
+        : { role: "hero_photo", slot: "Hero photo", status: "missing", message: REQUIRED_INPUT_MESSAGES.heroMissing },
+    );
+  }
+  const logo = slots.find((s) => s.role === "exact_asset");
+  if (logo) {
+    const q = parseAssetQuery(logo.query);
+    const generic = q.wantsPrimary || (q.variants.length === 0 && q.identity.length === 0);
+    const slot = generic ? "Primary logo" : "Logo";
+    const brand = logo.items.filter((i) => i.role === "exact_asset");
+    if (brand.length === 0) {
+      out.push({
+        role: "exact_asset",
+        slot,
+        status: "missing",
+        message: generic ? REQUIRED_INPUT_MESSAGES.primaryLogoMissing : REQUIRED_INPUT_MESSAGES.logoMissing,
+      });
+    } else if (brand[0].confidence === "low") {
+      out.push({ role: "exact_asset", slot, status: "ambiguous", message: REQUIRED_INPUT_MESSAGES.logoAmbiguous });
+    } else {
+      out.push({ role: "exact_asset", slot, status: "found", message: "" });
+    }
+  }
+  return out;
 }
 
 interface PlannerOutput {
@@ -251,15 +311,21 @@ export async function planGeneration(
   }
 
   const slots: CandidateSlot[] = [];
+  const heroQuery = planned.heroPhotoQuery?.trim() || null;
+  // The request names a logo but the planner proposed no query (and nothing
+  // attached looks like a logo): still a requirement (#215).
+  const logoImplied =
+    !planned.brandAssetQuery?.trim() && LOGO_WORDS.test(prompt) && !attachedNames.some((n) => LOGO_WORDS.test(n));
+  const logoQuery = planned.brandAssetQuery?.trim() || (logoImplied ? "primary logo" : null);
   const [photoItems, assetItems] = await Promise.all([
-    planned.heroPhotoQuery?.trim() ? findPhotoCandidates(organizationId, planned.heroPhotoQuery.trim()) : Promise.resolve([]),
-    planned.brandAssetQuery?.trim() ? findAssetCandidates(organizationId, planned.brandAssetQuery.trim()) : Promise.resolve([]),
+    heroQuery ? findPhotoCandidates(organizationId, heroQuery) : Promise.resolve([]),
+    logoQuery ? findAssetCandidates(organizationId, logoQuery) : Promise.resolve([]),
   ]);
-  if (planned.heroPhotoQuery?.trim()) {
-    slots.push({ slot: "Hero photo", role: "hero_photo", query: planned.heroPhotoQuery.trim(), items: photoItems });
+  if (heroQuery) {
+    slots.push({ slot: "Hero photo", role: "hero_photo", query: heroQuery, items: photoItems });
   }
-  if (planned.brandAssetQuery?.trim()) {
-    slots.push({ slot: "Brand asset", role: "exact_asset", query: planned.brandAssetQuery.trim(), items: assetItems });
+  if (logoQuery) {
+    slots.push({ slot: "Brand asset", role: "exact_asset", query: logoQuery, items: assetItems });
   }
 
   const suggestedFormat =
@@ -272,5 +338,6 @@ export async function planGeneration(
     questions: (planned.clarifyingQuestions ?? []).map((q) => String(q)).filter(Boolean).slice(0, 3),
     suggestedFormat,
     slots,
+    requiredInputs: computeRequiredInputs(slots),
   };
 }
