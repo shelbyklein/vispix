@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
-import { ArrowRight, Bot, Check, CopyCheck, Search, ShieldCheck, Star, Users, Wand2, X } from "lucide-react";
+import { ArrowRight, Bot, Check, CopyCheck, Search, ShieldCheck, Star, Users, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { useGetRegistrationSettings } from "@workspace/api-client-react";
@@ -82,7 +82,6 @@ const DRIVE_VS: { drive: string; vispix: string }[] = [
   { drive: "Duplicates pile up unnoticed", vispix: "Exact and near-duplicates flagged on upload" },
   { drive: "Pick favourites over email", vispix: "The team rates in place and the best rise" },
   { drive: "Hope someone remembers the usage rights", vispix: "Rights tracked on every photo" },
-  { drive: "Download, resize, rebuild the graphic", vispix: "Generate on-brand graphics with your logo" },
 ];
 
 export default function Home() {
@@ -262,22 +261,6 @@ export default function Home() {
                   Connect your AI tools over MCP: “three hero shots from nationals, cleared for social.”
                 </p>
               </div>
-            </Reveal>
-          </div>
-        </section>
-
-        {/* Create: from photo to post. Split, image right. */}
-        <section className="border-y border-border bg-card/40">
-          <div className="mx-auto grid max-w-7xl items-center gap-12 px-4 py-20 sm:px-6 md:grid-cols-2 md:py-24">
-            <Reveal>
-              <Wand2 className="h-7 w-7 text-primary" aria-hidden />
-              <h2 className="mt-4 font-heading text-3xl font-bold tracking-tight md:text-4xl">From the shoot to the post.</h2>
-              <p className="mt-4 max-w-[48ch] text-muted-foreground">
-                Write the brief, and Create pulls the right photo and your primary logo into ready-to-post graphics.
-              </p>
-            </Reveal>
-            <Reveal delay={0.1}>
-              <img src={photo("create-graphic", 1100, 820)} alt="" loading="lazy" className="aspect-[4/3] w-full rounded-3xl object-cover" />
             </Reveal>
           </div>
         </section>

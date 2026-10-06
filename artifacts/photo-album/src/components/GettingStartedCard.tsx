@@ -56,7 +56,7 @@ export function GettingStartedCard() {
     {
       key: "collection",
       label: "Curate a collection",
-      blurb: "Group photos by what they are — a campaign, an event, a theme.",
+      blurb: "Group photos by what they are — an event, a trip, a theme.",
       href: "/collections",
       done: status.hasCollectionPhotos,
     },
