@@ -11,7 +11,7 @@ Vispix records **usage rights** as org-scoped tags on photos (`attribution_tags`
 
 `not_recorded` is **unknown**, not "no rights". Absent data always stays unknown; nothing is inferred or backfilled.
 
-The API exposes this as `usageRights: { status, tags: [{ id, name }] }` on photo responses and Create photo candidates, and the MCP as `rightsStatus` alongside `rights`.
+The API exposes this as `usageRights: { status, tags: [{ id, name }] }` on photo responses and the MCP as `rightsStatus` alongside `rights`.
 
 ## Policy: warning only (decided 2026-10-04)
 
@@ -19,8 +19,6 @@ The API exposes this as `usageRights: { status, tags: [{ id, name }] }` on photo
 |---|---|---|
 | Viewing (details, lightbox) | Warning + route to review rights | Tags + "not a legal clearance" |
 | Selecting (select mode) | The selection bar counts photos with rights not recorded | — |
-| Create candidates | Warning badge and AI quality (or "not evaluated") | Tag badges and quality |
-| Generating | Allowed; snapshot records `not_recorded` | Allowed; snapshot records the tags |
 | Project export | Confirmation lists them; download allowed; flagged in `usage-rights.json` | Listed as recorded; tags in the manifest |
 | Rights changed since shortlisting | Export confirmation and manifest report the change; download allowed | same |
 | MCP / agents | Status returned explicitly; nothing hidden unless the caller filters by a rights tag | same |
@@ -30,10 +28,9 @@ Nothing is blocked, so there are no override roles. **Hard blocking, override au
 ## Snapshots
 
 - **Shortlist** — `project_photos.rights_snapshot` records the status and tags when a photo is added to a project (`null` for photos added before this existed: "not captured at shortlist time").
-- **Generation** — `image_generations.rights_snapshot` records each photo input's status and tags with `checkedAt`, frozen at generation time. (`usage_notes_snapshot` keeps its human-readable notes.)
 - **Export** — the project zip includes `usage-rights.json`: each photo's current status and tags at download time, what changed since it was shortlisted, and `checkedAt`.
 
-Current rights are always re-read at the moment of the action (generation, export), so changes made after shortlisting are caught.
+Current rights are always re-read at the moment of the action (export), so changes made after shortlisting are caught.
 
 ## Next phase (not implemented — do not imply it exists)
 

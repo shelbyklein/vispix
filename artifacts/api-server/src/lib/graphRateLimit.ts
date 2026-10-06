@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 
 // Request rate limit for GET /photos/:id/graph, which can run dozens of
-// queries per call. In-memory and per-process, like the generation limits.
+// queries per call. In-memory and per-process.
 // Keyed by user and organization (not IP — tenants share NATs).
 //
 //   GRAPH_RATE_LIMIT_PER_USER   requests per user per window (default 120)

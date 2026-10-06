@@ -313,53 +313,18 @@ function AppRoutes() {
             </>
           )}
         </Route>
+        {/* Image generation and campaigns were removed (#250). */}
         <Route path="/create">
-          {() => (
-            <>
-              <AuthGate when="signed-in">
-                <LazyPage load={() => import("@/pages/create")} />
-              </AuthGate>
-              <AuthGate when="signed-out">
-                <Redirect to="/sign-in" />
-              </AuthGate>
-            </>
-          )}
+          <Redirect to="/dashboard" />
         </Route>
         <Route path="/generations">
-          {() => (
-            <>
-              <AuthGate when="signed-in">
-                <LazyPage load={() => import("@/pages/generations")} />
-              </AuthGate>
-              <AuthGate when="signed-out">
-                <Redirect to="/sign-in" />
-              </AuthGate>
-            </>
-          )}
+          <Redirect to="/dashboard" />
         </Route>
         <Route path="/campaigns/:id">
-          {() => (
-            <>
-              <AuthGate when="signed-in">
-                <LazyPage load={() => import("@/pages/campaign-detail")} />
-              </AuthGate>
-              <AuthGate when="signed-out">
-                <Redirect to="/sign-in" />
-              </AuthGate>
-            </>
-          )}
+          <Redirect to="/dashboard" />
         </Route>
         <Route path="/campaigns">
-          {() => (
-            <>
-              <AuthGate when="signed-in">
-                <LazyPage load={() => import("@/pages/campaigns")} />
-              </AuthGate>
-              <AuthGate when="signed-out">
-                <Redirect to="/sign-in" />
-              </AuthGate>
-            </>
-          )}
+          <Redirect to="/dashboard" />
         </Route>
         <Route path="/smart-collections">
           {() => (

@@ -219,7 +219,7 @@ export default function AdminTeamPage() {
                             </p>
                             {memberships.length > 0 ? (
                               <p>
-                                Photos, albums, collections, projects and campaigns they created in{" "}
+                                Photos, albums, collections, projects they created in{" "}
                                 {memberships.map((m) => m.orgName).join(", ")} are kept and handed to
                                 another member of each organization — nothing in those libraries is
                                 deleted.

@@ -6,7 +6,7 @@ import type { Request } from "express";
 //                        photos they uploaded
 //   org owner/admin      manage all of their organization's content (photos
 //                        incl. bulk hide/delete, albums, projects, collections,
-//                        assets, campaigns, rights tags) and see hidden photos
+//                        assets, rights tags) and see hidden photos
 //   member               create, view and rate; manage only their own items
 //   platform admin       everything (users.role = "admin")
 //   MCP connector        read-only (unchanged)

@@ -57,8 +57,9 @@ is the urgency headline for sports/schools.
    the brand library itself*: "find three cleared photos of smiling kids for the newsletter"
    happens inside their AI assistant, with quality scores and rights attached. Almost no DAM
    has this today. As agent workflows normalize, "your asset library, queryable by your AI"
-   could become the headline rather than a feature — and #167 (AI image generation using
-   library assets) completes that loop.
+   could become the headline rather than a feature. Photos and brand assets are both
+   reachable through the MCP (`search_photos`, `get_photo`, `list_assets`, `get_asset`), so
+   external creative tools can use the library directly.
 
 ### Weaker fits (don't chase)
 

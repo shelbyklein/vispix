@@ -3649,7 +3649,7 @@ components:
           type: string
         isPrimary:
           type: boolean
-          description: The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).
+          description: The designated primary logo for its scope (the organization, or its project) (#206).
         variant:
           type: ["string", "null"]
         notes:

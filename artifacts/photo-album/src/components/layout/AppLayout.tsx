@@ -16,7 +16,7 @@ import {
   getGetPhotoQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check, Wand2, UserPlus, Megaphone, History } from "lucide-react";
+import { LayoutDashboard, Images, Shield, LogOut, ChevronsUpDown, Search, Grid2x2, FolderOpen, FolderKanban, Settings, Upload, Pause, Play, CheckCircle2, X, Sparkles, Sun, Moon, ChevronRight, Users, Palette, Building2, Check, UserPlus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -59,8 +59,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { DevEnvironmentBadge } from "@/components/DevEnvironmentBadge";
 import { usePhotoUploadOptional } from "@/contexts/PhotoUploadContext";
 import { PhotoUploadBanner } from "@/components/PhotoUploadBanner";
-import { CreatePanel } from "@/components/CreatePanel";
-import { createPanel, useCreatePanelOpen } from "@/lib/create-panel";
 
 
 const SIDEBAR_COOKIE_NAME = "sidebar_state";
@@ -137,9 +135,6 @@ const navItems = [
   { href: "/smart-collections", label: "Smart", icon: Sparkles },
   { href: "/people", label: "People", icon: Users },
   { href: "/assets", label: "Assets", icon: Palette },
-  { href: "/create", label: "Create", icon: Wand2 },
-  { href: "/campaigns", label: "Campaigns", icon: Megaphone },
-  { href: "/generations", label: "Generations", icon: History },
 ];
 
 // Drag type for reordering the top-level nav; distinct from PHOTO_DND_MIME so
@@ -654,7 +649,6 @@ function AppSidebar({
   const firstName = user?.name?.split(" ")[0];
   const { data: me } = useGetMe();
   const isMobile = useIsMobile();
-  const createPanelOpen = useCreatePanelOpen();
   const qc = useQueryClient();
   const { mutate: saveNavOrder } = useUpdateNavOrder();
 
@@ -736,24 +730,6 @@ function AppSidebar({
               }
               if (item.href === "/projects") {
                 return <ProjectsNav key={item.href} location={location} dragProps={dragProps} />;
-              }
-              // Create (#167 UX): on desktop the nav item toggles the right
-              // slide-out panel so the app stays visible; mobile keeps the page.
-              if (item.href === "/create" && !isMobile) {
-                const Icon = item.icon;
-                return (
-                  <SidebarMenuItem key={item.href} {...dragProps}>
-                    <SidebarMenuButton
-                      isActive={createPanelOpen}
-                      tooltip={item.label}
-                      onClick={() => createPanel.toggle()}
-                      data-testid="nav-create"
-                    >
-                      <Icon className={item.iconClass} />
-                      <span>{item.label}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
               }
               const Icon = item.icon;
               const active = location === item.href || location.startsWith(item.href + "/");
@@ -885,9 +861,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     <SidebarProvider defaultOpen={getInitialSidebarOpen()} data-testid="app-layout">
       <AppSidebar location={location} isAdmin={isAdmin} isPlatformAdmin={isPlatformAdmin} />
 
-      {/* min-w-0 lets the main column actually shrink when the Create panel
-          docks on the right — without it, flexbox's min-width:auto keeps the
-          content at intrinsic width and the row overflows instead of squeezing. */}
+      {/* min-w-0 lets the main column shrink with the viewport instead of
+          overflowing at its intrinsic width. */}
       <SidebarInset className="min-h-svh min-w-0">
         <header className="sticky top-0 z-30 flex h-14 items-center gap-2 sm:gap-3 border-b border-border bg-background/95 px-4 backdrop-blur-sm">
           <SidebarTrigger className="-ml-1" data-testid="sidebar-toggle" />
@@ -918,8 +893,6 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <BulkUploadBanner />
       <PhotoUploadBanner />
-      {/* Desktop Create slide-out — global so it survives page navigation. */}
-      <CreatePanel />
     </SidebarProvider>
   );
 }
