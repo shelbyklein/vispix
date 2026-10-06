@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
 // Hidden photos stay hidden inside every photo container (#218): org
 // owners/admins see them, members never do. Members can't add a hidden photo
-// to a project/collection, use it as a cover or generation input, or read one
+// to a project/collection, use it as a cover, or read one
 // back through a container, count, cover, stats list or duplicate check.
 vi.mock("../auth", () => ({
   auth: {
@@ -19,11 +19,6 @@ vi.mock("../auth", () => ({
 vi.mock("../aiPhotoAnalysis", async (o) => ({
   ...(await o<typeof import("../aiPhotoAnalysis")>()),
   resolveImageForAI: async () => ({ dataUrl: "data:image/png;base64,AA==" }),
-}));
-vi.mock("../imageGeneration/openaiImage", () => ({
-  generateImage: async () => {
-    throw new Error("provider disabled in tests");
-  },
 }));
 vi.mock("../aiProviders", async (o) => ({
   ...(await o<typeof import("../aiProviders")>()),
@@ -192,19 +187,5 @@ describe("single-photo actions and dashboard lists", () => {
     expect((await call(member, "GET", "/stats/dashboard")).body.recentActivity.map((p: { id: number }) => p.id)).toEqual([visibleId]);
     expect(ids((await call(member, "GET", "/stats/top-rated")).body)).toEqual([visibleId]);
     expect(ids((await call(admin, "GET", "/stats/recent-photos")).body)).toEqual([hiddenId, visibleId].sort((x, y) => x - y));
-  });
-});
-
-describe("image-generation inputs", () => {
-  const generate = (as: U, photoId: number) =>
-    call(as, "POST", "/image-generation/generate", { prompt: "Poster", inputs: [{ kind: "photo", refId: photoId, role: "hero_photo" }] });
-
-  it("rejects a hidden photo input for members like a missing photo; allows managers and visible photos", async () => {
-    const blocked = await generate(member, hiddenId);
-    const missing = await generate(member, 999999);
-    expect(blocked.status).toBe(400);
-    expect(blocked.body.error).toBe(missing.body.error.replace("999999", String(hiddenId)));
-    expect((await generate(member, visibleId)).status).toBe(200);
-    expect((await generate(admin, hiddenId)).status).toBe(200);
   });
 });

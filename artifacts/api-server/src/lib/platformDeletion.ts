@@ -8,10 +8,7 @@ import {
   albumsTable,
   collectionsTable,
   projectsTable,
-  campaignsTable,
   bulkUploadBatchesTable,
-  imageGenerationsTable,
-  imageGenerationSessionsTable,
   usersTable,
   user as authUserTable,
 } from "@workspace/db";
@@ -27,12 +24,12 @@ import { stripe } from "./stripe";
 //
 //  - An organization's 22 child tables are ON DELETE CASCADE, so Postgres does
 //    the row work. What it does NOT do is remove the objects those rows pointed
-//    at (photo originals + thumbnails, assets, generated images, the org logo)
+//    at (photo originals + thumbnails, assets, the org logo)
 //    or stop the customer's Stripe subscription — both are handled here.
 //
 //  - A user is the harder case: photos.uploader_id, albums.owner_id and the
-//    created_by/user_id columns on collections/projects/campaigns/bulk upload
-//    batches/image-gen sessions all CASCADE from `users`. Deleting the row
+//    created_by/user_id columns on collections/projects/bulk upload
+//    batches all CASCADE from `users`. Deleting the row
 //    naively would take the org's content with it. So every piece of org-scoped
 //    content is first REASSIGNED to a surviving member of that org (preferring
 //    an owner), and only then is the user removed. What does die with them is
@@ -121,10 +118,6 @@ export async function deleteOrganizationCascade(orgId: number): Promise<OrgDelet
     .select({ storageKey: assetsTable.storageKey })
     .from(assetsTable)
     .where(eq(assetsTable.organizationId, orgId));
-  const generated = await db
-    .select({ storageKey: imageGenerationsTable.storageKey })
-    .from(imageGenerationsTable)
-    .where(eq(imageGenerationsTable.organizationId, orgId));
   const [{ memberCount }] = await db
     .select({ memberCount: sql<number>`count(*)::int` })
     .from(organizationMembersTable)
@@ -139,7 +132,6 @@ export async function deleteOrganizationCascade(orgId: number): Promise<OrgDelet
   const keys = [
     ...photos.flatMap((p) => [p.storageKey, p.thumbnailKey]),
     ...assets.map((a) => a.storageKey),
-    ...generated.map((g) => g.storageKey),
     org.logoKey,
   ];
   const objectsDeleted = await purgeObjects(keys, { organizationId: orgId });
@@ -221,9 +213,7 @@ export async function deleteUserAccount(
     union select organization_id from ${albumsTable} where ${albumsTable.ownerId} = ${userId}
     union select organization_id from ${collectionsTable} where ${collectionsTable.createdById} = ${userId}
     union select organization_id from ${projectsTable} where ${projectsTable.createdById} = ${userId}
-    union select organization_id from ${campaignsTable} where ${campaignsTable.createdById} = ${userId}
     union select organization_id from ${bulkUploadBatchesTable} where ${bulkUploadBatchesTable.userId} = ${userId}
-    union select organization_id from ${imageGenerationSessionsTable} where ${imageGenerationSessionsTable.userId} = ${userId}
   `);
   const memberships: { organizationId: number; role: string | null }[] = [...current];
   for (const { organization_id } of withContent.rows) {
@@ -304,23 +294,10 @@ export async function deleteUserAccount(
         .set({ createdById: heirId })
         .where(and(eq(projectsTable.createdById, userId), eq(projectsTable.organizationId, orgId)));
       await tx
-        .update(campaignsTable)
-        .set({ createdById: heirId })
-        .where(and(eq(campaignsTable.createdById, userId), eq(campaignsTable.organizationId, orgId)));
-      await tx
         .update(bulkUploadBatchesTable)
         .set({ userId: heirId })
         .where(
           and(eq(bulkUploadBatchesTable.userId, userId), eq(bulkUploadBatchesTable.organizationId, orgId)),
-        );
-      await tx
-        .update(imageGenerationSessionsTable)
-        .set({ userId: heirId })
-        .where(
-          and(
-            eq(imageGenerationSessionsTable.userId, userId),
-            eq(imageGenerationSessionsTable.organizationId, orgId),
-          ),
         );
 
       if (step.promoteHeirToOwner) {

@@ -20,8 +20,6 @@ import adminOrganizationsRouter from "./adminOrganizations";
 import contactRouter from "./contact";
 import onboardingRouter from "./onboarding";
 import analyticsRouter from "./analytics";
-import imageGenerationRouter from "./imageGeneration";
-import campaignsRouter from "./campaigns";
 
 const router: IRouter = Router();
 
@@ -47,7 +45,5 @@ router.use(bulkUploadBatchesRouter);
 router.use(billingRouter);
 router.use(adminOrganizationsRouter);
 router.use(analyticsRouter);
-router.use(imageGenerationRouter);
-router.use(campaignsRouter);
 
 export default router;

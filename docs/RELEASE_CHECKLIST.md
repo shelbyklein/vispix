@@ -18,7 +18,7 @@ it is quoting.
 | **S** | Source/CI: typecheck, build, unit tests | The code compiles and pure logic holds | Anything at runtime |
 | **F** | Fixture + mocked provider: `acceptanceJourneys` (api-server), `acceptanceScopedReads` (mcp-server), `retrievalParity`, `roleMatrix`, `orgIsolation` against a test DB | Ranking, scoping, roles, pagination, degraded states and contracts, deterministically | Real-provider relevance or latency, real storage, browsers, real MCP clients |
 | **D** | Dev environment (dev.vispix.dev, own DB and storage) with real or test providers | The built release behaves on real infrastructure, with real embeddings if the dev providers are configured | Production data, production config |
-| **P** | Real provider (embeddings, analysis, image generation) with an agreed budget | Relevance and failure behaviour of the actual provider | Anything else; cost and quotas must be approved first |
+| **P** | Real provider (embeddings, analysis) with an agreed budget | Relevance and failure behaviour of the actual provider | Anything else; cost and quotas must be approved first |
 | **C** | Real MCP client against a scoped token (e.g. a Claude connector) | Auth, org scoping, media grants and tool schemas over the real transport | Web behaviour |
 | **H** | Physical device or real browser at the target widths | Layout, touch, accessibility, uploads from a real device | Server behaviour |
 | **R** | Production smoke after the release, read-only unless stated | The deployed revision is up and wired correctly | Broader correctness |
@@ -59,7 +59,7 @@ Run on dev (`dev.vispix.dev`, `mcp-dev.vispix.dev`); restart the API after API c
 | Filter switching, pagination to the end, retry after a forced failure | D | |
 | Photo details Previous/Next deep in an album and in search results | D | |
 | Ten-photo shortlist saved to a project and exported (zip) | D | |
-| Primary logo is the one used by Create/Campaigns; variants and notes visible in the asset library | D | |
+| Primary logo can be designated; variants and notes visible in the asset library (and via MCP `list_assets`) | D | |
 | Real-provider relevance spot check against the agreed query list | P | |
 | Real MCP client with a scoped token: `list_albums`, `search_photos`, `get_photo`, thumbnails/originals only for its organization | C | |
 | Narrow viewport and a physical phone: grids, details, lightbox, upload | H | |

@@ -593,7 +593,6 @@ describe("journey: organization isolation and roles throughout", () => {
 });
 
 describe("journeys not supported by the current API (tracked, not invented)", () => {
-  it.todo("brief-save ordering: save-then-generate for campaign briefs (#216) - no API-level ordering contract to assert yet");
   it.todo("nested folder import files and recovery (#222) - needs the import workflow and object storage; dev acceptance only");
   it.todo("MCP writes: the MCP connector is read-only by design (capabilities.ts); no write journey exists");
   it.todo("browser/physical-device journeys (grids, lightbox, narrow layouts): out of scope for API tests; see docs/RELEASE_CHECKLIST.md");
