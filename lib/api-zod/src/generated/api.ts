@@ -7212,7 +7212,7 @@ export const ListAssetsResponseItem = zod.object({
     .boolean()
     .optional()
     .describe(
-      "The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).",
+      "The designated primary logo for its scope (the organization, or its project) (#206).",
     ),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),
@@ -7280,7 +7280,7 @@ export const UpdateAssetResponse = zod.object({
     .boolean()
     .optional()
     .describe(
-      "The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206).",
+      "The designated primary logo for its scope (the organization, or its project) (#206).",
     ),
   variant: zod.string().nullish(),
   notes: zod.string().nullish(),

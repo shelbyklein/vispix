@@ -11,7 +11,7 @@ export interface Asset {
   id: number;
   kind: AssetKind;
   name: string;
-  /** The designated primary logo for its scope (the organization, or its project) — preferred by Create and the only logo Campaigns attach automatically (#206). */
+  /** The designated primary logo for its scope (the organization, or its project) (#206). */
   isPrimary?: boolean;
   /** @nullable */
   variant?: string | null;
