@@ -199,7 +199,7 @@ describe("theme contract (rebrand)", () => {
   });
 
   it("themeToCss emits the typekit import only when a project is set, before the Google import", () => {
-    const without = themeToCss(DEFAULT_THEME);
+    const without = themeToCss({ ...DEFAULT_THEME, adobeFontsProject: null });
     expect(without).not.toContain("typekit");
     const withProject = themeToCss({ ...DEFAULT_THEME, adobeFontsProject: "abc1def" });
     const kit = withProject.indexOf("use.typekit.net/abc1def.css");
