@@ -39,6 +39,8 @@ const PREVIEW_STYLE_ID = "theme-preview";
 const PICKER_FONTS_ID = "theme-picker-fonts";
 const GROUPS = [...new Set(COLOR_TOKENS.map((t) => t.group))];
 
+const PRIMARY_FOLLOWERS: ColorTokenKey[] = ["ring", "sidebar-primary", "sidebar-ring", "chart-1"];
+
 function setPreviewStyle(css: string | null) {
   let el = document.getElementById(PREVIEW_STYLE_ID);
   if (css === null) {
@@ -182,9 +184,21 @@ function DesignEditor() {
     };
   }, []);
 
+  // Editing the brand color carries the tokens that mirror it (focus rings,
+  // the sidebar's active item, the first chart color) as long as they still
+  // match it; once one is set to something else it stays independent.
   const setColor = useCallback(
     (key: ColorTokenKey, value: string) =>
-      setDraft((d) => (d ? { ...d, [mode]: { ...d[mode], [key]: value } } : d)),
+      setDraft((d) => {
+        if (!d) return d;
+        const next = { ...d[mode], [key]: value };
+        if (key === "primary") {
+          for (const follower of PRIMARY_FOLLOWERS) {
+            if (d[mode][follower] === d[mode].primary) next[follower] = value;
+          }
+        }
+        return { ...d, [mode]: next };
+      }),
     [mode],
   );
 
@@ -251,7 +265,7 @@ function DesignEditor() {
           ) : (
             <span className="font-medium">Using built-in theme</span>
           )}
-          {dirty && <span className="ml-2 rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning">Unsaved changes</span>}
+          {dirty && <span className="ml-2 rounded-full bg-warning/10 px-2 py-0.5 text-xs text-warning-foreground">Unsaved changes</span>}
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onClick={onExport} data-testid="design-export">
@@ -359,7 +373,7 @@ function DesignEditor() {
 
           <Panel title={`Contrast (${mode})`}>
             {failures > 0 && (
-              <p className="text-xs text-warning" data-testid="contrast-summary">
+              <p className="text-xs text-warning-foreground" data-testid="contrast-summary">
                 {failures} pair{failures === 1 ? "" : "s"} below the WCAG AA target. You can still save.
               </p>
             )}

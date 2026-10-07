@@ -11,8 +11,8 @@ const PAIRS: [keyof ColorSet, keyof ColorSet, string, number][] = [
   ["secondary-foreground", "secondary", "Text on secondary", 4.5],
   ["accent-foreground", "accent", "Text on accent", 4.5],
   ["destructive-foreground", "destructive", "Text on danger", 4.5],
-  ["warning", "background", "Warning on page", 4.5],
-  ["success", "background", "Success on page", 4.5],
+  ["warning-foreground", "background", "Warning text on page", 4.5],
+  ["success-foreground", "background", "Success text on page", 4.5],
   ["muted-foreground", "background", "Secondary text on page", 4.5],
   ["sidebar-foreground", "sidebar", "Sidebar text", 4.5],
   ["heading-primary", "background", "Page title (large)", 3],
@@ -37,7 +37,7 @@ export function ContrastChecks({ colors, mode }: { colors: ColorSet; mode: "ligh
             <span className="text-muted-foreground">{label}</span>
             <span
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${
-                ok ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                ok ? "bg-success/10 text-success-foreground" : "bg-warning/10 text-warning-foreground"
               }`}
               data-testid={ok ? undefined : "contrast-warning"}
             >
