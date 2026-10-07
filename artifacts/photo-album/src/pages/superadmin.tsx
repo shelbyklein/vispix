@@ -1,7 +1,7 @@
 import { useGetMe } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, UserPlus, Users, ChevronRight, Building2, BarChart3 } from "lucide-react";
+import { Shield, UserPlus, Users, ChevronRight, Building2, BarChart3, Palette } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ const SECTIONS: { href: string; title: string; description: string; icon: Lucide
   { href: "/superadmin/analytics", title: "Analytics", description: "Platform usage across every organization — growth, activity, revenue.", icon: BarChart3 },
   { href: "/superadmin/organizations", title: "Organizations", description: "All organizations — plans, usage, and support access.", icon: Building2 },
   { href: "/superadmin/users", title: "Users", description: "Every registered account, platform roles, and org memberships.", icon: Users },
+  { href: "/superadmin/design", title: "Design", description: "Edit the platform theme — colors, fonts, shape — and preview it live.", icon: Palette },
   { href: "/superadmin/registration", title: "Registration", description: "Allow or pause new account sign-ups.", icon: UserPlus },
   // ?org=1 suppresses the platform-admin → /superadmin default redirect.
   { href: "/admin?org=1", title: "This organization", description: "Org-scoped admin for the organization you're currently in.", icon: Shield },
