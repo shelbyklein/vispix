@@ -22,3 +22,4 @@ export * from "./nearDuplicatePairs";
 export * from "./nearDuplicateIgnores";
 export * from "./mcpTokens";
 export * from "./assets";
+export * from "./designPalettes";
