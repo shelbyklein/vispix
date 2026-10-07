@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ADOBE_FONTS,
+  ADOBE_FAMILY_NAMES,
   ADOBE_PROJECT_PATTERN,
   COLOR_TOKENS,
   FONT_CHOICES,
@@ -105,7 +106,7 @@ function FontSelect({
   testId: string;
   adobeProject: string | null;
 }) {
-  const face = (f: string) => (ADOBE_FONTS.has(f) ? `"${f}", "Sofia Sans"` : `"${f}"`);
+  const face = (f: string) => (ADOBE_FONTS.has(f) ? `"${ADOBE_FAMILY_NAMES[f] ?? f}", "Sofia Sans"` : `"${f}"`);
   return (
     <div className="space-y-1.5">
       <div className="text-sm font-medium">{label}</div>

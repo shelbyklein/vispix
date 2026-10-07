@@ -75,6 +75,8 @@ export const ADOBE_FONTS: ReadonlySet<string> = new Set(["Sofia Pro"]);
 
 /** Google font to show until the Adobe Fonts project is available. */
 const ADOBE_FALLBACKS: Readonly<Record<string, string>> = { "Sofia Pro": "Sofia Sans" };
+/** The family name each Adobe font registers under in its kit CSS. */
+export const ADOBE_FAMILY_NAMES: Readonly<Record<string, string>> = { "Sofia Pro": "sofia-pro" };
 
 /** The ID in https://use.typekit.net/<id>.css: 7-12 lowercase alphanumerics. */
 export const ADOBE_PROJECT_PATTERN = /^[a-z0-9]{7,12}$/;
@@ -101,25 +103,25 @@ export interface PlatformTheme {
 
 export const DEFAULT_THEME: PlatformTheme = {
   light: {
-    background: "42.9 100% 97.3%",
+    background: "0 0% 99%",
     foreground: "200 12% 18%",
-    card: "43 100% 99%",
+    card: "0 0% 100%",
     "card-foreground": "200 12% 18%",
-    "card-border": "36 35% 84%",
-    popover: "43 100% 99%",
+    "card-border": "200 8% 88%",
+    popover: "0 0% 100%",
     "popover-foreground": "200 12% 18%",
-    "popover-border": "36 35% 84%",
-    muted: "38 55% 92%",
+    "popover-border": "200 8% 88%",
+    muted: "200 8% 95%",
     "muted-foreground": "200 8% 30%",
-    border: "36 35% 84%",
-    input: "36 35% 84%",
+    border: "200 8% 88%",
+    input: "200 8% 88%",
     primary: "211 32% 36%",
     "primary-foreground": "0 0% 100%",
     button: "211.2 32.5% 84.9%",
     "button-foreground": "205 25% 18%",
     secondary: "33.9 67.6% 73.3%",
     "secondary-foreground": "205 25% 16%",
-    accent: "38 60% 90%",
+    accent: "200 10% 93%",
     "accent-foreground": "205 25% 18%",
     ring: "211 32% 36%",
     "heading-primary": "200 7.3% 40.2%",
@@ -145,26 +147,26 @@ export const DEFAULT_THEME: PlatformTheme = {
     "chart-5": "20 60% 62%",
   },
   dark: {
-    background: "30 14% 8%",
-    foreground: "43 50% 92%",
-    card: "30 12% 11%",
-    "card-foreground": "43 50% 92%",
-    "card-border": "30 12% 20%",
-    popover: "30 12% 11%",
-    "popover-foreground": "43 50% 92%",
-    "popover-border": "30 12% 20%",
-    muted: "30 12% 15%",
-    "muted-foreground": "38 14% 66%",
-    border: "30 12% 20%",
-    input: "30 12% 20%",
+    background: "200 6% 5%",
+    foreground: "0 0% 93%",
+    card: "200 5% 8%",
+    "card-foreground": "0 0% 93%",
+    "card-border": "200 5% 17%",
+    popover: "200 5% 8%",
+    "popover-foreground": "0 0% 93%",
+    "popover-border": "200 5% 17%",
+    muted: "200 5% 12%",
+    "muted-foreground": "200 5% 64%",
+    border: "200 5% 17%",
+    input: "200 5% 17%",
     primary: "211 50% 74%",
     "primary-foreground": "205 25% 12%",
     button: "211.2 32.5% 84.9%",
     "button-foreground": "205 25% 16%",
     secondary: "34 38% 36%",
-    "secondary-foreground": "43 60% 94%",
-    accent: "30 16% 18%",
-    "accent-foreground": "43 50% 92%",
+    "secondary-foreground": "0 0% 96%",
+    accent: "200 5% 14%",
+    "accent-foreground": "0 0% 93%",
     ring: "211 50% 74%",
     "heading-primary": "200 14% 74%",
     "heading-secondary": "200 14% 74%",
@@ -174,13 +176,13 @@ export const DEFAULT_THEME: PlatformTheme = {
     "warning-foreground": "43 96% 56%",
     success: "158 64% 52%",
     "success-foreground": "158 64% 52%",
-    sidebar: "30 18% 6%",
-    "sidebar-foreground": "43 50% 90%",
-    "sidebar-border": "30 14% 14%",
+    sidebar: "200 6% 3%",
+    "sidebar-foreground": "0 0% 90%",
+    "sidebar-border": "200 5% 11%",
     "sidebar-primary": "211 50% 74%",
     "sidebar-primary-foreground": "205 25% 12%",
     "sidebar-accent": "34 30% 18%",
-    "sidebar-accent-foreground": "43 50% 92%",
+    "sidebar-accent-foreground": "0 0% 93%",
     "sidebar-ring": "211 50% 74%",
     "chart-1": "211 50% 74%",
     "chart-2": "34 60% 62%",
@@ -191,7 +193,7 @@ export const DEFAULT_THEME: PlatformTheme = {
   fonts: { body: "Karla", heading: "Sofia Pro" },
   headingWeight: 600,
   buttonWeight: 400,
-  adobeFontsProject: null,
+  adobeFontsProject: "ixt2dst",
   radius: 0.5,
   shadowStrength: 1,
 };
@@ -249,7 +251,7 @@ export interface PlatformThemeState {
 
 function fontStack(name: string): string {
   const fallback = ADOBE_FALLBACKS[name];
-  if (fallback) return `"${name}", "${fallback}", sans-serif`;
+  if (fallback) return `"${ADOBE_FAMILY_NAMES[name] ?? name}", "${fallback}", sans-serif`;
   return `"${name}", ${SERIF_FONTS.has(name) ? "Georgia, serif" : "sans-serif"}`;
 }
 

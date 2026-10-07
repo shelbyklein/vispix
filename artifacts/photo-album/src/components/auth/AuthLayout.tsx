@@ -17,7 +17,7 @@ export function AuthLayout({ children }: { children: React.ReactNode }) {
         <div className="w-full max-w-[440px]">{children}</div>
       </div>
 
-      <div className="relative hidden overflow-hidden bg-gradient-to-br from-secondary/45 via-background to-background lg:flex lg:flex-col lg:justify-center lg:px-14">
+      <div className="relative hidden overflow-hidden bg-gradient-to-br from-muted via-background to-background lg:flex lg:flex-col lg:justify-center lg:px-14">
         <div className="max-w-md">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground">
             <Zap className="h-3.5 w-3.5 text-primary" />

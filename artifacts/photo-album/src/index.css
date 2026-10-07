@@ -90,14 +90,14 @@
   /* Vispix "Sunset" palette: cream page (#FFFBF1), tan secondary/sidebar
      (#E9C18D), slate headings (#5F696E), blue-grey buttons (#CCD8E5). The
      remaining tokens are derived to match; see docs/plans/rebrand-sunset. */
-  --background: 42.9 100% 97.3%; /* cool white */
+  --background: 0 0% 99%; /* cool white */
   --foreground: 200 12% 18%; /* near-black, slate-tinted */
-  --card: 43 100% 99%;
+  --card: 0 0% 100%;
   --card-foreground: 200 12% 18%;
-  --card-border: 36 35% 84%;
-  --popover: 43 100% 99%;
+  --card-border: 200 8% 88%;
+  --popover: 0 0% 100%;
   --popover-foreground: 200 12% 18%;
-  --popover-border: 36 35% 84%;
+  --popover-border: 200 8% 88%;
 
   /* Primary: deep slate blue for links, focus rings, icons, badges */
   --primary: 211 32% 36%;
@@ -112,18 +112,18 @@
   --secondary: 33.9 67.6% 73.3%;
   --secondary-foreground: 205 25% 16%;
 
-  --muted: 38 55% 92%;
+  --muted: 200 8% 95%;
   --muted-foreground: 200 8% 30%;
 
   /* Accent: pale sand tint for hover/highlight states */
-  --accent: 38 60% 90%;
+  --accent: 200 10% 93%;
   --accent-foreground: 205 25% 18%;
 
   --destructive: 4 68% 44%; /* danger red */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 36 35% 84%;
-  --input: 36 35% 84%;
+  --border: 200 8% 88%;
+  --input: 200 8% 88%;
   --ring: 211 32% 36%;
 
   --sidebar: 33.9 67.6% 73.3%;
@@ -146,7 +146,7 @@
   --button-weight: 400;
   --app-font-serif: "Georgia", serif;
   --app-font-mono: "Menlo", monospace;
-  --app-font-heading: "Sofia Pro", "Sofia Sans", sans-serif;
+  --app-font-heading: "sofia-pro", "Sofia Sans", sans-serif;
   --radius: 0.5rem;
   
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -188,14 +188,14 @@
   --elevate-2: rgba(255,255,255, .09);
 
   /* Dark mode: warm near-black with cream text. */
-  --background: 30 14% 8%;
-  --foreground: 43 50% 92%;
-  --card: 30 12% 11%;
-  --card-foreground: 43 50% 92%;
-  --card-border: 30 12% 20%;
-  --popover: 30 12% 11%;
-  --popover-foreground: 43 50% 92%;
-  --popover-border: 30 12% 20%;
+  --background: 200 6% 5%;
+  --foreground: 0 0% 93%;
+  --card: 200 5% 8%;
+  --card-foreground: 0 0% 93%;
+  --card-border: 200 5% 17%;
+  --popover: 200 5% 8%;
+  --popover-foreground: 0 0% 93%;
+  --popover-border: 200 5% 17%;
 
   /* Primary: brand blue, brightened a touch for dark-mode readability */
   --primary: 211 50% 74%;
@@ -206,29 +206,29 @@
   --button-foreground: 205 25% 16%;
 
   --secondary: 34 38% 36%;
-  --secondary-foreground: 43 60% 94%;
+  --secondary-foreground: 0 0% 96%;
 
-  --muted: 30 12% 15%;
-  --muted-foreground: 38 14% 66%;
+  --muted: 200 5% 12%;
+  --muted-foreground: 200 5% 64%;
 
   /* Accent: warm dark tint for hover states */
-  --accent: 30 16% 18%;
-  --accent-foreground: 43 50% 92%;
+  --accent: 200 5% 14%;
+  --accent-foreground: 0 0% 93%;
 
   --destructive: 4 70% 48%; /* distinct danger red for dark bg */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 30 12% 20%;
-  --input: 30 12% 20%;
+  --border: 200 5% 17%;
+  --input: 200 5% 17%;
   --ring: 211 50% 74%;
 
-  --sidebar: 30 18% 6%; /* a hair darker than the page */
-  --sidebar-foreground: 43 50% 90%;
-  --sidebar-border: 30 14% 14%;
+  --sidebar: 200 6% 3%; /* a hair darker than the page */
+  --sidebar-foreground: 0 0% 90%;
+  --sidebar-border: 200 5% 11%;
   --sidebar-primary: 211 50% 74%; /* brightened brand blue */
   --sidebar-primary-foreground: 205 25% 12%;
   --sidebar-accent: 34 30% 18%; /* warm dark hover */
-  --sidebar-accent-foreground: 43 50% 92%;
+  --sidebar-accent-foreground: 0 0% 93%;
   --sidebar-ring: 211 50% 74%;
 
   --chart-1: 211 50% 74%; /* brightened brand blue */
