@@ -39,7 +39,9 @@ export function ColorWheel({
     <div
       ref={boxRef}
       className="relative aspect-square w-full max-w-[22rem] touch-none select-none rounded-full shadow-md ring-1 ring-border"
-      style={{ backgroundImage: wheelConicGradient() }}
+      // Size cap inline as well as in the class: the wheel must never grow to
+      // the panel width, even before the dev server has emitted the class.
+      style={{ backgroundImage: wheelConicGradient(), maxWidth: "22rem", aspectRatio: "1 / 1" }}
       data-testid="palette-wheel"
       onPointerMove={(e) => {
         if (drag.current !== null) onMove(drag.current, pointFromEvent(e));
