@@ -59,7 +59,7 @@ export default function SignInPage() {
         </CardHeader>
         <CardContent>
           {justVerified && (
-            <p className="mb-4 rounded-md bg-emerald-50 px-3 py-2 text-center text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400">
+            <p className="mb-4 rounded-md bg-success/10 px-3 py-2 text-center text-sm text-success-foreground">
               Email confirmed — you can sign in now.
             </p>
           )}

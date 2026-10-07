@@ -142,9 +142,9 @@ export function AiServicesSection() {
         </div>
 
         {settings.enabled && !settings.hasUsableActive && (
-          <div className="flex items-start gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
-            <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
-            <p className="text-amber-900 dark:text-amber-200">
+          <div className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm">
+            <AlertTriangle className="h-4 w-4 text-warning-foreground mt-0.5 shrink-0" />
+            <p className="text-warning-foreground">
               The active provider has no API key and no built-in fallback. New uploads
               will be saved without AI descriptions until you add a key below.
             </p>
@@ -191,7 +191,7 @@ function formatRelative(iso: string): string {
 
 function StatusIcon({ status }: { status: AiAnalysisEvent["status"] }) {
   if (status === "success")
-    return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />;
+    return <CheckCircle2 className="h-3.5 w-3.5 text-success-foreground" />;
   if (status === "failed")
     return <CircleX className="h-3.5 w-3.5 text-destructive" />;
   return <MinusCircle className="h-3.5 w-3.5 text-muted-foreground" />;
@@ -505,7 +505,7 @@ function ProviderCard({
             ) : provider.envKeyFallbackAvailable ? (
               <span>No admin key — using server env fallback key</span>
             ) : (
-              <span className="text-amber-600">No key configured</span>
+              <span className="text-warning-foreground">No key configured</span>
             )}
           </div>
 

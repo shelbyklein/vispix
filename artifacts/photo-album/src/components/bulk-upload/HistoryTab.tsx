@@ -76,7 +76,7 @@ export function HistoryTab({ batches, isLoading, albums }: { batches: BatchRecor
                 </div>
                 <p className="text-xs text-muted-foreground mt-1.5">
                   {batch.totalUploaded} photo{batch.totalUploaded !== 1 ? "s" : ""} uploaded
-                  {hasFailures && <span className="text-amber-600 ml-1">· {batch.failedCount} failed</span>}
+                  {hasFailures && <span className="text-warning-foreground ml-1">· {batch.failedCount} failed</span>}
                 </p>
               </div>
               <time

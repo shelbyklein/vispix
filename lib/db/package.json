@@ -15,6 +15,7 @@
     "seed": "dotenv -e ../../.env -- pnpm dlx tsx src/seed.ts"
   },
   "dependencies": {
+    "@workspace/api-zod": "workspace:*",
     "drizzle-orm": "catalog:",
     "drizzle-zod": "^0.8.3",
     "pg": "^8.20.0",

@@ -74,7 +74,7 @@ export function NearDuplicateCleanupModal({
 
         {done ? (
           <div className="py-12 text-center space-y-3" data-testid="cleanup-done">
-            <CheckCircle2 className="h-10 w-10 mx-auto text-emerald-600 dark:text-emerald-500" />
+            <CheckCircle2 className="h-10 w-10 mx-auto text-success-foreground" />
             <p className="text-sm text-muted-foreground">Nothing left to review.</p>
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Close</Button>
           </div>

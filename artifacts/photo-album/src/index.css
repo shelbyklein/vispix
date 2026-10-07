@@ -40,6 +40,11 @@
   --color-destructive-foreground: hsl(var(--destructive-foreground));
   --color-destructive-border: var(--destructive-border);
 
+  --color-warning: hsl(var(--warning));
+  --color-warning-foreground: hsl(var(--warning-foreground));
+  --color-success: hsl(var(--success));
+  --color-success-foreground: hsl(var(--success-foreground));
+
   --color-chart-1: hsl(var(--chart-1));
   --color-chart-2: hsl(var(--chart-2));
   --color-chart-3: hsl(var(--chart-3));
@@ -148,6 +153,12 @@
   /* Heading accent colors — brand blue / deep navy, tuned per theme for contrast */
   --heading-primary: 222 92% 45%;
   --heading-secondary: 224 60% 16%;
+
+  /* Status colors (defaults mirror DEFAULT_THEME in lib/api-zod/src/theme.ts). */
+  --warning: 38 92% 50%;
+  --warning-foreground: 26 90% 37%;
+  --success: 160 84% 39%;
+  --success-foreground: 163 94% 24%;
 }
 
 .dark {
@@ -212,6 +223,11 @@
   /* Heading accent colors — brightened for contrast on dark backgrounds */
   --heading-primary: 222 100% 66%;
   --heading-secondary: 222 25% 88%;
+
+  --warning: 43 96% 56%;
+  --warning-foreground: 43 96% 56%;
+  --success: 158 64% 52%;
+  --success-foreground: 158 64% 52%;
 }
 
 @keyframes shimmer {
@@ -251,5 +267,21 @@
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--app-font-heading);
     letter-spacing: 0.005em;
+  }
+}
+
+/* Interaction overlays: a translucent layer painted over the element's own
+   background (works on any fill, follows rounded corners, leaves ::before and
+   ::after free). Disabled elements get nothing. Press is applied after hover so
+   it wins when both match. */
+@utility hover-elevate {
+  &:hover:not(:disabled):not([aria-disabled="true"]) {
+    background-image: linear-gradient(var(--elevate-1), var(--elevate-1));
+  }
+}
+
+@utility active-elevate-2 {
+  &:active:not(:disabled):not([aria-disabled="true"]) {
+    background-image: linear-gradient(var(--elevate-2), var(--elevate-2));
   }
 }

@@ -116,11 +116,11 @@ export function DuplicatesSection({ showManageLink = true }: { showManageLink?: 
                 <Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking…
               </span>
             ) : missingCount === 0 ? (
-              <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+              <span className="flex items-center gap-1.5 text-success-foreground">
                 <CheckCircle2 className="h-4 w-4 shrink-0" /> All photos are hashed
               </span>
             ) : missingCount !== null ? (
-              <span className="text-amber-700 dark:text-amber-400 font-medium">
+              <span className="text-warning-foreground font-medium">
                 {missingCount} photo{missingCount !== 1 ? "s" : ""} not yet hashed
               </span>
             ) : null}
@@ -149,7 +149,7 @@ export function DuplicatesSection({ showManageLink = true }: { showManageLink?: 
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Scanning for duplicates…
           </div>
         ) : groupCount === 0 ? (
-          <div className="flex items-center gap-1.5 text-sm text-emerald-700 dark:text-emerald-400">
+          <div className="flex items-center gap-1.5 text-sm text-success-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0" /> No duplicate photos found
           </div>
         ) : (

@@ -209,6 +209,7 @@ function AppRoutes() {
           ["/admin/attribution-tags", () => import("@/pages/admin-attribution-tags")],
           ["/admin/mcp-tokens", () => import("@/pages/admin-mcp-tokens")],
           ["/superadmin/organizations", () => import("@/pages/admin-organizations")],
+          ["/superadmin/design", () => import("@/pages/superadmin-design")],
           ["/superadmin/analytics", () => import("@/pages/superadmin-analytics")],
           ["/superadmin", () => import("@/pages/superadmin")],
           ["/admin/organization", () => import("@/pages/admin-organization")],

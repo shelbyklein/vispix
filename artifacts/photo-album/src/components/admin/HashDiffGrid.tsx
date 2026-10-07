@@ -35,7 +35,7 @@ function BitGrid({ bits, diff, label }: { bits: boolean[]; diff?: boolean[]; lab
             className={cn(
               "h-2.5 w-2.5",
               diff?.[i]
-                ? "bg-amber-500" // differing bit
+                ? "bg-warning" // differing bit
                 : bit
                   ? "bg-foreground/80"
                   : "bg-muted",
