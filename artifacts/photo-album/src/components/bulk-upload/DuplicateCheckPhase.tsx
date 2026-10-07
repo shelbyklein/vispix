@@ -61,7 +61,7 @@ export function DuplicateCheckPhase({
                 <p className="text-sm text-foreground truncate">{dup.name}</p>
                 <p className="text-xs text-muted-foreground">{humanSize(dup.size)}</p>
               </div>
-              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", dup.skip ? "bg-muted text-muted-foreground" : "bg-amber-100 text-amber-700")}>
+              <span className={cn("text-xs px-2 py-0.5 rounded-full font-medium", dup.skip ? "bg-muted text-muted-foreground" : "bg-warning/15 text-warning")}>
                 {dup.skip ? "Skip" : "Overwrite"}
               </span>
             </div>

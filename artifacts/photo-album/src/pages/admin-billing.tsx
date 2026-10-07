@@ -64,7 +64,7 @@ export default function AdminBillingPage() {
 
   const unlimited = status?.capBytes == null;
   const pct = status && !unlimited && status.capBytes ? Math.min(100, Math.round(status.ratio * 100)) : 0;
-  const barColor = status?.overLimit ? "bg-red-500" : status?.nearLimit ? "bg-amber-500" : "bg-primary";
+  const barColor = status?.overLimit ? "bg-red-500" : status?.nearLimit ? "bg-warning" : "bg-primary";
 
   return (
     <AdminSectionShell
@@ -91,7 +91,7 @@ export default function AdminBillingPage() {
                   )}
                 </div>
                 {status.cancelAtPeriodEnd && status.currentPeriodEnd && (
-                  <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+                  <p className="text-xs text-warning mt-1">
                     Cancels on {new Date(status.currentPeriodEnd).toLocaleDateString()}
                   </p>
                 )}
@@ -118,7 +118,7 @@ export default function AdminBillingPage() {
                 </p>
               )}
               {!status.overLimit && status.nearLimit && (
-                <p className="text-xs font-medium text-amber-600 dark:text-amber-500">
+                <p className="text-xs font-medium text-warning">
                   You're approaching your storage limit.
                 </p>
               )}

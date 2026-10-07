@@ -73,7 +73,7 @@ export function StarRating({ photoId, myRating, currentUserId, onRated }: {
             aria-pressed={myRating === star}
             className={
               interactive
-                ? "p-1 rounded-md transition-all hover:scale-110 hover:bg-amber-50 dark:hover:bg-amber-950/30 focus:outline-none focus:ring-2 focus:ring-amber-400 disabled:cursor-not-allowed"
+                ? "p-1 rounded-md transition-all hover:scale-110 hover:bg-warning/10 focus:outline-none focus:ring-2 focus:ring-warning disabled:cursor-not-allowed"
                 : "p-1 rounded-md cursor-not-allowed"
             }
             data-testid={`star-${star}`}

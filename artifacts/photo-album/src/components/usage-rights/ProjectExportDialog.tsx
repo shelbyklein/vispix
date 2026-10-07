@@ -48,10 +48,10 @@ export function ProjectExportButton({ projectId, projectName, photoCount }: { pr
           {data && (
             <div className="space-y-3" data-testid="export-rights-summary">
               <ul className="space-y-1 text-sm" role="status">
-                <li className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                <li className="flex items-center gap-1.5 text-success">
                   <Check className="h-4 w-4" aria-hidden /> {data.counts.recorded} with recorded rights
                 </li>
-                <li className={data.counts.notRecorded > 0 ? "flex items-center gap-1.5 text-amber-700 dark:text-amber-300" : "flex items-center gap-1.5 text-muted-foreground"}>
+                <li className={data.counts.notRecorded > 0 ? "flex items-center gap-1.5 text-warning" : "flex items-center gap-1.5 text-muted-foreground"}>
                   <AlertTriangle className="h-4 w-4" aria-hidden /> {data.counts.notRecorded} with rights not recorded
                 </li>
                 <li className={data.counts.changedSinceShortlist > 0 ? "flex items-center gap-1.5 text-red-600 dark:text-red-300" : "flex items-center gap-1.5 text-muted-foreground"}>

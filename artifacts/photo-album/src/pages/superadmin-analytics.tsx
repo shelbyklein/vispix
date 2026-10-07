@@ -95,8 +95,8 @@ export default function SuperadminAnalytics() {
     <AppLayout>
       <div className="space-y-6" data-testid="superadmin-analytics-page">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-            <BarChart3 className="h-5 w-5 text-amber-500" />
+          <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
+            <BarChart3 className="h-5 w-5 text-warning" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Analytics</h1>

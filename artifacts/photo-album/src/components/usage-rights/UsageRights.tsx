@@ -39,8 +39,8 @@ export function RightsPills({
         className={cn(
           "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
           tone === "dark"
-            ? "border-amber-400/50 bg-amber-400/15 text-amber-200"
-            : "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+            ? "border-warning/50 bg-warning/15 text-amber-200"
+            : "border-warning/40 bg-warning/10 text-warning",
           className,
         )}
         data-testid={testId ?? "rights-not-recorded"}
@@ -104,16 +104,16 @@ export function UsageRightsSection({
         <div
           className={cn(
             "rounded-lg border px-3 py-2",
-            dark ? "border-amber-400/40 bg-amber-400/10" : "border-amber-500/40 bg-amber-500/10",
+            dark ? "border-warning/40 bg-warning/10" : "border-warning/40 bg-warning/10",
           )}
           role="status"
           data-testid="rights-not-recorded-notice"
         >
-          <p className={cn("flex items-center gap-1.5 text-sm font-semibold", dark ? "text-amber-200" : "text-amber-700 dark:text-amber-300")}>
+          <p className={cn("flex items-center gap-1.5 text-sm font-semibold", dark ? "text-amber-200" : "text-warning")}>
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             Rights not recorded
           </p>
-          <p className={cn("mt-0.5 text-xs", dark ? "text-amber-100/80" : "text-amber-800/80 dark:text-amber-200/80")}>
+          <p className={cn("mt-0.5 text-xs", dark ? "text-amber-100/80" : "text-warning")}>
             No usage rights are recorded for this photo. Check before using it.
           </p>
         </div>
@@ -163,7 +163,7 @@ export function SelectionRightsSummary({
   return (
     <span role="status" className="text-sm" data-testid="selection-rights-summary">
       {unknown > 0 && (
-        <span className="inline-flex items-center gap-1 text-amber-700 dark:text-amber-300">
+        <span className="inline-flex items-center gap-1 text-warning">
           <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
           {unknown} with rights not recorded
         </span>

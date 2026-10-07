@@ -69,12 +69,12 @@ export function ThumbnailsSection() {
               Checking…
             </span>
           ) : missingCount === 0 ? (
-            <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+            <span className="flex items-center gap-1.5 text-success">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               All photos have thumbnails
             </span>
           ) : missingCount !== null ? (
-            <span className="text-amber-700 dark:text-amber-400 font-medium">
+            <span className="text-warning font-medium">
               {missingCount} photo{missingCount !== 1 ? "s" : ""} need{missingCount === 1 ? "s" : ""} thumbnails
             </span>
           ) : null}
@@ -87,7 +87,7 @@ export function ThumbnailsSection() {
           >
             <div className="flex items-center gap-2 font-medium text-foreground">
               {lastResult.failed === 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
               ) : (
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
               )}
@@ -97,7 +97,7 @@ export function ThumbnailsSection() {
             </div>
             {lastResult.processed > 0 && (
               <div className="flex gap-4 text-xs text-muted-foreground pl-6">
-                <span className="text-emerald-700 dark:text-emerald-400">{lastResult.succeeded} succeeded</span>
+                <span className="text-success">{lastResult.succeeded} succeeded</span>
                 {lastResult.skipped > 0 && (
                   <span>{lastResult.skipped} skipped</span>
                 )}
