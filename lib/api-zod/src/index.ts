@@ -52,3 +52,5 @@ export type {
   UserRoleUpdate,
   UserRoleUpdateRole,
 } from "./generated/types";
+export * from "./theme";
+export * from "./palette";

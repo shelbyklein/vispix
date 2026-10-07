@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vispix design map</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Sofia+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* This page uses Vispix's own tokens (artifacts/photo-album/src/index.css),
+   copied verbatim, so the map looks like the product it describes. */
+:root {
+  --background: 42.9 100% 97.3%; --foreground: 200 12% 18%; --card: 43 100% 99%;
+  --card-foreground: 200 12% 18%; --card-border: 36 35% 84%; --popover: 43 100% 99%;
+  --popover-foreground: 200 12% 18%; --popover-border: 36 35% 84%; --muted: 38 55% 92%;
+  --muted-foreground: 200 8% 30%; --border: 36 35% 84%; --input: 36 35% 84%;
+  --primary: 211 32% 36%; --primary-foreground: 0 0% 100%; --button: 211.2 32.5% 84.9%;
+  --button-foreground: 205 25% 18%; --secondary: 33.9 67.6% 73.3%; --secondary-foreground: 205 25% 16%;
+  --accent: 38 60% 90%; --accent-foreground: 205 25% 18%; --ring: 211 32% 36%;
+  --heading-primary: 200 7.3% 40.2%; --heading-secondary: 200 7.3% 40.2%; --destructive: 4 68% 44%;
+  --destructive-foreground: 0 0% 100%; --warning: 38 92% 50%; --warning-foreground: 26 90% 37%;
+  --success: 160 84% 39%; --success-foreground: 163 94% 24%; --sidebar: 33.9 67.6% 73.3%;
+  --sidebar-foreground: 205 25% 14%; --sidebar-border: 34 45% 64%; --sidebar-primary: 211 32% 36%;
+  --sidebar-primary-foreground: 0 0% 100%; --sidebar-accent: 40 80% 88%; --sidebar-accent-foreground: 205 25% 14%;
+  --sidebar-ring: 211 32% 36%; --chart-1: 211 32% 36%; --chart-2: 33.9 67.6% 73.3%;
+  --chart-3: 200 7.3% 40.2%; --chart-4: 211 37% 70%; --chart-5: 20 60% 62%;
+  --heading-weight: 600; --button-weight: 400;
+  --radius: 0.5rem;
+  --button-outline: rgba(0,0,0,.10); --elevate-1: rgba(0,0,0,.03); --elevate-2: rgba(0,0,0,.08);
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .05);
+  --shadow: 0 1px 3px 0 rgb(0 0 0 / .1), 0 1px 2px -1px rgb(0 0 0 / .1);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 / .1);
+  --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / .1), 0 4px 6px -4px rgb(0 0 0 / .1);
+  --amber: #f59e0b; --amber-soft: #fef3c7; --amber-ink: #92400e;
+  --emerald: #10b981; --emerald-soft: #d1fae5; --emerald-ink: #065f46;
+  color-scheme: light;
+}
+.dark {
+  --background: 30 14% 8%; --foreground: 43 50% 92%; --card: 30 12% 11%;
+  --card-foreground: 43 50% 92%; --card-border: 30 12% 20%; --popover: 30 12% 11%;
+  --popover-foreground: 43 50% 92%; --popover-border: 30 12% 20%; --muted: 30 12% 15%;
+  --muted-foreground: 38 14% 66%; --border: 30 12% 20%; --input: 30 12% 20%;
+  --primary: 211 50% 74%; --primary-foreground: 205 25% 12%; --button: 211.2 32.5% 84.9%;
+  --button-foreground: 205 25% 16%; --secondary: 34 38% 36%; --secondary-foreground: 43 60% 94%;
+  --accent: 30 16% 18%; --accent-foreground: 43 50% 92%; --ring: 211 50% 74%;
+  --heading-primary: 200 14% 74%; --heading-secondary: 200 14% 74%; --destructive: 4 70% 48%;
+  --destructive-foreground: 0 0% 100%; --warning: 43 96% 56%; --warning-foreground: 43 96% 56%;
+  --success: 158 64% 52%; --success-foreground: 158 64% 52%; --sidebar: 30 18% 6%;
+  --sidebar-foreground: 43 50% 90%; --sidebar-border: 30 14% 14%; --sidebar-primary: 211 50% 74%;
+  --sidebar-primary-foreground: 205 25% 12%; --sidebar-accent: 34 30% 18%; --sidebar-accent-foreground: 43 50% 92%;
+  --sidebar-ring: 211 50% 74%; --chart-1: 211 50% 74%; --chart-2: 34 60% 62%;
+  --chart-3: 200 14% 60%; --chart-4: 211 40% 55%; --chart-5: 20 60% 60%;
+  --button-outline: rgba(255,255,255,.10); --elevate-1: rgba(255,255,255,.04); --elevate-2: rgba(255,255,255,.09);
+  --amber: #fbbf24; --amber-soft: rgba(245,158,11,.12); --amber-ink: #fcd34d;
+  --emerald: #34d399; --emerald-soft: rgba(16,185,129,.12); --emerald-ink: #6ee7b7;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+body {
+  margin: 0; font-family: "Karla", sans-serif; font-size: 14px; line-height: 1.6;
+  background: hsl(var(--background)); color: hsl(var(--foreground));
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: "Sofia Pro", "Sofia Sans", sans-serif; font-weight: var(--heading-weight); color: hsl(var(--heading-secondary)); letter-spacing: .005em; margin: 0; }
+h1 { color: hsl(var(--heading-primary)); font-size: 34px; line-height: 1.15; }
+h2 { color: hsl(var(--heading-secondary)); font-size: 26px; line-height: 1.2; margin-bottom: 6px; }
+h3 { color: hsl(var(--heading-secondary)); font-size: 18px; margin: 28px 0 10px; }
+p { margin: 0 0 10px; max-width: 72ch; }
+code, .mono { font-family: Menlo, ui-monospace, monospace; font-size: 12px; }
+code { background: hsl(var(--muted)); padding: 1px 5px; border-radius: 4px; }
+a { color: hsl(var(--primary)); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.muted { color: hsl(var(--muted-foreground)); }
+
+/* Shell: mirrors the app — fixed 16rem sidebar, content column */
+.shell { display: grid; grid-template-columns: 16rem minmax(0, 1fr); min-height: 100vh; }
+.toc {
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+  background: hsl(var(--sidebar)); border-right: 1px solid hsl(var(--sidebar-border));
+  padding: 20px 12px; display: flex; flex-direction: column; gap: 2px;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 4px 8px 18px; font-weight: 600; font-size: 15px; }
+.brand-mark { width: 22px; height: 22px; border-radius: 6px; background: hsl(var(--secondary)); display: grid; grid-template-columns: repeat(3,1fr); gap: 2px; padding: 4px; }
+.brand-mark i { background: hsl(var(--primary)); border-radius: 1px; }
+.brand-mark i:nth-child(2n) { opacity: .45; }
+.toc-label { font-size: 12px; color: hsl(var(--muted-foreground)); padding: 10px 8px 4px; }
+.toc a { color: hsl(var(--sidebar-foreground)); padding: 6px 8px; border-radius: 6px; font-size: 13.5px; }
+.toc a:hover { background: hsl(var(--sidebar-accent)); color: hsl(var(--sidebar-accent-foreground)); text-decoration: none; }
+.toc .spacer { flex: 1; }
+.theme-btn {
+  font: inherit; font-size: 13px; color: hsl(var(--sidebar-foreground)); background: transparent;
+  border: 1px solid var(--button-outline); border-radius: 6px; padding: 7px 10px; cursor: pointer; text-align: left;
+}
+.theme-btn:hover { background: hsl(var(--sidebar-accent)); }
+
+main { padding: 40px 48px 120px; max-width: 1180px; }
+section { padding: 36px 0; border-top: 1px solid hsl(var(--border)); }
+section:first-of-type { border-top: 0; padding-top: 0; }
+.lede { font-size: 15px; color: hsl(var(--muted-foreground)); margin-top: 8px; max-width: 70ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+.card { background: hsl(var(--card)); border: 1px solid hsl(var(--card-border)); border-radius: var(--radius); padding: 16px; }
+.grid { display: grid; gap: 12px; }
+.g2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.g3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+.g4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+.g6 { grid-template-columns: repeat(6, minmax(0,1fr)); }
+@media (max-width: 1000px) { .g3, .g4, .g6 { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; padding: 3px 10px; border-radius: 999px; border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground)); }
+.chip b { font-weight: 500; color: hsl(var(--foreground)); }
+.chip.warn { border-color: color-mix(in srgb, var(--amber) 55%, transparent); color: var(--amber-ink); background: var(--amber-soft); }
+.chip.ok { border-color: color-mix(in srgb, var(--emerald) 55%, transparent); color: var(--emerald-ink); background: var(--emerald-soft); }
+.chip.blue { border-color: hsl(var(--primary) / .5); color: hsl(var(--primary)); }
+
+/* Framework stack */
+.stack { display: grid; gap: 8px; }
+.layer { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: start; padding: 14px 16px; border-radius: var(--radius); background: hsl(var(--card)); border: 1px solid hsl(var(--card-border)); }
+.layer h4 { font-family: "Karla", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
+.layer .sub { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { font-size: 12px; padding: 2px 9px; border-radius: 6px; background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.pill.key { background: hsl(var(--primary) / .12); color: hsl(var(--primary)); font-weight: 500; }
+
+/* Token flow */
+.flow { display: grid; grid-template-columns: repeat(5, minmax(0,1fr)); gap: 0; align-items: stretch; }
+.flow .step { position: relative; padding: 14px; background: hsl(var(--card)); border: 1px solid hsl(var(--card-border)); }
+.flow .step:first-child { border-radius: var(--radius) 0 0 var(--radius); }
+.flow .step:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.flow .step + .step { border-left: 0; }
+.flow .step::after { content: "→"; position: absolute; right: -9px; top: 50%; transform: translateY(-50%); z-index: 1; background: hsl(var(--background)); color: hsl(var(--primary)); font-weight: 600; padding: 0 2px; }
+.flow .step:last-child::after { display: none; }
+.flow .n { font-size: 11px; color: hsl(var(--primary)); font-weight: 600; letter-spacing: .04em; text-transform: uppercase; }
+.flow .t { font-weight: 600; margin: 2px 0 4px; }
+.flow .d { font-size: 12px; color: hsl(var(--muted-foreground)); }
+@media (max-width: 1000px) { .flow { grid-template-columns: 1fr; } .flow .step { border-radius: 0 !important; border-left: 1px solid hsl(var(--card-border)) !important; } .flow .step::after { display: none; } }
+
+/* Swatches */
+.sw { border-radius: var(--radius); overflow: hidden; border: 1px solid hsl(var(--card-border)); background: hsl(var(--card)); }
+.sw .c { height: 64px; display: flex; align-items: flex-end; padding: 6px 8px; font-size: 11px; }
+.sw .i { padding: 8px 10px; font-size: 12px; line-height: 1.4; }
+.sw .i b { display: block; font-weight: 600; }
+.sw .i span { color: hsl(var(--muted-foreground)); font-family: Menlo, monospace; font-size: 11px; }
+
+/* Type specimens */
+.spec { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: baseline; padding: 10px 0; border-bottom: 1px dashed hsl(var(--border)); }
+.spec:last-child { border-bottom: 0; }
+.spec .k { font-size: 12px; color: hsl(var(--muted-foreground)); }
+
+/* Demo controls reproduce the app's shadcn classes */
+.btn { display: inline-flex; align-items: center; gap: 8px; font: var(--button-weight) 14px "Karla", sans-serif; min-height: 36px; padding: 0 16px; border-radius: calc(var(--radius) - 2px); border: 1px solid transparent; cursor: default; white-space: nowrap; }
+.btn.sm { min-height: 32px; padding: 0 12px; font-size: 12px; }
+.btn.default { background: hsl(var(--button)); color: hsl(var(--button-foreground)); border-color: hsl(var(--button) / .85); }
+.btn.secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+.btn.outline { background: transparent; color: inherit; border-color: var(--button-outline); box-shadow: var(--shadow-sm); }
+.btn.ghost { background: transparent; color: inherit; }
+.btn.destructive { background: hsl(var(--destructive)); color: hsl(var(--destructive-foreground)); }
+.btn.link { background: transparent; color: hsl(var(--primary)); padding: 0; text-decoration: underline; text-underline-offset: 4px; }
+.badge { display: inline-flex; font-size: 12px; font-weight: 600; padding: 2px 10px; border-radius: 999px; border: 1px solid transparent; }
+.badge.default { background: hsl(var(--primary)); color: #fff; }
+.badge.secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
+.badge.destructive { background: hsl(var(--destructive)); color: #fff; }
+.badge.outline { border-color: hsl(var(--border)); }
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* App shell anatomy */
+.anat { display: grid; grid-template-columns: 200px 1fr; height: 360px; border: 1px solid hsl(var(--border)); border-radius: 12px; overflow: hidden; font-size: 12px; }
+.anat .sb { background: hsl(var(--sidebar)); border-right: 1px solid hsl(var(--sidebar-border)); padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
+.anat .sb .it { padding: 5px 8px; border-radius: 6px; display: flex; gap: 8px; align-items: center; }
+.anat .sb .it.on { background: hsl(var(--sidebar-accent)); color: hsl(var(--sidebar-accent-foreground)); font-weight: 500; }
+.anat .sb .it::before { content: ""; width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid currentColor; opacity: .6; }
+.anat .main { display: grid; grid-template-rows: 44px 1fr; }
+.anat .top { border-bottom: 1px solid hsl(var(--border)); display: flex; align-items: center; gap: 10px; padding: 0 12px; }
+.anat .search { flex: 0 1 300px; height: 26px; border-radius: 6px; background: hsl(var(--muted)); display: flex; align-items: center; padding: 0 8px; color: hsl(var(--muted-foreground)); }
+.anat .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+.anat .ph1 { font-family: "Sofia Pro", "Sofia Sans", sans-serif; font-size: 20px; color: hsl(var(--heading-primary)); font-weight: 600; }
+.anat .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.anat .tiles i { aspect-ratio: 1; border-radius: 6px; background: linear-gradient(135deg, hsl(var(--chart-3) / .55), hsl(var(--chart-2) / .55)); }
+.callout { position: relative; }
+.tag { position: absolute; font-size: 10.5px; font-weight: 600; background: hsl(var(--primary)); color: #fff; padding: 1px 6px; border-radius: 4px; white-space: nowrap; }
+
+/* IA */
+.ia { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 12px; }
+@media (max-width: 1000px) { .ia { grid-template-columns: repeat(2, minmax(0,1fr)); } }
+.ia ul { list-style: none; margin: 8px 0 0; padding: 0; }
+.ia li { padding: 4px 0; border-bottom: 1px dashed hsl(var(--border)); display: flex; justify-content: space-between; gap: 8px; }
+.ia li:last-child { border-bottom: 0; }
+.ia li code { background: none; padding: 0; color: hsl(var(--muted-foreground)); }
+.ia h4 { font-family: "Karla", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid hsl(var(--border)); vertical-align: top; }
+th { font-weight: 600; font-size: 12px; color: hsl(var(--muted-foreground)); }
+td code { white-space: nowrap; }
+
+.sev { font-size: 11px; font-weight: 600; padding: 1px 8px; border-radius: 999px; }
+.sev.hi { background: hsl(var(--destructive) / .14); color: hsl(var(--destructive)); }
+.sev.md { background: var(--amber-soft); color: var(--amber-ink); }
+.sev.lo { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+
+.bar { height: 8px; border-radius: 999px; background: hsl(var(--muted)); overflow: hidden; }
+.bar i { display: block; height: 100%; background: hsl(var(--primary)); border-radius: 999px; }
+.count-row { display: grid; grid-template-columns: 110px 1fr 40px; gap: 10px; align-items: center; font-size: 12px; padding: 3px 0; }
+.count-row span:last-child { text-align: right; color: hsl(var(--muted-foreground)); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <nav class="toc" aria-label="Sections">
+    <div class="brand"><span class="brand-mark"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>Vispix design map</div>
+    <div class="toc-label">Framework</div>
+    <a href="#overview">Overview</a>
+    <a href="#stack">Stack</a>
+    <a href="#flow">How styling flows</a>
+    <div class="toc-label">Design system</div>
+    <a href="#color">Color</a>
+    <a href="#type">Typography</a>
+    <a href="#shape">Shape, spacing, elevation</a>
+    <a href="#components">Components</a>
+    <div class="toc-label">Product</div>
+    <a href="#shell">App shell</a>
+    <a href="#ia">Pages and routes</a>
+    <a href="#patterns">Page patterns</a>
+    <div class="toc-label">Changing it</div>
+    <a href="#where">Where to change what</a>
+    <a href="#gaps">Known gaps</a>
+    <div class="spacer"></div>
+    <button class="theme-btn" id="themeBtn" type="button">Switch to dark mode</button>
+  </nav>
+
+  <main>
+    <p class="muted" style="margin-bottom:1rem"><strong>Note (#253):</strong> the tokens described here are now editable live on the superadmin <strong>Design</strong> page (<code>/superadmin/design</code>). This static map remains as reference.</p>
+    <!-- OVERVIEW -->
+    <section id="overview">
+      <h1>Vispix design map</h1>
+      <p class="lede">The current design system and front-end framework of the Vispix web app, in one place, as a starting point for design changes. Every color, font and size on this page is the app's real value. Toggle dark mode in the sidebar to see both themes.</p>
+      <div class="meta">
+        <span class="chip">Snapshot <b>2026-10-07</b></span>
+        <span class="chip">Source <b>dev @ ffb48c8 + rebrand</b></span>
+        <span class="chip">App <b>artifacts/photo-album</b></span>
+        <span class="chip blue">Palette <b style="color:inherit">Sunset: #FFFBF1 · #E9C18D · #5F696E · #CCD8E5</b></span>
+      </div>
+      <div class="grid g4" style="margin-top:20px">
+        <div class="card"><div class="muted" style="font-size:12px">Visual identity</div><div style="font-weight:600">Sunset: cream, tan and slate</div><div class="muted" style="font-size:12px">Cream page, tan sidebar, slate headings, blue-grey buttons.</div></div>
+        <div class="card"><div class="muted" style="font-size:12px">Type pairing</div><div style="font-weight:600"><span style="font-family:'Sofia Pro','Sofia Sans',sans-serif">Sofia Pro</span> + Karla</div><div class="muted" style="font-size:12px">Sofia Pro semibold headings (Sofia Sans until the Adobe Fonts project is set), Karla body and buttons.</div></div>
+        <div class="card"><div class="muted" style="font-size:12px">Component base</div><div style="font-weight:600">shadcn/ui “new-york”</div><div class="muted" style="font-size:12px">53 primitives, Radix underneath, some locally edited.</div></div>
+        <div class="card"><div class="muted" style="font-size:12px">Themes</div><div style="font-weight:600">Light and dark</div><div class="muted" style="font-size:12px">A <code>.dark</code> class on the root swaps every token.</div></div>
+      </div>
+    </section>
+
+    <!-- STACK -->
+    <section id="stack">
+      <h2>Stack</h2>
+      <p class="muted">From the browser down to the data. The highlighted pieces are the ones a visual redesign touches most.</p>
+      <div class="stack">
+        <div class="layer"><div><h4>Styling</h4><div class="sub">CSS-first, no config file</div></div>
+          <div class="pills"><span class="pill key">Tailwind CSS v4</span><span class="pill key">CSS variables in index.css</span><span class="pill">tw-animate-css</span><span class="pill">@tailwindcss/typography</span><span class="pill">class-variance-authority</span><span class="pill">tailwind-merge (cn)</span></div></div>
+        <div class="layer"><div><h4>Components</h4><div class="sub">copied into the repo, owned by us</div></div>
+          <div class="pills"><span class="pill key">shadcn/ui (new-york)</span><span class="pill">Radix UI (27 packages)</span><span class="pill key">lucide-react icons</span><span class="pill">sonner toasts</span><span class="pill">cmdk</span><span class="pill">vaul drawer</span><span class="pill">embla carousel</span><span class="pill">recharts</span><span class="pill">react-hook-form</span></div></div>
+        <div class="layer"><div><h4>Motion</h4><div class="sub">mostly CSS</div></div>
+          <div class="pills"><span class="pill">CSS transitions</span><span class="pill">shimmer skeleton</span><span class="pill">framer-motion (public landing page only)</span></div></div>
+        <div class="layer"><div><h4>App framework</h4><div class="sub">single-page app</div></div>
+          <div class="pills"><span class="pill key">React 19</span><span class="pill">Vite 7</span><span class="pill">TypeScript 5.9</span><span class="pill">wouter routing</span><span class="pill">lazy-loaded pages</span></div></div>
+        <div class="layer"><div><h4>Data</h4><div class="sub">typed from the API spec</div></div>
+          <div class="pills"><span class="pill">TanStack Query</span><span class="pill">Orval-generated hooks (lib/api-client-react)</span><span class="pill">OpenAPI spec (lib/api-spec)</span><span class="pill">Better Auth client</span></div></div>
+        <div class="layer"><div><h4>Backend</h4><div class="sub">for context</div></div>
+          <div class="pills"><span class="pill">Express 5 API</span><span class="pill">Postgres + Drizzle + pgvector</span><span class="pill">GCS object storage</span><span class="pill">MCP server for outside AI tools</span></div></div>
+      </div>
+    </section>
+
+    <!-- FLOW -->
+    <section id="flow">
+      <h2>How styling flows</h2>
+      <p class="muted">A color change made in step 1 reaches every screen. Changes made in steps 4–5 stay local.</p>
+      <div class="flow">
+        <div class="step"><div class="n">1 · Tokens</div><div class="t">index.css</div><div class="d"><code>:root</code> and <code>.dark</code> hold HSL values: <code>--primary: 211 32% 36%</code></div></div>
+        <div class="step"><div class="n">2 · Theme bridge</div><div class="t">@theme inline</div><div class="d">Maps each token to a Tailwind color: <code>--color-primary</code></div></div>
+        <div class="step"><div class="n">3 · Utilities</div><div class="t">Tailwind classes</div><div class="d"><code>bg-primary</code>, <code>text-muted-foreground</code>, <code>rounded-lg</code></div></div>
+        <div class="step"><div class="n">4 · Primitives</div><div class="t">components/ui/*</div><div class="d">Variants via <code>cva</code>: Button, Badge, Card, Dialog…</div></div>
+        <div class="step"><div class="n">5 · Screens</div><div class="t">pages/*, feature components</div><div class="d">Compose primitives and add page-specific classes</div></div>
+      </div>
+    </section>
+
+    <!-- COLOR -->
+    <section id="color">
+      <h2>Color</h2>
+      <p class="muted">Semantic tokens, shown in the current theme. Each has a matching <code>-foreground</code> for text on top of it.</p>
+
+      <h3>Brand and actions</h3>
+      <div class="grid g4">
+        <div class="sw"><div class="c" style="background:hsl(var(--button));color:hsl(var(--button-foreground))">Aa</div><div class="i"><b>button</b><span>211.2 32.5% 84.9% · dark 211.2 32.5% 84.9%</span><br>Default Button fill (#CCD8E5), dark text</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Aa</div><div class="i"><b>primary</b><span>211 32% 36% · dark 211 50% 74%</span><br>Links, focus ring, active nav, icons, badges</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Aa</div><div class="i"><b>secondary</b><span>33.9 67.6% 73.3% · dark 34 38% 36%</span><br>Warm tan (#E9C18D); also the sidebar</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--accent));color:hsl(var(--accent-foreground))">Aa</div><div class="i"><b>accent</b><span>38 60% 90% · dark 30 16% 18%</span><br>Hover and highlight tint</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--destructive));color:#fff">Aa</div><div class="i"><b>destructive</b><span>4 68% 44% · dark 4 70% 48%</span><br>Delete, danger zones</div></div>
+      </div>
+
+      <h3>Surfaces and text</h3>
+      <div class="grid g6">
+        <div class="sw"><div class="c" style="background:hsl(var(--background))"></div><div class="i"><b>background</b><span>page</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--card))"></div><div class="i"><b>card</b><span>+ card-border</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--sidebar))"></div><div class="i"><b>sidebar</b><span>own token set</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--muted))"></div><div class="i"><b>muted</b><span>inputs, wells</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--foreground))"></div><div class="i"><b>foreground</b><span>body text</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--muted-foreground))"></div><div class="i"><b>muted-fg</b><span>secondary text</span></div></div>
+      </div>
+
+      <h3>Headings and charts</h3>
+      <div class="grid g6">
+        <div class="sw"><div class="c" style="background:hsl(var(--heading-primary));color:#fff">h1</div><div class="i"><b>heading-primary</b><span>every h1</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--heading-secondary));color:hsl(var(--background))">h2–h6</div><div class="i"><b>heading-secondary</b><span>other headings</span></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--chart-1))"></div><div class="i"><b>chart-1</b></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--chart-2))"></div><div class="i"><b>chart-2</b></div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--chart-3))"></div><div class="i"><b>chart-3</b></div></div>
+        <div class="sw"><div class="c" style="background:linear-gradient(90deg,hsl(var(--chart-4)) 50%,hsl(var(--chart-5)) 50%)"></div><div class="i"><b>chart-4 / 5</b></div></div>
+      </div>
+
+      <h3>Status colors (not tokens)</h3>
+      <p class="muted">Warnings and success states use Tailwind's built-in amber and emerald directly in components, not a token. They appear about 190 and 80 times respectively, so changing them means editing many files.</p>
+      <div class="row">
+        <span class="chip warn">⚠ Rights not recorded</span>
+        <span class="chip warn">Embeddings · not configured</span>
+        <span class="chip ok">Analysis · 8 of 8 analysed</span>
+        <span class="chip ok">Captured dates · up to date</span>
+      </div>
+    </section>
+
+    <!-- TYPE -->
+    <section id="type">
+      <h2>Typography</h2>
+      <p class="muted">Loaded from Google Fonts in <code>index.html</code>. Assigned through <code>--app-font-sans</code> and <code>--app-font-heading</code>. All h1–h6 get the serif and a heading color automatically, regardless of their classes.</p>
+      <div class="card">
+        <div class="spec"><div class="k">Page title · h1<br>Sofia Pro 600 · text-2xl</div><div style="font-family:'Sofia Pro','Sofia Sans',sans-serif;font-size:24px;font-weight:600;color:hsl(var(--heading-primary))">Spring Open selects</div></div>
+        <div class="spec"><div class="k">Section · h2/h3<br>Sofia Pro 600</div><div style="font-family:'Sofia Pro','Sofia Sans',sans-serif;font-size:18px;font-weight:600;color:hsl(var(--heading-secondary))">AI description</div></div>
+        <div class="spec"><div class="k">Body · text-sm<br>Karla 400 · most used (360)</div><div style="font-size:14px">Group photos by what they are — an event, a trip, a theme.</div></div>
+        <div class="spec"><div class="k">Small · text-xs<br>Karla · second most used (325)</div><div style="font-size:12px" class="muted">Quality not evaluated · 6000×4000 · Oct 04, 2026</div></div>
+        <div class="spec"><div class="k">Label / button<br>Karla 400 (--button-weight) · text-sm</div><div style="font-size:14px;font-weight:400">Add to project</div></div>
+        <div class="spec"><div class="k">Mono<br>Menlo</div><div class="mono">/objects/orgs/1/photos/…</div></div>
+      </div>
+      <h3>Type sizes in use</h3>
+      <div class="card">
+        <div class="count-row"><span>text-sm</span><div class="bar"><i style="width:100%"></i></div><span>360</span></div>
+        <div class="count-row"><span>text-xs</span><div class="bar"><i style="width:90%"></i></div><span>325</span></div>
+        <div class="count-row"><span>text-2xl</span><div class="bar"><i style="width:6.4%"></i></div><span>23</span></div>
+        <div class="count-row"><span>text-base</span><div class="bar"><i style="width:4.7%"></i></div><span>17</span></div>
+        <div class="count-row"><span>text-lg</span><div class="bar"><i style="width:3.3%"></i></div><span>12</span></div>
+        <div class="count-row"><span>text-xl</span><div class="bar"><i style="width:2.8%"></i></div><span>10</span></div>
+        <div class="count-row"><span>text-3xl–5xl</span><div class="bar"><i style="width:3.9%"></i></div><span>14</span></div>
+      </div>
+      <p class="muted" style="margin-top:8px">A dense, small-text product UI: almost everything is 12–14px, with one display size for page titles.</p>
+    </section>
+
+    <!-- SHAPE -->
+    <section id="shape">
+      <h2>Shape, spacing, elevation</h2>
+      <div class="grid g2">
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:8px">Radius · base <code>--radius: 0.5rem</code></div>
+          <div class="row" style="gap:14px;align-items:flex-end">
+            <div style="text-align:center"><div style="width:56px;height:56px;background:hsl(var(--primary)/.15);border:1px solid hsl(var(--primary)/.5);border-radius:4px"></div><div class="muted" style="font-size:11px">sm 4px</div></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;background:hsl(var(--primary)/.15);border:1px solid hsl(var(--primary)/.5);border-radius:6px"></div><div class="muted" style="font-size:11px">md 6px</div></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;background:hsl(var(--primary)/.15);border:1px solid hsl(var(--primary)/.5);border-radius:8px"></div><div class="muted" style="font-size:11px">lg 8px</div></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;background:hsl(var(--primary)/.15);border:1px solid hsl(var(--primary)/.5);border-radius:12px"></div><div class="muted" style="font-size:11px">xl 12px</div></div>
+            <div style="text-align:center"><div style="width:56px;height:56px;background:hsl(var(--primary)/.15);border:1px solid hsl(var(--primary)/.5);border-radius:999px"></div><div class="muted" style="font-size:11px">full</div></div>
+          </div>
+          <p class="muted" style="margin-top:12px;font-size:12px">In use: full 102 · lg 98 · xl 77 · md 76 · sm 26 · 2xl 8. Chips and avatars are pills, cards are lg–xl, buttons and inputs are md.</p>
+        </div>
+        <div class="card">
+          <div style="font-weight:600;margin-bottom:8px">Elevation · flat by default</div>
+          <div class="row" style="gap:14px">
+            <div style="width:70px;height:56px;border-radius:8px;background:hsl(var(--card));box-shadow:var(--shadow-sm);border:1px solid hsl(var(--card-border))"></div>
+            <div style="width:70px;height:56px;border-radius:8px;background:hsl(var(--card));box-shadow:var(--shadow);border:1px solid hsl(var(--card-border))"></div>
+            <div style="width:70px;height:56px;border-radius:8px;background:hsl(var(--card));box-shadow:var(--shadow-md);border:1px solid hsl(var(--card-border))"></div>
+            <div style="width:70px;height:56px;border-radius:8px;background:hsl(var(--card));box-shadow:var(--shadow-lg);border:1px solid hsl(var(--card-border))"></div>
+          </div>
+          <p class="muted" style="margin-top:12px;font-size:12px">shadow-sm → lg. Surfaces mostly rely on a 1px border and a slightly lighter card color; shadows are reserved for buttons (xs) and overlays.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:12px">
+        <div style="font-weight:600;margin-bottom:6px">Spacing</div>
+        <p class="muted" style="font-size:12.5px;margin:0">Tailwind's 4px scale. Gaps cluster at <code>gap-1</code>–<code>gap-4</code> (4–16px), cards pad <code>p-6</code> (24px) in the primitive, but most screens override to tighter values. Content width is usually full-bleed, with <code>max-w-2xl</code> / <code>max-w-7xl</code> on settings-style pages.</p>
+      </div>
+    </section>
+
+    <!-- COMPONENTS -->
+    <section id="components">
+      <h2>Components</h2>
+      <h3>Primitives, as rendered</h3>
+      <div class="card">
+        <div class="row" style="margin-bottom:12px">
+          <span class="btn default">Default</span><span class="btn secondary">Secondary</span><span class="btn outline">Outline</span><span class="btn ghost">Ghost</span><span class="btn destructive">Destructive</span><span class="btn link">Link</span><span class="btn sm outline">Small</span>
+        </div>
+        <div class="row"><span class="badge default">Primary</span><span class="badge secondary">Secondary</span><span class="badge destructive">Destructive</span><span class="badge outline">Outline</span></div>
+        <p class="muted" style="margin:12px 0 0;font-size:12px">Button sizes: default 36px, sm 32px, lg 40px, icon 36×36. Variants live in <code>components/ui/button.tsx</code> and <code>badge.tsx</code>.</p>
+      </div>
+
+      <h3>Primitive library · components/ui (53)</h3>
+      <div class="pills">
+        <span class="pill">accordion</span><span class="pill">alert</span><span class="pill">alert-dialog</span><span class="pill">aspect-ratio</span><span class="pill">avatar</span><span class="pill key">badge</span><span class="pill">breadcrumb</span><span class="pill key">button</span><span class="pill">button-group</span><span class="pill">calendar</span><span class="pill key">card</span><span class="pill">carousel</span><span class="pill">chart</span><span class="pill">checkbox</span><span class="pill">collapsible</span><span class="pill">command</span><span class="pill">context-menu</span><span class="pill key">dialog</span><span class="pill">drawer</span><span class="pill key">dropdown-menu</span><span class="pill">empty</span><span class="pill">fade-image</span><span class="pill">field</span><span class="pill">form</span><span class="pill">hover-card</span><span class="pill key">input</span><span class="pill">input-group</span><span class="pill">input-otp</span><span class="pill">item</span><span class="pill">kbd</span><span class="pill">label</span><span class="pill">menubar</span><span class="pill">navigation-menu</span><span class="pill">pagination</span><span class="pill key">popover</span><span class="pill">progress</span><span class="pill">radio-group</span><span class="pill">resizable</span><span class="pill">scroll-area</span><span class="pill key">select</span><span class="pill">separator</span><span class="pill key">sheet</span><span class="pill key">sidebar</span><span class="pill">skeleton</span><span class="pill">slider</span><span class="pill">sonner</span><span class="pill">spinner</span><span class="pill">switch</span><span class="pill">table</span><span class="pill key">tabs</span><span class="pill">textarea</span><span class="pill">toast / toaster</span><span class="pill">toggle / toggle-group</span><span class="pill key">tooltip</span>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:8px">Highlighted: the ones nearly every screen uses. Several (button, badge, card, input) carry <code>// @replit</code> edits that differ from upstream shadcn.</p>
+
+      <h3>Product components</h3>
+      <div class="grid g3">
+        <div class="card"><b>Photo browsing</b><div class="muted" style="font-size:12.5px">PhotoGrid · GridZoomControl · CrossfadeThumb · PhotoLightbox (+ photo-lightbox/*) · FolderBrowser</div></div>
+        <div class="card"><b>Photo detail</b><div class="muted" style="font-size:12.5px">PhotoDetailHeader · PhotoActions · AI description / evaluation panels · Ratings · Attribution · Collections · Similar photos</div></div>
+        <div class="card"><b>Rights and export</b><div class="muted" style="font-size:12.5px">UsageRights · ProjectExportDialog</div></div>
+        <div class="card"><b>Upload</b><div class="muted" style="font-size:12.5px">bulk-upload/* (DropZone, DuplicateCheckPhase, UploadingPhase…) · PhotoUploadBanner · AddPhotoDialog</div></div>
+        <div class="card"><b>Admin</b><div class="muted" style="font-size:12.5px">AdminSectionShell · ServiceReadinessCard · DangerConfirmDialog · section components per admin page</div></div>
+        <div class="card"><b>Shell and status</b><div class="muted" style="font-size:12.5px">AppLayout · DashboardStatusBar · GettingStartedCard · ThemeToggle · DevEnvironmentBadge</div></div>
+      </div>
+    </section>
+
+    <!-- SHELL -->
+    <section id="shell">
+      <h2>App shell</h2>
+      <p class="muted">Every signed-in page sits inside <code>AppLayout</code>: a collapsible sidebar, a top bar with global search, and the page.</p>
+      <div class="anat">
+        <div class="sb">
+          <div style="font-weight:600;padding:2px 8px 10px">Vispix</div>
+          <div class="muted" style="padding:4px 8px;font-size:11px">Navigation</div>
+          <div class="it on">Dashboard</div><div class="it">Albums</div><div class="it">Photos</div><div class="it">Collections</div><div class="it">Projects</div><div class="it">Smart</div><div class="it">People</div><div class="it">Assets</div>
+          <div style="flex:1"></div>
+          <div class="it">Light mode</div><div class="it">User · org switcher</div>
+        </div>
+        <div class="main">
+          <div class="top"><span style="width:14px;height:14px;border:1.5px solid currentColor;border-radius:3px;opacity:.6"></span><div class="search">Search photos, filenames or IDs…</div></div>
+          <div class="body">
+            <div class="ph1">Dashboard</div>
+            <div class="muted">Your marketing photo selection workspace at a glance.</div>
+            <div class="row"><span class="chip ok">Analysis · up to date</span><span class="chip warn">Search · not configured</span></div>
+            <div class="tiles"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid g3" style="margin-top:12px">
+        <div class="card"><b>Sidebar</b><div class="muted" style="font-size:12.5px">16rem open · 3rem icon-only · 18rem sheet on mobile. Order is user-customisable; state survives reloads.</div></div>
+        <div class="card"><b>Top bar</b><div class="muted" style="font-size:12.5px">Sidebar toggle and global search across photos, filenames and IDs.</div></div>
+        <div class="card"><b>Content</b><div class="muted" style="font-size:12.5px">Page header (serif h1 + muted subtitle), then page content. No global max-width.</div></div>
+      </div>
+    </section>
+
+    <!-- IA -->
+    <section id="ia">
+      <h2>Pages and routes</h2>
+      <div class="ia">
+        <div class="card"><h4>Library</h4><ul>
+          <li>Dashboard <code>/dashboard</code></li><li>Photos <code>/photos</code></li><li>Photo detail <code>/photos/:id</code></li><li>Photo graph <code>/photos/:id/graph</code></li><li>Albums <code>/albums</code></li><li>Collections <code>/collections</code></li><li>Smart collections <code>/smart-collections</code></li><li>People <code>/people</code></li><li>Search <code>/search</code></li></ul></div>
+        <div class="card"><h4>Work</h4><ul>
+          <li>Projects <code>/projects</code></li><li>Project detail <code>/projects/:id</code></li><li>Assets (logos) <code>/assets</code></li><li>Bulk upload <code>/bulk-upload</code></li><li>Tags <code>tags.tsx</code></li></ul>
+          <p class="muted" style="font-size:11.5px;margin:8px 0 0">Removed in #250: Create, Generations, Campaigns. Their URLs redirect to the dashboard.</p></div>
+        <div class="card"><h4>Admin <code style="background:none">/admin/*</code></h4><ul>
+          <li>Organization · Members · Billing</li><li>Attribution tags</li><li>Image optimization · Thumbnails</li><li>Captured dates · Duplicates</li><li>AI services · AI analysis</li><li>Embeddings · MCP tokens</li><li>Settings <code>/settings</code></li><li>Superadmin (platform)</li></ul></div>
+        <div class="card"><h4>Public</h4><ul>
+          <li>Landing <code>/</code></li><li>Sign in / Sign up</li><li>Forgot / reset password</li><li>Contact <code>/contact</code></li></ul></div>
+      </div>
+    </section>
+
+    <!-- PATTERNS -->
+    <section id="patterns">
+      <h2>Page patterns</h2>
+      <table>
+        <thead><tr><th style="width:22%">Pattern</th><th>What it looks like</th><th style="width:28%">Where</th></tr></thead>
+        <tbody>
+          <tr><td><b>Page header</b></td><td>Sofia Pro h1 in slate, muted one-line subtitle, actions top-right.</td><td>Repeated by hand in ~16 pages</td></tr>
+          <tr><td><b>Status chips</b></td><td>Rounded-full outline chips, amber for “needs attention”, emerald for “done”.</td><td><code>DashboardStatusBar</code>, usage-rights, admin</td></tr>
+          <tr><td><b>Photo grid</b></td><td>Dense thumbnail grid with zoom control, selection mode and a selection bar.</td><td><code>PhotoGrid</code>, <code>GridZoomControl</code></td></tr>
+          <tr><td><b>Lightbox</b></td><td>Full-screen image with a side panel of details and ratings.</td><td><code>PhotoLightbox</code>, <code>photo-lightbox/*</code></td></tr>
+          <tr><td><b>Detail page</b></td><td>Large image + stacked panels (AI description, evaluation, rights, collections, similar).</td><td><code>photo-detail/*</code></td></tr>
+          <tr><td><b>Stat tiles</b></td><td>Icon + label + big number cards in a row.</td><td>Dashboard</td></tr>
+          <tr><td><b>Getting started</b></td><td>Progress bar + two-column checklist, struck-through when done.</td><td><code>GettingStartedCard</code></td></tr>
+          <tr><td><b>Admin section</b></td><td>Card-per-section settings with a readiness card and danger zone.</td><td><code>AdminSectionShell</code></td></tr>
+          <tr><td><b>Dialogs</b></td><td>Centered Radix dialogs; destructive actions confirm through a typed dialog.</td><td><code>dialog</code>, <code>DangerConfirmDialog</code></td></tr>
+          <tr><td><b>Loading / empty</b></td><td>Shimmer skeletons (<code>.animate-shimmer</code>), <code>empty</code> primitive, toasts via sonner.</td><td><code>index.css</code>, <code>components/ui</code></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- WHERE -->
+    <section id="where">
+      <h2>Where to change what</h2>
+      <p class="muted">Paths are relative to <code>artifacts/photo-album/</code>.</p>
+      <table>
+        <thead><tr><th style="width:24%">To change…</th><th style="width:34%">Edit</th><th>Reach</th></tr></thead>
+        <tbody>
+          <tr><td>Brand color, neutrals, dark theme</td><td><code>src/index.css</code> (<code>:root</code>, <code>.dark</code>)</td><td>Whole app, both themes</td></tr>
+          <tr><td>Fonts</td><td><code>index.html</code> font link + <code>--app-font-*</code> in <code>index.css</code></td><td>Whole app</td></tr>
+          <tr><td>Heading color/style</td><td><code>@layer base</code> h1–h6 rules in <code>index.css</code></td><td>Every heading (overrides page classes)</td></tr>
+          <tr><td>Corner roundness</td><td><code>--radius</code> in <code>index.css</code></td><td>sm/md/lg/xl scale; <code>rounded-full</code> unaffected</td></tr>
+          <tr><td>Buttons, badges, inputs, cards</td><td><code>src/components/ui/*.tsx</code> (cva variants)</td><td>Every use of the primitive</td></tr>
+          <tr><td>Sidebar items and shell</td><td><code>src/components/layout/AppLayout.tsx</code></td><td>All signed-in pages</td></tr>
+          <tr><td>Warning / success colors</td><td>Search for <code>amber-</code> and <code>emerald-</code> across <code>src/</code></td><td>Scattered, ~270 uses</td></tr>
+          <tr><td>Page headers</td><td>Each file in <code>src/pages/</code></td><td>Per page (no shared component)</td></tr>
+          <tr><td>Landing page</td><td><code>src/pages/home.tsx</code></td><td>Public site only</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- GAPS -->
+    <section id="gaps">
+      <h2>Known gaps</h2>
+      <p class="muted">Inconsistencies found while mapping. Worth deciding on before or during a redesign.</p>
+      <table>
+        <thead><tr><th style="width:10%">Impact</th><th style="width:30%">Gap</th><th>Detail</th></tr></thead>
+        <tbody>
+          <tr><td><span class="sev hi">High</span></td><td>Buttons and badges have no hover state</td><td><code>button.tsx</code> and <code>badge.tsx</code> rely on <code>hover-elevate</code> / <code>active-elevate-2</code> classes (a leftover from the Replit template), but those utilities are never defined; only their <code>--elevate-*</code> variables exist in <code>index.css</code>. Most variants also had their own hover removed.</td></tr>
+          <tr><td><span class="sev md">Medium</span></td><td>Status colors bypass the tokens</td><td>Amber and emerald are hard-coded Tailwind colors (~270 uses), so they can't be themed and the dark-mode variants are handled ad hoc per component. A <code>--warning</code> / <code>--success</code> token pair would fix this.</td></tr>
+          <tr><td><span class="sev md">Medium</span></td><td>Page headers are copy-pasted</td><td>~16 pages repeat their own h1 markup with mixed sizes (<code>text-2xl</code> vs <code>text-xl</code>); a shared <code>PageHeader</code> would make title, subtitle and actions consistent.</td></tr>
+          <tr><td><span class="sev md">Medium</span></td><td>Heading classes are misleading</td><td>Pages set <code>text-foreground</code> on h1, but the base layer forces the heading color with <code>!important</code>, so the class has no effect.</td></tr>
+          <tr><td><span class="sev lo">Low</span></td><td>Many radius values</td><td>full, lg, xl, md, sm and 2xl are all common; there's no rule for which surface gets which.</td></tr>
+          <tr><td><span class="sev lo">Low</span></td><td>Locally edited shadcn primitives</td><td><code>// @replit</code> edits make upgrading from shadcn harder; worth documenting or reverting when touching them.</td></tr>
+          <tr><td><span class="sev lo">Low</span></td><td>Serif body fallback is unused</td><td><code>--app-font-serif</code> (Georgia) is defined but headings use <code>--app-font-heading</code>; nothing uses the serif token.</td></tr>
+        </tbody>
+      </table>
+    </section>
+  </main>
+</div>
+<script>
+  const btn = document.getElementById("themeBtn");
+  const root = document.documentElement;
+  const set = (dark) => { root.classList.toggle("dark", dark); btn.textContent = dark ? "Switch to light mode" : "Switch to dark mode"; };
+  set(window.matchMedia("(prefers-color-scheme: dark)").matches);
+  btn.addEventListener("click", () => set(!root.classList.contains("dark")));
+</script>
+</body>
+</html>

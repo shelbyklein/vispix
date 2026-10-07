@@ -23,3 +23,5 @@ export * from "./billing";
 export * from "./adminOrganizations";
 export * from "./onboarding";
 export * from "./analytics";
+export * from "./theme";
+export * from "./palettes";

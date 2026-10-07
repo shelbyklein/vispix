@@ -1,7 +1,7 @@
 import { useGetMe } from "@workspace/api-client-react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Shield, UserPlus, Users, ChevronRight, Building2, BarChart3 } from "lucide-react";
+import { Shield, UserPlus, Users, ChevronRight, Building2, BarChart3, Palette } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ const SECTIONS: { href: string; title: string; description: string; icon: Lucide
   { href: "/superadmin/analytics", title: "Analytics", description: "Platform usage across every organization — growth, activity, revenue.", icon: BarChart3 },
   { href: "/superadmin/organizations", title: "Organizations", description: "All organizations — plans, usage, and support access.", icon: Building2 },
   { href: "/superadmin/users", title: "Users", description: "Every registered account, platform roles, and org memberships.", icon: Users },
+  { href: "/superadmin/design", title: "Design", description: "Edit the platform theme — colors, fonts, shape — and preview it live.", icon: Palette },
   { href: "/superadmin/registration", title: "Registration", description: "Allow or pause new account sign-ups.", icon: UserPlus },
   // ?org=1 suppresses the platform-admin → /superadmin default redirect.
   { href: "/admin?org=1", title: "This organization", description: "Org-scoped admin for the organization you're currently in.", icon: Shield },
@@ -48,8 +49,8 @@ export default function Superadmin() {
     <AppLayout>
       <div className="space-y-8" data-testid="superadmin-page">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-            <Shield className="h-5 w-5 text-amber-500" />
+          <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
+            <Shield className="h-5 w-5 text-warning-foreground" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Superadmin</h1>
@@ -66,11 +67,11 @@ export default function Superadmin() {
               <Link
                 key={section.href}
                 href={section.href}
-                className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-amber-500/40 hover:bg-accent/50"
+                className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-warning/40 hover:bg-accent/50"
                 data-testid={`superadmin-card-${section.href.split("/").pop()}`}
               >
-                <div className="h-9 w-9 shrink-0 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <Icon className="h-[18px] w-[18px] text-amber-500" />
+                <div className="h-9 w-9 shrink-0 rounded-lg bg-warning/10 flex items-center justify-center">
+                  <Icon className="h-[18px] w-[18px] text-warning-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-1">

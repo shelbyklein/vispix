@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./theme": "./src/theme.ts",
+    "./palette": "./src/palette.ts"
   },
   "dependencies": {
     "zod": "catalog:"

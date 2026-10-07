@@ -70,12 +70,12 @@ export function CapturedDatesSection() {
               Checking…
             </span>
           ) : missingCount === 0 ? (
-            <span className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+            <span className="flex items-center gap-1.5 text-success-foreground">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               All photos have capture dates (or no EXIF data)
             </span>
           ) : missingCount !== null ? (
-            <span className="text-amber-700 dark:text-amber-400 font-medium">
+            <span className="text-warning-foreground font-medium">
               {missingCount} photo{missingCount !== 1 ? "s" : ""} missing a capture date
             </span>
           ) : null}
@@ -88,7 +88,7 @@ export function CapturedDatesSection() {
           >
             <div className="flex items-center gap-2 font-medium text-foreground">
               {lastResult.failed === 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-success-foreground shrink-0" />
               ) : (
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
               )}
@@ -98,7 +98,7 @@ export function CapturedDatesSection() {
             </div>
             {lastResult.processed > 0 && (
               <div className="flex gap-4 text-xs text-muted-foreground pl-6">
-                <span className="text-emerald-700 dark:text-emerald-400">{lastResult.updated} updated</span>
+                <span className="text-success-foreground">{lastResult.updated} updated</span>
                 {lastResult.skipped > 0 && (
                   <span>{lastResult.skipped} skipped (no EXIF date)</span>
                 )}

@@ -410,7 +410,7 @@ function UploadAssetDialog({ onSaved, testId = "upload-asset-btn" }: { onSaved: 
                     {item.status === "uploading" ? (
                       <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
                     ) : item.status === "done" ? (
-                      <Check className="h-4 w-4 shrink-0 text-green-600" />
+                      <Check className="h-4 w-4 shrink-0 text-success-foreground" />
                     ) : (
                       <button
                         type="button"
@@ -752,7 +752,7 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
             variant="secondary"
             className={cn(
               "shrink-0",
-              asset.kind === "brand" ? "bg-primary/10 text-primary" : "bg-amber-500/10 text-amber-600 dark:text-amber-500",
+              asset.kind === "brand" ? "bg-primary/10 text-primary" : "bg-warning/10 text-warning-foreground",
             )}
           >
             {KIND_LABEL[asset.kind]}

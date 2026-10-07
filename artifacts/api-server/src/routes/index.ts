@@ -20,10 +20,14 @@ import adminOrganizationsRouter from "./adminOrganizations";
 import contactRouter from "./contact";
 import onboardingRouter from "./onboarding";
 import analyticsRouter from "./analytics";
+import themeRouter from "./theme";
+import palettesRouter from "./palettes";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+router.use(themeRouter);
+router.use(palettesRouter);
 router.use(contactRouter);
 router.use(onboardingRouter);
 router.use(usersRouter);

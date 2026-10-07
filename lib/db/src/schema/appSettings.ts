@@ -1,4 +1,5 @@
-import { pgTable, integer, text, boolean, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, integer, text, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import type { PlatformTheme } from "@workspace/api-zod/theme";
 
 export const APP_SETTINGS_SINGLETON_ID = 1;
 
@@ -39,6 +40,11 @@ export const appSettingsTable = pgTable("app_settings", {
   // Re-encode newly-uploaded originals to WebP on import (server-side, via
   // sharp) to save storage while preserving EXIF/orientation. On by default.
   imageOptimizationEnabled: boolean("image_optimization_enabled").notNull().default(true),
+
+  // Platform theme (#253): the superadmin-edited design tokens served as
+  // /api/theme.css. Null = the built-in index.css theme.
+  theme: jsonb("theme").$type<PlatformTheme>(),
+  themeUpdatedAt: timestamp("theme_updated_at", { withTimezone: true }),
 
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

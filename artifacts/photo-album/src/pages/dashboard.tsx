@@ -472,7 +472,7 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-amber-500" />
+            <Sparkles className="h-4 w-4 text-warning-foreground" />
             <h2 className="text-base font-semibold text-foreground">Smart Collections</h2>
           </div>
         </div>
@@ -489,7 +489,7 @@ export default function Dashboard() {
             {collections.map((col) => (
               <Link key={col.id} href={`/smart-collections/${col.id}`}>
                 <div
-                  className="relative rounded-xl overflow-hidden border border-border bg-card group cursor-pointer hover:shadow-md hover:border-amber-400/50 transition-all"
+                  className="relative rounded-xl overflow-hidden border border-border bg-card group cursor-pointer hover:shadow-md hover:border-warning/50 transition-all"
                   data-testid={`smart-collection-pill-${col.id}`}
                 >
                   <CrossfadeThumb urls={col.sampleThumbnailUrls ?? []} alt={col.title} className="aspect-square w-full" />

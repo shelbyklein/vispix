@@ -717,11 +717,11 @@ export default function SearchPage() {
 
         {q && !invalidFilters && unavailable && (
           <div
-            className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-amber-500/40 bg-amber-500/5"
+            className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-warning/40 bg-warning/5"
             role="alert"
             data-testid="search-unavailable"
           >
-            <AlertTriangle className="h-6 w-6 text-amber-600 mb-3" />
+            <AlertTriangle className="h-6 w-6 text-warning-foreground mb-3" />
             <h3 className="text-base font-medium text-foreground mb-1">Search is unavailable right now</h3>
             <p className="text-sm text-muted-foreground max-w-sm">
               Nothing was searched because {REASON_TEXT[firstPage?.degraded?.reason ?? "provider_error"]}. This isn&rsquo;t an empty result.
@@ -758,8 +758,8 @@ export default function SearchPage() {
             </div>
 
             {degraded?.affects === "concept" && photos.length > 0 && (
-              <p className="flex items-center gap-1.5 rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-foreground" role="status" data-testid="search-degraded-concept">
-                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-600" />
+              <p className="flex items-center gap-1.5 rounded-md border border-warning/40 bg-warning/5 px-3 py-2 text-xs text-foreground" role="status" data-testid="search-degraded-concept">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-warning-foreground" />
                 Matching by content is unavailable because {REASON_TEXT[degraded.reason]} — showing exact and keyword matches only.
                 <button type="button" className="ml-1 underline" onClick={() => void refetch()}>Retry</button>
               </p>
@@ -780,11 +780,11 @@ export default function SearchPage() {
             {photos.length === 0 && degraded?.affects === "concept" ? (
               // Content matching didn't run, so this is not a genuine empty result.
               <div
-                className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-amber-500/40 bg-amber-500/5"
+                className="flex flex-col items-center justify-center py-16 text-center rounded-xl border border-warning/40 bg-warning/5"
                 role="alert"
                 data-testid="search-unavailable"
               >
-                <AlertTriangle className="h-6 w-6 text-amber-600 mb-3" />
+                <AlertTriangle className="h-6 w-6 text-warning-foreground mb-3" />
                 <h3 className="text-base font-medium text-foreground mb-1">Matching by content is unavailable right now</h3>
                 <p className="text-sm text-muted-foreground max-w-sm">
                   Nothing matched exactly, and {REASON_TEXT[degraded.reason]}, so photos that match your description couldn&rsquo;t be looked up.
