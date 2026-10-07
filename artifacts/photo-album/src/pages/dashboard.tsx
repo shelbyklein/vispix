@@ -472,7 +472,7 @@ export default function Dashboard() {
       <section>
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-warning" />
+            <Sparkles className="h-4 w-4 text-warning-foreground" />
             <h2 className="text-base font-semibold text-foreground">Smart Collections</h2>
           </div>
         </div>

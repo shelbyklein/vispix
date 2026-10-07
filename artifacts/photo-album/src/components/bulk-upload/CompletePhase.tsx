@@ -68,7 +68,7 @@ export function CompletePhase({
 
         <div className="text-center py-8 space-y-3">
           <div className="h-14 w-14 rounded-full bg-success/15 flex items-center justify-center mx-auto">
-            <CheckCircle2 className="h-7 w-7 text-success" />
+            <CheckCircle2 className="h-7 w-7 text-success-foreground" />
           </div>
           <h1 className="text-2xl font-bold text-foreground">Upload Complete</h1>
           <p className="text-muted-foreground text-sm">
@@ -85,16 +85,16 @@ export function CompletePhase({
           )}
           {orphanedCount > 0 && (
             <div className="rounded-lg border border-warning/30 bg-warning/10 px-4 py-3 text-left space-y-2 max-w-sm mx-auto">
-              <p className="text-sm font-medium text-warning">
+              <p className="text-sm font-medium text-warning-foreground">
                 {orphanedCount} file{orphanedCount !== 1 ? "s" : ""} interrupted
               </p>
-              <p className="text-xs text-warning">
+              <p className="text-xs text-warning-foreground">
                 These files were uploading when the tab was closed. Re-select them to retry.
               </p>
               <Button
                 variant="outline"
                 size="sm"
-                className="gap-2 border-warning/40 text-warning hover:bg-warning/15"
+                className="gap-2 border-warning/40 text-warning-foreground hover:bg-warning/15"
                 onClick={() => reattachInputRef.current?.click()}
               >
                 <RefreshCw className="h-3.5 w-3.5" />

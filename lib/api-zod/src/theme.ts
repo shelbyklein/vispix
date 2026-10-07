@@ -2,8 +2,10 @@ import { z } from "zod";
 
 // Platform theme (#253): the design tokens a superadmin can edit live. Shared
 // by the API (validation, /api/theme.css) and the web app (Design page, live
-// preview). DEFAULT_THEME must match artifacts/photo-album/src/index.css; a
-// test enforces that, so change both together.
+// preview). warning/success are fill, border and icon colors; their
+// -foreground tokens are the readable text colors. DEFAULT_THEME must match
+// artifacts/photo-album/src/index.css; a test enforces that, so change both
+// together.
 
 /** "H S% L%", the format index.css uses inside hsl(var(--token)). */
 export const HSL_PATTERN = /^\d{1,3}(\.\d+)? \d{1,3}(\.\d+)?% \d{1,3}(\.\d+)?%$/;
@@ -32,10 +34,10 @@ export const COLOR_TOKENS = [
   { key: "heading-secondary", label: "Other headings", group: "Headings" },
   { key: "destructive", label: "Danger", group: "Status" },
   { key: "destructive-foreground", label: "Text on danger", group: "Status" },
-  { key: "warning", label: "Warning", group: "Status" },
-  { key: "warning-foreground", label: "Text on warning", group: "Status" },
-  { key: "success", label: "Success", group: "Status" },
-  { key: "success-foreground", label: "Text on success", group: "Status" },
+  { key: "warning", label: "Warning fills, borders, icons", group: "Status" },
+  { key: "warning-foreground", label: "Warning text", group: "Status" },
+  { key: "success", label: "Success fills, borders, icons", group: "Status" },
+  { key: "success-foreground", label: "Success text", group: "Status" },
   { key: "sidebar", label: "Sidebar", group: "Sidebar" },
   { key: "sidebar-foreground", label: "Sidebar text", group: "Sidebar" },
   { key: "sidebar-border", label: "Sidebar border", group: "Sidebar" },
@@ -102,10 +104,10 @@ export const DEFAULT_THEME: PlatformTheme = {
     "heading-secondary": "224 60% 16%",
     destructive: "0 72% 45%",
     "destructive-foreground": "0 0% 100%",
-    warning: "26 90% 37%",
-    "warning-foreground": "0 0% 100%",
-    success: "163 94% 24%",
-    "success-foreground": "0 0% 100%",
+    warning: "38 92% 50%",
+    "warning-foreground": "26 90% 37%",
+    success: "160 84% 39%",
+    "success-foreground": "163 94% 24%",
     sidebar: "222 15% 94%",
     "sidebar-foreground": "222 14% 15%",
     "sidebar-border": "222 12% 88%",
@@ -145,9 +147,9 @@ export const DEFAULT_THEME: PlatformTheme = {
     destructive: "0 65% 50%",
     "destructive-foreground": "0 0% 100%",
     warning: "43 96% 56%",
-    "warning-foreground": "26 83% 14%",
+    "warning-foreground": "43 96% 56%",
     success: "158 64% 52%",
-    "success-foreground": "164 86% 16%",
+    "success-foreground": "158 64% 52%",
     sidebar: "224 60% 5%",
     "sidebar-foreground": "222 25% 92%",
     "sidebar-border": "224 35% 14%",

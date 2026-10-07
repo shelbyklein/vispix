@@ -40,7 +40,7 @@ export function RightsPills({
           "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium",
           tone === "dark"
             ? "border-warning/50 bg-warning/15 text-amber-200"
-            : "border-warning/40 bg-warning/10 text-warning",
+            : "border-warning/40 bg-warning/10 text-warning-foreground",
           className,
         )}
         data-testid={testId ?? "rights-not-recorded"}
@@ -109,11 +109,11 @@ export function UsageRightsSection({
           role="status"
           data-testid="rights-not-recorded-notice"
         >
-          <p className={cn("flex items-center gap-1.5 text-sm font-semibold", dark ? "text-amber-200" : "text-warning")}>
+          <p className={cn("flex items-center gap-1.5 text-sm font-semibold", dark ? "text-amber-200" : "text-warning-foreground")}>
             <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
             Rights not recorded
           </p>
-          <p className={cn("mt-0.5 text-xs", dark ? "text-amber-100/80" : "text-warning")}>
+          <p className={cn("mt-0.5 text-xs", dark ? "text-amber-100/80" : "text-warning-foreground")}>
             No usage rights are recorded for this photo. Check before using it.
           </p>
         </div>
@@ -163,7 +163,7 @@ export function SelectionRightsSummary({
   return (
     <span role="status" className="text-sm" data-testid="selection-rights-summary">
       {unknown > 0 && (
-        <span className="inline-flex items-center gap-1 text-warning">
+        <span className="inline-flex items-center gap-1 text-warning-foreground">
           <AlertTriangle className="h-3.5 w-3.5" aria-hidden />
           {unknown} with rights not recorded
         </span>

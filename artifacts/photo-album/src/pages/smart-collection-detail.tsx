@@ -292,7 +292,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
               {isPerson ? (
                 <Users className="h-4 w-4 text-sky-500 shrink-0" />
               ) : (
-                <Sparkles className="h-4 w-4 text-warning shrink-0" />
+                <Sparkles className="h-4 w-4 text-warning-foreground shrink-0" />
               )}
               {collectionLoading ? (
                 <Skeleton className="h-7 w-48" />
@@ -316,7 +316,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
         {/* Semantic search term */}
         <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2" data-testid="smart-term-panel">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-warning shrink-0" />
+            <Sparkles className="h-4 w-4 text-warning-foreground shrink-0" />
             <span className="text-sm font-semibold">Fallback search term</span>
             <span className="text-xs text-muted-foreground">
               {isMemberDriven

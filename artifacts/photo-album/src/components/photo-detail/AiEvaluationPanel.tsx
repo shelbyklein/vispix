@@ -12,9 +12,9 @@ const CRITERIA: { key: keyof PhotoAiEvaluation; label: string }[] = [
 ];
 
 function scoreTone(score: number): string {
-  if (score >= 7) return "text-success";
+  if (score >= 7) return "text-success-foreground";
   if (score >= 5) return "text-foreground";
-  return "text-warning";
+  return "text-warning-foreground";
 }
 
 function barTone(score: number): string {
@@ -69,7 +69,7 @@ export function AiEvaluationPanel({ evaluation }: { evaluation: PhotoAiEvaluatio
             <Badge
               key={flaw}
               variant="outline"
-              className="text-[10px] border-warning/50 text-warning"
+              className="text-[10px] border-warning/50 text-warning-foreground"
             >
               {flaw}
             </Badge>

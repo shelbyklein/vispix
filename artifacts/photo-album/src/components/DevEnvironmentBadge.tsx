@@ -13,7 +13,7 @@ export function DevEnvironmentBadge() {
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/50 bg-warning/15 px-2 py-0.5 text-xs font-semibold tracking-wide text-warning hover:bg-warning/25"
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-warning/50 bg-warning/15 px-2 py-0.5 text-xs font-semibold tracking-wide text-warning-foreground hover:bg-warning/25"
           title="You're on the dev environment — click for details"
           data-testid="dev-environment-badge"
         >

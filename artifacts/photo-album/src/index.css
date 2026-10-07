@@ -155,10 +155,10 @@
   --heading-secondary: 224 60% 16%;
 
   /* Status colors (defaults mirror DEFAULT_THEME in lib/api-zod/src/theme.ts). */
-  --warning: 26 90% 37%;
-  --warning-foreground: 0 0% 100%;
-  --success: 163 94% 24%;
-  --success-foreground: 0 0% 100%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 26 90% 37%;
+  --success: 160 84% 39%;
+  --success-foreground: 163 94% 24%;
 }
 
 .dark {
@@ -225,9 +225,9 @@
   --heading-secondary: 222 25% 88%;
 
   --warning: 43 96% 56%;
-  --warning-foreground: 26 83% 14%;
+  --warning-foreground: 43 96% 56%;
   --success: 158 64% 52%;
-  --success-foreground: 164 86% 16%;
+  --success-foreground: 158 64% 52%;
 }
 
 @keyframes shimmer {

@@ -126,7 +126,7 @@ function sortPhotos(photos: Photo[], sort: SortOption): Photo[] {
 // Duplicate / near-duplicate stat in the album header (#166). Amber, links to
 // the admin review flow for admins; a plain badge for everyone else.
 function DupStat({ isAdmin, href, icon, label }: { isAdmin: boolean; href: string; icon: React.ReactNode; label: string }) {
-  const cls = "flex items-center gap-1 whitespace-nowrap text-warning";
+  const cls = "flex items-center gap-1 whitespace-nowrap text-warning-foreground";
   return isAdmin ? (
     <Link href={href} className={`${cls} hover:underline`}>{icon}{label}</Link>
   ) : (
@@ -732,7 +732,7 @@ export default function AlbumDetail() {
                     all
                       ? "bg-primary text-primary-foreground border-primary hover:bg-primary/85"
                       : partial
-                      ? "bg-warning/15 text-warning border-warning/50 hover:bg-warning/25"
+                      ? "bg-warning/15 text-warning-foreground border-warning/50 hover:bg-warning/25"
                       : "bg-transparent text-muted-foreground border-border hover:bg-muted hover:text-foreground"
                   } ${!clickable ? "cursor-default" : ""}`}
                   data-testid={`album-attribution-pill-${tag.id}`}

@@ -144,7 +144,7 @@ export default function AdminDuplicatesPage() {
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading duplicates…
           </div>
         ) : allGroups.length === 0 ? (
-          <div className="flex items-center gap-1.5 text-sm text-success">
+          <div className="flex items-center gap-1.5 text-sm text-success-foreground">
             <CheckCircle2 className="h-4 w-4 shrink-0" /> No duplicate photos found
           </div>
         ) : (

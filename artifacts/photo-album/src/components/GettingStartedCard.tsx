@@ -159,7 +159,7 @@ export function GettingStartedCard() {
           <li key={step.key}>
             {step.done ? (
               <span className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm text-muted-foreground">
-                <CircleCheck className="h-4 w-4 shrink-0 text-success" />
+                <CircleCheck className="h-4 w-4 shrink-0 text-success-foreground" />
                 <span className="line-through decoration-muted-foreground/40">{step.label}</span>
               </span>
             ) : (

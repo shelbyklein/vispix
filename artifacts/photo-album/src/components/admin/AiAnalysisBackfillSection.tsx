@@ -124,12 +124,12 @@ export function AiAnalysisBackfillSection() {
               Checking…
             </span>
           ) : missingCount === 0 ? (
-            <span className="flex items-center gap-1.5 text-success">
+            <span className="flex items-center gap-1.5 text-success-foreground">
               <CheckCircle2 className="h-4 w-4 shrink-0" />
               All photos have AI descriptions
             </span>
           ) : missingCount !== null ? (
-            <span className="text-warning font-medium">
+            <span className="text-warning-foreground font-medium">
               {missingCount} photo{missingCount !== 1 ? "s" : ""} missing an AI description
             </span>
           ) : null}
@@ -142,7 +142,7 @@ export function AiAnalysisBackfillSection() {
           >
             <div className="flex items-center gap-2 font-medium text-foreground">
               {lastResult.failed === 0 ? (
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+                <CheckCircle2 className="h-4 w-4 text-success-foreground shrink-0" />
               ) : (
                 <XCircle className="h-4 w-4 text-destructive shrink-0" />
               )}
@@ -152,7 +152,7 @@ export function AiAnalysisBackfillSection() {
             </div>
             {lastResult.processed > 0 && (
               <div className="flex gap-4 text-xs text-muted-foreground pl-6">
-                <span className="text-success">{lastResult.succeeded} succeeded</span>
+                <span className="text-success-foreground">{lastResult.succeeded} succeeded</span>
                 {lastResult.skipped > 0 && <span>{lastResult.skipped} skipped</span>}
                 {lastResult.failed > 0 && (
                   <span className="text-destructive">{lastResult.failed} failed</span>
@@ -249,7 +249,7 @@ export function AiAnalysisBackfillSection() {
                       </TableCell>
                       <TableCell className="text-xs capitalize">{run.trigger}</TableCell>
                       <TableCell className="text-xs text-right">{run.processed}</TableCell>
-                      <TableCell className="text-xs text-right text-success">
+                      <TableCell className="text-xs text-right text-success-foreground">
                         {run.succeeded}
                       </TableCell>
                       <TableCell className="text-xs text-right">{run.skipped}</TableCell>

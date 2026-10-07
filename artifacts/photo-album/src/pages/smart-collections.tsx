@@ -33,7 +33,7 @@ export default function SmartCollections() {
     <AppLayout>
       <div className="space-y-6" data-testid="smart-collections-page">
         <div className="flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-warning shrink-0" />
+          <Sparkles className="h-5 w-5 text-warning-foreground shrink-0" />
           <h1 className="text-2xl font-bold text-foreground">Smart Collections</h1>
         </div>
         <p className="text-sm text-muted-foreground -mt-3">

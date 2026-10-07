@@ -97,7 +97,7 @@ export function DuplicatePhotoCard({
         </div>
         <div className="flex flex-wrap gap-1">
           {photo.isAlbumCover && (
-            <Badge variant="outline" className="gap-1 text-[10px] border-warning/50 text-warning">
+            <Badge variant="outline" className="gap-1 text-[10px] border-warning/50 text-warning-foreground">
               <Star className="h-3 w-3" /> Album cover
             </Badge>
           )}

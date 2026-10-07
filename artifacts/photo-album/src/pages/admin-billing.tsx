@@ -91,7 +91,7 @@ export default function AdminBillingPage() {
                   )}
                 </div>
                 {status.cancelAtPeriodEnd && status.currentPeriodEnd && (
-                  <p className="text-xs text-warning mt-1">
+                  <p className="text-xs text-warning-foreground mt-1">
                     Cancels on {new Date(status.currentPeriodEnd).toLocaleDateString()}
                   </p>
                 )}
@@ -118,7 +118,7 @@ export default function AdminBillingPage() {
                 </p>
               )}
               {!status.overLimit && status.nearLimit && (
-                <p className="text-xs font-medium text-warning">
+                <p className="text-xs font-medium text-warning-foreground">
                   You're approaching your storage limit.
                 </p>
               )}

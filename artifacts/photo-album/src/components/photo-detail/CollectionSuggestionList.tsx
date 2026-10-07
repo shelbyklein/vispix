@@ -98,13 +98,13 @@ export function CollectionSuggestionList({
                 title={provenanceTitle(s)}
                 data-testid={`suggested-new-collection-${s.id}`}
               >
-                <Sparkles className={cn("h-3 w-3", dark ? "text-emerald-200" : "text-success")} />
+                <Sparkles className={cn("h-3 w-3", dark ? "text-emerald-200" : "text-success-foreground")} />
                 <span className={dark ? undefined : "text-foreground"}>{s.suggestedName}</span>
                 <button
                   type="button"
                   onClick={() => onCreateNew({ suggestionId: s.id, name: s.suggestedName })}
                   disabled={disabled}
-                  className={cn("rounded-full p-0.5 disabled:opacity-50", dark ? "text-emerald-200 hover:bg-white/15" : "text-success hover:bg-success/25")}
+                  className={cn("rounded-full p-0.5 disabled:opacity-50", dark ? "text-emerald-200 hover:bg-white/15" : "text-success-foreground hover:bg-success/25")}
                   aria-label={`Create collection "${s.suggestedName}" and add photo`}
                   title="Create this collection and add photo"
                   data-testid={`accept-new-collection-suggestion-${s.id}`}

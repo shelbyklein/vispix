@@ -25,8 +25,8 @@ import { CalendarDays, Plug, Sparkles, Layers, Search, CopyCheck, Copy } from "l
 type Tone = "ok" | "warn" | "err";
 
 const TONE_CLASSES: Record<Tone, string> = {
-  ok: "border-success/40 text-success",
-  warn: "border-warning/50 text-warning",
+  ok: "border-success/40 text-success-foreground",
+  warn: "border-warning/50 text-warning-foreground",
   err: "border-destructive/50 text-destructive",
 };
 

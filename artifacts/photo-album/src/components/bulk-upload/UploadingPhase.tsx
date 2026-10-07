@@ -120,8 +120,8 @@ export function UploadingPhase({
                       </button>
                     )}
                     {status === "uploading" && <Loader2 className="h-4 w-4 text-primary animate-spin" />}
-                    {status === "done" && <CheckCircle2 className="h-4 w-4 text-success" />}
-                    {status === "failed" && <AlertCircle className="h-4 w-4 text-warning" />}
+                    {status === "done" && <CheckCircle2 className="h-4 w-4 text-success-foreground" />}
+                    {status === "failed" && <AlertCircle className="h-4 w-4 text-warning-foreground" />}
                     {status === "cancelled" && <X className="h-4 w-4 text-muted-foreground" />}
                   </div>
                 </div>

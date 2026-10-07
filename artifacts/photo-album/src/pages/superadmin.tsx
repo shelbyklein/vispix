@@ -49,7 +49,7 @@ export default function Superadmin() {
       <div className="space-y-8" data-testid="superadmin-page">
         <div className="flex items-center gap-3">
           <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
-            <Shield className="h-5 w-5 text-warning" />
+            <Shield className="h-5 w-5 text-warning-foreground" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Superadmin</h1>
@@ -70,7 +70,7 @@ export default function Superadmin() {
                 data-testid={`superadmin-card-${section.href.split("/").pop()}`}
               >
                 <div className="h-9 w-9 shrink-0 rounded-lg bg-warning/10 flex items-center justify-center">
-                  <Icon className="h-[18px] w-[18px] text-warning" />
+                  <Icon className="h-[18px] w-[18px] text-warning-foreground" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-1">

@@ -49,7 +49,7 @@ export function SendTestEmailCard() {
       data-testid="send-test-email-card"
     >
       <div className="h-9 w-9 shrink-0 rounded-lg bg-warning/10 flex items-center justify-center">
-        <Mail className="h-[18px] w-[18px] text-warning" />
+        <Mail className="h-[18px] w-[18px] text-warning-foreground" />
       </div>
       <div className="flex-1 min-w-0">
         <h3 className="text-sm font-semibold text-foreground">
@@ -59,7 +59,7 @@ export function SendTestEmailCard() {
           className={cn(
             "text-xs mt-0.5",
             status === "sent"
-              ? "text-success"
+              ? "text-success-foreground"
               : status === "error"
                 ? "text-destructive"
                 : "text-muted-foreground",

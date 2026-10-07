@@ -195,7 +195,7 @@ function BulkUploadBanner() {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
         <div className="px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-4">
-          <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-success-foreground shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium text-foreground">Upload complete — </span>
             <span className="text-sm text-muted-foreground">
@@ -425,7 +425,7 @@ function ProjectsNav({ location, dragProps }: { location: string; dragProps?: Re
                         <SidebarMenuBadge
                           className={cn(
                             "transition-transform duration-200",
-                            justAddedId === project.id && "scale-150 text-success",
+                            justAddedId === project.id && "scale-150 text-success-foreground",
                           )}
                         >
                           {project.photoCount}
@@ -564,7 +564,7 @@ function CollectionsNav({ location, dragProps }: { location: string; dragProps?:
                         <SidebarMenuBadge
                           className={cn(
                             "transition-transform duration-200",
-                            justAddedId === collection.id && "scale-150 text-success",
+                            justAddedId === collection.id && "scale-150 text-success-foreground",
                           )}
                         >
                           {collection.photoCount}
@@ -809,7 +809,7 @@ function AppSidebar({
                       className="flex items-center gap-2 cursor-pointer"
                       data-testid="nav-superadmin"
                     >
-                      <Shield className="h-4 w-4 text-warning" />
+                      <Shield className="h-4 w-4 text-warning-foreground" />
                       Superadmin
                     </Link>
                   </DropdownMenuItem>
