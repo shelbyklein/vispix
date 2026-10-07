@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "vispix": {
+    "vispix-local": {
       "command": "pnpm",
       "args": [
         "--silent",

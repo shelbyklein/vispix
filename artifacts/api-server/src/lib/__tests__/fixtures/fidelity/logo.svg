@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="200" height="120" viewBox="0 0 200 120">
-  <!-- Synthetic test logo for #215 fidelity fixtures (not a real brand mark). -->
-  <rect x="4" y="4" width="192" height="112" rx="16" fill="#0b3d91"/>
-  <circle cx="52" cy="60" r="34" fill="#ffffff"/>
-  <circle cx="52" cy="60" r="20" fill="#d62828"/>
-  <text x="96" y="72" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#ffffff">VPX</text>
-</svg>

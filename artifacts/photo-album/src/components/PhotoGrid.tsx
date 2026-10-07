@@ -129,7 +129,7 @@ export function PhotoGrid<T>({
   const preferred = densityOverride && densityOverride > 0 ? densityOverride : responsiveDensity;
   const [containerRef, containerWidth] = useContainerWidth();
   // The preference is a ceiling: narrow containers (small windows, the docked
-  // Create panel) get fewer columns so tiles stay legible. Recomputed on every
+  // side panel) get fewer columns so tiles stay legible. Recomputed on every
   // resize; the stored zoom is never touched.
   const perRow = containerWidth ? effectiveColumns(preferred, containerWidth, GAP) : preferred;
 

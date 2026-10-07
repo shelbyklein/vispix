@@ -20,7 +20,7 @@ export function usageRightsFrom(tags: { id: number; name: string }[]): UsageRigh
 
 /**
  * Current rights for each photo, read at the moment of the action (export,
- * generation, shortlisting). Org-scoped: only the org's own tags count. Every
+ * shortlisting). Org-scoped: only the org's own tags count. Every
  * requested id gets an entry — absent data is `not_recorded`, not omitted.
  */
 export async function loadUsageRights(photoIds: number[], organizationId: number): Promise<Map<number, UsageRights>> {
@@ -59,11 +59,4 @@ export function rightsChange(before: UsageRightsSnapshot | null | undefined, now
   const added = now.tags.filter((t) => !was.has(t.id));
   const removed = before.tags.filter((t) => !is.has(t.id));
   return added.length || removed.length ? { added, removed } : null;
-}
-
-/** Plain-language note for generation records; never says "cleared". */
-export function usageNote(name: string, rights: UsageRights): string {
-  return rights.status === "recorded"
-    ? `Photo "${name}" has recorded usage rights: ${rights.tags.map((t) => t.name).join(", ")} (recorded by your team; not a legal clearance).`
-    : `Photo "${name}" has no usage rights recorded — check rights before publishing.`;
 }

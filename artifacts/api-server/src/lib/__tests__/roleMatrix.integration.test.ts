@@ -18,14 +18,9 @@ vi.mock("../auth", () => ({
     handler: async () => new Response(null, { status: 404 }),
   },
 }));
-vi.mock("../imageGeneration/campaignSuggestions", async (o) => ({
-  ...(await o<typeof import("../imageGeneration/campaignSuggestions")>()),
-  generateCampaignSuggestions: async () => ({ sessionId: 1, generations: [], concepts: [], notices: [] }),
-}));
-
 import type { Server } from "node:http";
 import app from "../../app";
-import { db, pool, assetsTable, campaignsTable, attributionTagsTable, organizationMembersTable } from "@workspace/db";
+import { db, pool, assetsTable, attributionTagsTable, organizationMembersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { resetDb, createUser, createOrganization, addOrganizationMember, createAlbum, createPhoto, createProject, createCollection } from "./testDb";
 
@@ -87,7 +82,6 @@ const make = {
   collection: async () => (await createCollection(u.creator.id, "Creator's collection", orgA)).id,
   asset: async () =>
     (await db.insert(assetsTable).values({ organizationId: orgA, kind: "brand", name: "Mark", storageKey: `/objects/orgs/${orgA}/uploads/x`, contentType: "image/png", createdById: u.creator.id }).returning())[0].id,
-  campaign: async () => (await db.insert(campaignsTable).values({ organizationId: orgA, createdById: u.creator.id, name: "C", brief: "Brief" }).returning())[0].id,
 };
 const edits: Record<keyof typeof make, [string, (id: number) => string, unknown]> = {
   photo: ["PATCH", (id) => `/photos/${id}`, { aiDescription: "edited" }],
@@ -95,7 +89,6 @@ const edits: Record<keyof typeof make, [string, (id: number) => string, unknown]
   project: ["PATCH", (id) => `/projects/${id}`, { name: "edited" }],
   collection: ["PATCH", (id) => `/collections/${id}`, { title: "edited" }],
   asset: ["PATCH", (id) => `/assets/${id}`, { name: "edited" }],
-  campaign: ["PATCH", (id) => `/campaigns/${id}`, { name: "edited" }],
 };
 const deletes: Record<keyof typeof make, (id: number) => string> = {
   photo: (id) => `/photos/${id}`,
@@ -103,7 +96,6 @@ const deletes: Record<keyof typeof make, (id: number) => string> = {
   project: (id) => `/projects/${id}`,
   collection: (id) => `/collections/${id}`,
   asset: (id) => `/assets/${id}`,
-  campaign: (id) => `/campaigns/${id}`,
 };
 const ok = (s: number) => s >= 200 && s < 300;
 
@@ -175,10 +167,8 @@ describe("photos: bulk actions, hidden visibility and usage rights", () => {
   });
 });
 
-describe("campaigns: generating from someone else's campaign", () => {
-  it.each([["creator", true], ["member", false], ["admin", true]] as const)("%s: %s", async (who, allowed) => {
-    const id = await make.campaign();
-    const status = await call(u[who], "POST", `/campaigns/${id}/generate`, {});
-    expect(ok(status), `generate -> ${status}`).toBe(allowed);
+describe("removed features (#250)", () => {
+  it.each(["/image-generation/all", "/campaigns"])("GET %s is gone for a signed-in member", async (path) => {
+    expect(await call(u.member, "GET", path)).toBe(404);
   });
 });

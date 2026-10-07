@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
 // Usage rights (#207, docs/USAGE_RIGHTS.md): an explicit not_recorded state,
-// rights at Create decision points, shortlist/generation/export snapshots, and
+// shortlist/export snapshots, and
 // re-checking at action time. Policy is warning-only: nothing here may block.
 vi.mock("../auth", () => ({
   auth: {
@@ -19,9 +19,6 @@ vi.mock("../auth", () => ({
 vi.mock("../aiEmbedding", async (orig) => ({
   ...(await orig<typeof import("../aiEmbedding")>()),
   embedQuery: async () => ({ ok: false as const, reason: "not_configured" as const }),
-}));
-vi.mock("../imageGeneration/openaiImage", () => ({
-  generateImage: async () => ({ buffer: Buffer.from("png"), responseId: "resp", imageModel: "test-model" }),
 }));
 vi.mock("../aiProviders", async (orig) => ({
   ...(await orig<typeof import("../aiProviders")>()),
@@ -44,11 +41,8 @@ import {
   photoAiEvaluationsTable,
   projectsTable,
   projectPhotosTable,
-  imageGenerationsTable,
 } from "@workspace/db";
 import { resetDb, createUser, createOrganization, addOrganizationMember, createAlbum, createPhoto } from "./testDb";
-import { findPhotoCandidates } from "../imageGeneration/plan";
-import { resetGenerationLimits } from "../imageGeneration/limits";
 
 let server: Server;
 let base: string;
@@ -136,20 +130,7 @@ describe("explicit rights state on photos (RIGHTS-02)", () => {
   });
 });
 
-describe("Create candidates show rights and quality (RIGHTS-03 contract)", () => {
-  it("photo candidates carry usageRights and AI quality or null when not evaluated", async () => {
-    const cands = await findPhotoCandidates(orgA, "archer");
-    const t = cands.find((c) => c.refId === tagged)!;
-    const u = cands.find((c) => c.refId === untagged)!;
-    expect(t.usageRights).toEqual({ status: "recorded", tags: [{ id: sponsor, name: "USA Archery" }] });
-    expect(t.quality).toEqual({ overallScore: 7.8 });
-    expect(u.usageRights).toEqual({ status: "not_recorded", tags: [] }); // still offered: warning-only
-    expect(u.quality).toBeNull();
-    expect(cands.some((c) => c.refId === foreign)).toBe(false);
-  });
-});
-
-describe("shortlist, export and generation snapshots (RIGHTS-04)", () => {
+describe("shortlist and export snapshots (RIGHTS-04)", () => {
   let projectId: number;
 
   it("adding a photo to a project records its rights at that moment", async () => {
@@ -200,31 +181,5 @@ describe("shortlist, export and generation snapshots (RIGHTS-04)", () => {
     const other = await createUser({ name: "Other" });
     await addOrganizationMember(orgB, other.id, "owner");
     expect((await call("GET", `/projects/${projectId}/rights-check`, undefined, other, orgB)).status).toBe(404);
-  });
-
-  it("generation snapshots each photo's current rights and never calls a tag a clearance", async () => {
-    resetGenerationLimits();
-    const r = await call("POST", "/image-generation/generate", {
-      prompt: "Spring Open post",
-      format: "1:1",
-      variantCount: 1,
-      inputs: [
-        { kind: "photo", refId: tagged, role: "hero_photo" },
-        { kind: "photo", refId: untagged, role: "style" },
-      ],
-    });
-    expect(r.status).toBe(200); // a not_recorded input does not block generation
-    const genId = r.body.generations[0].id;
-    const [gen] = await db.select().from(imageGenerationsTable).where(eq(imageGenerationsTable.id, genId));
-    expect(gen.rightsSnapshot).toEqual([
-      expect.objectContaining({ photoId: tagged, name: "tagged_archer.jpg", status: "recorded", tags: [{ id: social, name: "Social" }] }),
-      expect.objectContaining({ photoId: untagged, name: "untagged_archer.jpg", status: "not_recorded", tags: [] }),
-    ]);
-    expect(gen.usageNotesSnapshot.join(" ")).not.toMatch(/cleared/i);
-    expect(gen.usageNotesSnapshot.join(" ")).toMatch(/not a legal clearance/);
-    // The gallery shows what was considered.
-    await new Promise((resolve) => setTimeout(resolve, 300));
-    const list = await call("GET", "/image-generation/all?limit=10&includeFailed=true");
-    expect(list.body.items.find((i: any) => i.id === genId).rightsConsidered).toHaveLength(2);
   });
 });

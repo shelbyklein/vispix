@@ -160,7 +160,7 @@ function OrgRow({ org }: { org: AdminOrganization }) {
               This permanently removes {org.memberCount} member
               {org.memberCount !== 1 ? "s" : ""}, {org.photoCount.toLocaleString()} photo
               {org.photoCount !== 1 ? "s" : ""} ({formatBytes(org.usageBytes)}) and every album,
-              collection, project, campaign and asset in this organization — including the
+              collection, project and asset in this organization — including the
               underlying files in storage.
             </p>
             <p>

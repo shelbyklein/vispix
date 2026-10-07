@@ -31,7 +31,7 @@ export const assetsTable = pgTable(
     projectId: integer("project_id").references(() => projectsTable.id, { onDelete: "set null" }),
     // The designated primary mark (#206): at most one per organization (global,
     // projectId null) and one per project. Set explicitly by an owner/admin —
-    // never inferred — and preferred by Create and Campaigns logo selection.
+    // never inferred.
     isPrimary: boolean("is_primary").notNull().default(false),
     // "/objects/…" path in private object storage (same convention as photos).
     storageKey: text("storage_key").notNull(),

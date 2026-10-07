@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.21.0",
+    "@modelcontextprotocol/sdk": "^1.32.0",
     "@workspace/api-server": "workspace:*",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
@@ -22,6 +22,6 @@
     "@types/express": "^5.0.6",
     "@types/node": "catalog:",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.6"
+    "vitest": "^4.1.11"
   }
 }

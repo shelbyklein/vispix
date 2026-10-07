@@ -1,7 +1,7 @@
 # Photo retrieval contract (#213)
 
 One service answers "which photos match this request, in what order" for the
-web app, the MCP connector and Create. It lives in
+web app and the MCP connector. It lives in
 `artifacts/api-server/src/lib/photoRetrieval.ts`. Callers adapt their inputs to
 it; none of them runs its own ranking query.
 
@@ -32,15 +32,15 @@ a page can never be thinned after the fact.
 
 ### Filters
 
-| Filter | Meaning | Web | MCP | Create |
-|---|---|---|---|---|
-| `dateFrom` / `dateTo` | Capture date, whole UTC days, `dateTo` inclusive; undated photos excluded when set (#205) | ✓ | – | – |
-| `ratingMin` / `ratingMax` | Average user rating 0–5, unrated = 0 | ✓ | `minRating` | – |
-| `minQuality` | AI overall score 0–10; unevaluated photos excluded | ✓ | ✓ | – |
-| `uploaderId` | Exact uploader | ✓ | – | – |
-| `rightsTagId` | Photo carries this usage-rights tag (resolved by name inside the org) | – | `rightsTag` | – |
-| `personId` | Photo is in this person collection (resolved by name inside the org) | – | `person` | – |
-| visibility | Hidden photos excluded unless `canSeeHidden` | admins | never | never |
+| Filter | Meaning | Web | MCP |
+|---|---|---|---|
+| `dateFrom` / `dateTo` | Capture date, whole UTC days, `dateTo` inclusive; undated photos excluded when set (#205) | ✓ | – |
+| `ratingMin` / `ratingMax` | Average user rating 0–5, unrated = 0 | ✓ | `minRating` |
+| `minQuality` | AI overall score 0–10; unevaluated photos excluded | ✓ | ✓ |
+| `uploaderId` | Exact uploader | ✓ | – |
+| `rightsTagId` | Photo carries this usage-rights tag (resolved by name inside the org) | – | `rightsTag` |
+| `personId` | Photo is in this person collection (resolved by name inside the org) | – | `person` |
+| visibility | Hidden photos excluded unless `canSeeHidden` | admins | never |
 
 Name lookups for `rightsTag` and `person` are org-scoped. An unknown name is an
 explicit "no such tag/person" result that lists the org's own names; it's never
@@ -242,8 +242,6 @@ exact ranking took 52 ms.
 | Web semantic (`GET /search/semantic`) | HNSW top-2×topK, then blend | `concept` mode, first `topK`; same array response |
 | Web contract (`GET /search/photos`) | – | The full contract: items, cursor, states, ranking metadata. Default mode `combined` |
 | Search page (`/search`), global search box | Keyword/Semantic toggles on the legacy endpoints | `/search/photos`: "All matches" (`combined`, default) or "Exact words" (`keyword`) |
-| Create page photo picker | `/search/semantic` | Unchanged endpoint, now the service |
-| Create planner / campaign hero photo (`findPhotoCandidates`) | HNSW top-6, no blend; any-word ILIKE fallback | `concept`, limit 6; when unavailable, `keyword` with the degraded state recorded |
 | MCP `search_photos` | HNSW, post-filtered over-fetch (≤500), no blend | `concept` with every filter in SQL; notes report exhausted/limited/degraded |
 | MCP local stdio server | Unscoped (all orgs) | Scoped: `VISPIX_MCP_ORGANIZATION_ID`, or the only org when exactly one exists; otherwise search refuses with a note |
 

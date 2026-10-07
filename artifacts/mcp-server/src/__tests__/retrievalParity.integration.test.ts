@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 
 // Caller parity for the shared retrieval service (#213): the same normalized
 // request through web search (/search/semantic, /search/photos), the MCP
-// search_photos data path and Create's hero-photo lookup returns the same
+// search_photos data path returns the same
 // photos in the same order. Real Postgres + pgvector; the query embedding is
 // stubbed to a fixed vector (axis 0), so similarities are exactly the fixture's.
 const DIM = 1408;
@@ -32,7 +32,6 @@ vi.mock("@workspace/api-server/src/lib/aiEmbedding", async (importOriginal) => (
 import type { Server } from "node:http";
 import app from "@workspace/api-server/src/app";
 import { db, pool, photosTable, photoEmbeddingsTable, photoAiEvaluationsTable, ratingsTable } from "@workspace/db";
-import { findPhotoCandidates } from "@workspace/api-server/src/lib/imageGeneration/plan";
 import { resetDb, createUser, createOrganization, addOrganizationMember, createAlbum } from "@workspace/api-server/src/lib/__tests__/testDb";
 import { searchPhotos } from "../photoLibrary";
 
@@ -116,11 +115,10 @@ const QUERY = "archer at full draw";
 const ids = (photos: { id: number }[]) => photos.map((p) => p.id);
 
 describe("identical requests give identical ordered photos in every caller (TT-VPX-RETRIEVAL-03)", () => {
-  it("web semantic, web contract endpoint, MCP and Create agree", async () => {
+  it("web semantic, web contract endpoint, and MCP agree", async () => {
     const semantic = await get("/search/semantic", { q: QUERY, topK: 40 });
     const contract = await get("/search/photos", { q: QUERY, mode: "concept", limit: 40 });
     const mcp = await searchPhotos({ query: QUERY, count: 40, organizationId: orgA });
-    const create = await findPhotoCandidates(orgA, QUERY);
 
     expect(semantic.status).toBe(200);
     expect(contract.status).toBe(200);
@@ -129,8 +127,6 @@ describe("identical requests give identical ordered photos in every caller (TT-V
     expect(reference).not.toContain(foreignId);
     expect(contract.body.items.map((i: { photo: { id: number } }) => i.photo.id)).toEqual(reference);
     expect(mcp.results.map((p) => p.id)).toEqual(reference);
-    // Create asks for its six best candidates: the same six.
-    expect(create.map((c) => c.refId)).toEqual(reference.slice(0, 6));
     expect(semantic.headers.get("x-search-status")).toBe("ok");
   });
 

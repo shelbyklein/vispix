@@ -10,7 +10,7 @@ export const FALLBACK_ASPECT = 3 / 2;
 /**
  * Columns actually used: the user's preferred density, capped so a nominal tile
  * never drops below `minTileWidth` in a narrow container. The preference itself
- * is never modified, so widening the container (or closing the Create panel)
+ * is never modified, so widening the container (or closing a side panel)
  * restores the full density.
  */
 export function effectiveColumns(

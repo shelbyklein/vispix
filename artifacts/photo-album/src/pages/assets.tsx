@@ -700,7 +700,7 @@ function AssetCard({ asset, onChanged, onMove }: { asset: Asset; onChanged: () =
             title: asset.isPrimary ? "No longer the primary logo" : "Set as the primary logo",
             description: asset.isPrimary
               ? undefined
-              : `${asset.projectName ? `Project “${asset.projectName}”` : "Create and Campaigns"} will use “${asset.name}” when a logo is needed.`,
+              : `“${asset.name}” is now the primary logo${asset.projectName ? ` for project “${asset.projectName}”` : ""}.`,
           });
           onChanged();
         },

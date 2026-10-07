@@ -1,9 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 
-// Brand-asset selection end to end (#206): designating the primary logo, ranked
-// candidates from the database, and campaign logo selection. Auth is mocked as
-// in the org isolation suite; the provider boundary is stubbed (concept
-// planning returns two logo-wanting concepts; runGeneration is captured).
+// Brand-asset management end to end (#206): designating the primary logo.
+// Auth is mocked as in the org isolation suite.
 vi.mock("../auth", () => ({
   auth: {
     api: {
@@ -15,36 +13,9 @@ vi.mock("../auth", () => ({
     handler: async () => new Response(null, { status: 404 }),
   },
 }));
-vi.mock("openai", () => {
-  class OpenAI {
-    chat = {
-      completions: {
-        create: async () => ({
-          choices: [{ message: { content: JSON.stringify({ concepts: [
-            { title: "Hero", prompt: "Archer at full draw", format: "1:1", heroPhotoQuery: null, useLogo: true },
-            { title: "Banner", prompt: "Event banner", format: "3:2", heroPhotoQuery: null, useLogo: true },
-          ] }) } }],
-        }),
-      },
-    };
-  }
-  return { default: OpenAI };
-});
-vi.mock("../aiProviders", async (o) => ({ ...(await o<typeof import("../aiProviders")>()), getOpenAIKeyForOrg: async () => ({ apiKey: "k", baseURL: null }) }));
-const runs: { inputs: { kind: string; refId: number }[] }[] = [];
-vi.mock("../imageGeneration/orchestrate", async (o) => ({
-  ...(await o<typeof import("../imageGeneration/orchestrate")>()),
-  runGeneration: async (args: { sessionId: number; inputs: { kind: string; refId: number }[] }) => {
-    runs.push({ inputs: args.inputs });
-    return { sessionId: args.sessionId, generations: [] };
-  },
-}));
-
 import type { Server } from "node:http";
 import app from "../../app";
-import { db, pool, assetsTable, campaignsTable } from "@workspace/db";
-import { findAssetCandidates } from "../imageGeneration/plan";
-import { generateCampaignSuggestions, NO_PRIMARY_LOGO_NOTICE } from "../imageGeneration/campaignSuggestions";
+import { db, pool, assetsTable } from "@workspace/db";
 import { resetDb, createUser, createOrganization, addOrganizationMember } from "./testDb";
 
 let server: Server;
@@ -85,7 +56,6 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetDb();
-  runs.length = 0;
   const org = await createOrganization({ name: "USA Archery", slug: "usa-archery" });
   orgId = org.id;
   owner = await createUser({ name: "Olivia Owner" });
@@ -125,46 +95,5 @@ describe("designating the primary logo (TT-VPX-BRAND-03)", () => {
     expect((await patch(A["usa-primary"], { projectId: project.id }, member)).status).toBe(200);
     const [row] = (await db.select().from(assetsTable)).filter((a) => a.id === A["usa-primary"]);
     expect(row.isPrimary).toBe(false);
-  });
-});
-
-describe("ranked candidates from the library (TT-VPX-BRAND-02)", () => {
-  it("puts the designated primary first for the reviewed request, with reasons", async () => {
-    await patch(A["usa-primary"], { isPrimary: true });
-    const c = await findAssetCandidates(orgId, "USA Archery primary logo");
-    expect(c[0]).toMatchObject({ refId: A["usa-primary"], isPrimary: true, confidence: "high" });
-    expect(c[0].reasons).toContain("Designated primary logo");
-    const pos = (key: string) => c.findIndex((x) => x.refId === A[key]);
-    expect(pos("achievement-badge-gold")).toBeGreaterThan(pos("usa-white"));
-    // Reference assets only when they match; this one doesn't.
-    expect(c.some((x) => x.refId === A["style-ref"])).toBe(false);
-  });
-
-  it("returns the white variant first for a white request", async () => {
-    await patch(A["usa-primary"], { isPrimary: true });
-    const c = await findAssetCandidates(orgId, "USA Archery white logo");
-    expect(c[0].refId).toBe(A["usa-white"]);
-    expect(c[0].reasons?.join(" ")).toContain("white");
-  });
-});
-
-describe("campaign logo selection (TT-VPX-BRAND-04)", () => {
-  async function campaign() {
-    const [row] = await db.insert(campaignsTable).values({ organizationId: orgId, createdById: owner.id, name: "Spring Open", brief: "Brief" }).returning();
-    return row;
-  }
-
-  it("renders nothing and asks for input when no primary is designated — never the first alphabetical asset (#215)", async () => {
-    const result = await generateCampaignSuggestions(await campaign(), owner.id, 3);
-    expect(runs).toHaveLength(0);
-    expect(result.concepts.map((c) => c.status)).toEqual(["needs_input", "needs_input"]);
-    expect(result.notices).toEqual([NO_PRIMARY_LOGO_NOTICE]);
-  });
-
-  it("attaches the designated primary when one is set", async () => {
-    await patch(A["usa-primary"], { isPrimary: true });
-    const result = await generateCampaignSuggestions(await campaign(), owner.id, 3);
-    for (const r of runs) expect(r.inputs.filter((i) => i.kind === "asset").map((i) => i.refId)).toEqual([A["usa-primary"]]);
-    expect(result.notices).toEqual([]);
   });
 });
