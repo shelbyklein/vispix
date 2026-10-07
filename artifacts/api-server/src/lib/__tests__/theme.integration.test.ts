@@ -213,7 +213,7 @@ describe("theme contract (rebrand)", () => {
     expect(css).toContain("--button-weight: 500;");
     expect(css).toContain("--button: 211.2 32.5% 84.9%;");
     expect(css).toContain("--button-foreground: 205 25% 18%;");
-    expect(css).toContain('--app-font-heading: "Sofia Pro", "Sofia Sans", sans-serif;');
+    expect(css).toContain('--app-font-heading: "sofia-pro", "Sofia Sans", sans-serif;');
   });
 
   it("googleFontsUrl skips Adobe fonts but includes the Sofia Sans fallback", () => {
@@ -251,7 +251,7 @@ describe("DEFAULT_THEME matches index.css", () => {
     expect(vars["heading-weight"]).toBe(String(DEFAULT_THEME.headingWeight));
     expect(vars["button-weight"]).toBe(String(DEFAULT_THEME.buttonWeight));
     expect(vars["app-font-sans"]).toBe(`"${DEFAULT_THEME.fonts.body}", sans-serif`);
-    expect(vars["app-font-heading"]).toBe('"Sofia Pro", "Sofia Sans", sans-serif');
+    expect(vars["app-font-heading"]).toBe('"sofia-pro", "Sofia Sans", sans-serif');
   });
 
   it("radius", () => {
