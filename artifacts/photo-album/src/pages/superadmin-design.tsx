@@ -15,6 +15,7 @@ import {
 import { Palette, Moon, Sun, Copy, Save, Undo2, RotateCcw } from "lucide-react";
 import { AdminSectionShell } from "@/components/admin/AdminSectionShell";
 import { ColorTokenRow } from "@/components/design/ColorTokenRow";
+import { formatHsl, parseHsl } from "@/components/design/color-utils";
 import { ContrastChecks, contrastFailures } from "@/components/design/ContrastChecks";
 import { DesignReference } from "@/components/design/DesignReference";
 import { ThemePreview } from "@/components/design/ThemePreview";
@@ -40,6 +41,12 @@ const PICKER_FONTS_ID = "theme-picker-fonts";
 const GROUPS = [...new Set(COLOR_TOKENS.map((t) => t.group))];
 
 const PRIMARY_FOLLOWERS: ColorTokenKey[] = ["ring", "sidebar-primary", "sidebar-ring", "chart-1"];
+// Brand-tinted tokens: lighter or darker shades of the brand color. They take
+// on a new brand hue (keeping their own saturation and lightness) while they
+// still share the old one.
+const PRIMARY_HUE_FOLLOWERS: ColorTokenKey[] = [
+  "accent", "accent-foreground", "sidebar-accent", "sidebar-accent-foreground", "heading-primary",
+];
 
 function setPreviewStyle(css: string | null) {
   let el = document.getElementById(PREVIEW_STYLE_ID);
@@ -61,8 +68,16 @@ function refreshThemeLink() {
   if (link) link.href = `/api/theme.css?v=${Date.now()}`;
 }
 
+// Field by field, not JSON.stringify: the saved theme comes back from a jsonb
+// column with its keys reordered.
 function sameTheme(a: PlatformTheme, b: PlatformTheme) {
-  return JSON.stringify(a) === JSON.stringify(b);
+  return (
+    COLOR_TOKENS.every((t) => a.light[t.key] === b.light[t.key] && a.dark[t.key] === b.dark[t.key]) &&
+    a.fonts.body === b.fonts.body &&
+    a.fonts.heading === b.fonts.heading &&
+    a.radius === b.radius &&
+    a.shadowStrength === b.shadowStrength
+  );
 }
 
 function pickerFontsUrl() {
@@ -195,6 +210,14 @@ function DesignEditor() {
         if (key === "primary") {
           for (const follower of PRIMARY_FOLLOWERS) {
             if (d[mode][follower] === d[mode].primary) next[follower] = value;
+          }
+          const before = parseHsl(d[mode].primary);
+          const after = parseHsl(value);
+          if (before && after) {
+            for (const follower of PRIMARY_HUE_FOLLOWERS) {
+              const shade = parseHsl(d[mode][follower]);
+              if (shade && shade.h === before.h) next[follower] = formatHsl({ ...shade, h: after.h });
+            }
           }
         }
         return { ...d, [mode]: next };
