@@ -22,6 +22,8 @@ import { formatHsl, parseHsl } from "@/components/design/color-utils";
 import { ContrastChecks, contrastFailures } from "@/components/design/ContrastChecks";
 import { DesignReference } from "@/components/design/DesignReference";
 import { ThemePreview } from "@/components/design/ThemePreview";
+import { PalettePanel } from "@/components/design/palette/PalettePanel";
+import { deriveTheme } from "@/components/design/palette/engine";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
@@ -371,6 +373,8 @@ function DesignEditor() {
           </Button>
         </div>
       </div>
+
+      <PalettePanel draft={draft} onApplyRoles={(roles) => setDraft((d) => (d ? deriveTheme(d, roles) : d))} />
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)]">
         <div className="space-y-4">
