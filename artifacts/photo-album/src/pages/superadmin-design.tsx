@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ADOBE_FONTS,
+  ADOBE_PROJECT_PATTERN,
   COLOR_TOKENS,
   FONT_CHOICES,
   themeToCss,
@@ -20,6 +22,7 @@ import { ContrastChecks, contrastFailures } from "@/components/design/ContrastCh
 import { DesignReference } from "@/components/design/DesignReference";
 import { ThemePreview } from "@/components/design/ThemePreview";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -75,13 +78,17 @@ function sameTheme(a: PlatformTheme, b: PlatformTheme) {
     COLOR_TOKENS.every((t) => a.light[t.key] === b.light[t.key] && a.dark[t.key] === b.dark[t.key]) &&
     a.fonts.body === b.fonts.body &&
     a.fonts.heading === b.fonts.heading &&
+    a.headingWeight === b.headingWeight &&
+    a.buttonWeight === b.buttonWeight &&
+    a.adobeFontsProject === b.adobeFontsProject &&
     a.radius === b.radius &&
     a.shadowStrength === b.shadowStrength
   );
 }
 
 function pickerFontsUrl() {
-  const families = FONT_CHOICES.map((f) => `family=${f.replace(/ /g, "+")}:wght@400;600`).join("&");
+  // Adobe fonts have no Google family; Sofia Sans (their fallback) is in the list.
+  const families = FONT_CHOICES.filter((f) => !ADOBE_FONTS.has(f)).map((f) => `family=${f.replace(/ /g, "+")}:wght@400;600`).join("&");
   return `https://fonts.googleapis.com/css2?${families}&display=swap`;
 }
 
@@ -90,23 +97,64 @@ function FontSelect({
   value,
   onChange,
   testId,
+  adobeProject,
 }: {
   label: string;
   value: FontChoice;
   onChange: (f: FontChoice) => void;
   testId: string;
+  adobeProject: string | null;
 }) {
+  const face = (f: string) => (ADOBE_FONTS.has(f) ? `"${f}", "Sofia Sans"` : `"${f}"`);
   return (
     <div className="space-y-1.5">
       <div className="text-sm font-medium">{label}</div>
       <Select value={value} onValueChange={(v) => onChange(v as FontChoice)}>
-        <SelectTrigger data-testid={testId} style={{ fontFamily: `"${value}"` }}>
+        <SelectTrigger data-testid={testId} style={{ fontFamily: face(value) }}>
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
           {FONT_CHOICES.map((f) => (
-            <SelectItem key={f} value={f} style={{ fontFamily: `"${f}"` }}>
+            <SelectItem key={f} value={f} style={{ fontFamily: face(f) }}>
               {f}
+              {ADOBE_FONTS.has(f) ? " (Adobe Fonts)" : ""}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      {ADOBE_FONTS.has(value) && !adobeProject && (
+        <p className="text-xs text-muted-foreground" data-testid={`${testId}-adobe-hint`}>
+          {value} is an Adobe Fonts font: showing Sofia Sans until an Adobe Fonts project is set.
+        </p>
+      )}
+    </div>
+  );
+}
+
+const WEIGHTS = [300, 400, 500, 600, 700, 800];
+
+function WeightSelect({
+  label,
+  value,
+  onChange,
+  testId,
+}: {
+  label: string;
+  value: number;
+  onChange: (w: number) => void;
+  testId: string;
+}) {
+  return (
+    <div className="space-y-1.5">
+      <div className="text-sm font-medium">{label}</div>
+      <Select value={String(value)} onValueChange={(v) => onChange(Number(v))}>
+        <SelectTrigger data-testid={testId}>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {[...new Set([...WEIGHTS, value])].sort((a, b) => a - b).map((w) => (
+            <SelectItem key={w} value={String(w)}>
+              {w}
             </SelectItem>
           ))}
         </SelectContent>
@@ -233,11 +281,16 @@ function DesignEditor() {
   }
 
   const custom = data.theme !== null;
+  const adobeInvalid = draft.adobeFontsProject !== null && !ADOBE_PROJECT_PATTERN.test(draft.adobeFontsProject);
   const colors = draft[mode];
   const failures = contrastFailures(colors);
 
   async function onSave() {
     if (!draft) return;
+    if (adobeInvalid) {
+      toast({ title: "Adobe Fonts project ID is not valid", description: "Use 7-12 lowercase letters or digits.", variant: "destructive" });
+      return;
+    }
     try {
       await save.mutateAsync(draft);
       refreshThemeLink();
@@ -312,7 +365,7 @@ function DesignEditor() {
           >
             <Undo2 className="mr-1.5 h-3.5 w-3.5" /> Discard changes
           </Button>
-          <Button size="sm" disabled={!dirty || save.isPending} onClick={onSave} data-testid="design-save">
+          <Button size="sm" disabled={!dirty || save.isPending || adobeInvalid} onClick={onSave} data-testid="design-save">
             <Save className="mr-1.5 h-3.5 w-3.5" /> {save.isPending ? "Saving…" : "Save"}
           </Button>
         </div>
@@ -352,13 +405,49 @@ function DesignEditor() {
               value={draft.fonts.body}
               onChange={(f) => setDraft({ ...draft, fonts: { ...draft.fonts, body: f } })}
               testId="font-body"
+              adobeProject={draft.adobeFontsProject}
             />
             <FontSelect
               label="Headings"
               value={draft.fonts.heading}
               onChange={(f) => setDraft({ ...draft, fonts: { ...draft.fonts, heading: f } })}
               testId="font-heading"
+              adobeProject={draft.adobeFontsProject}
             />
+            <div className="grid grid-cols-2 gap-3">
+              <WeightSelect
+                label="Heading weight"
+                value={draft.headingWeight}
+                onChange={(w) => setDraft({ ...draft, headingWeight: w })}
+                testId="heading-weight"
+              />
+              <WeightSelect
+                label="Button weight"
+                value={draft.buttonWeight}
+                onChange={(w) => setDraft({ ...draft, buttonWeight: w })}
+                testId="button-weight"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="adobe-project" className="text-sm font-medium">
+                Adobe Fonts project ID
+              </label>
+              <Input
+                id="adobe-project"
+                value={draft.adobeFontsProject ?? ""}
+                placeholder="e.g. abc1def"
+                spellCheck={false}
+                autoComplete="off"
+                aria-invalid={adobeInvalid}
+                onChange={(e) => setDraft({ ...draft, adobeFontsProject: e.target.value.trim() === "" ? null : e.target.value.trim() })}
+                data-testid="adobe-project"
+              />
+              <p className={`text-xs ${adobeInvalid ? "text-destructive" : "text-muted-foreground"}`}>
+                {adobeInvalid
+                  ? "7-12 lowercase letters or digits (the ID in use.typekit.net/<id>.css)."
+                  : "Find it in Adobe Fonts → Web Projects. Needed for Sofia Pro; leave empty to use the fallback."}
+              </p>
+            </div>
           </Panel>
 
           <Panel title="Shape">

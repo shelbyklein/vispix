@@ -290,7 +290,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               {isPerson ? (
-                <Users className="h-4 w-4 text-sky-500 shrink-0" />
+                <Users className="h-4 w-4 text-primary shrink-0" />
               ) : (
                 <Sparkles className="h-4 w-4 text-warning-foreground shrink-0" />
               )}

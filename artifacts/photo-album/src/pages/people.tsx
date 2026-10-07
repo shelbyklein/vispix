@@ -123,7 +123,7 @@ export default function People() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-sky-500 shrink-0" />
+              <Users className="h-5 w-5 text-primary shrink-0" />
               <h1 className="text-2xl font-bold text-foreground">People</h1>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
@@ -153,7 +153,7 @@ export default function People() {
             {reorder.arrange(list, (p) => p.id).map((person) => (
               <Link key={person.id} href={`/people/${person.id}`} {...reorder.handlers(person.id)}>
                 <div
-                  className={`relative rounded-xl overflow-hidden border border-border bg-card group cursor-pointer hover:shadow-md hover:border-sky-400/50 transition-all${reorder.draggingId === person.id ? " opacity-50" : ""}`}
+                  className={`relative rounded-xl overflow-hidden border border-border bg-card group cursor-pointer hover:shadow-md hover:border-primary/50 transition-all${reorder.draggingId === person.id ? " opacity-50" : ""}`}
                   data-testid={`person-card-${person.id}`}
                 >
                   <CrossfadeThumb
@@ -163,7 +163,7 @@ export default function People() {
                   />
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 via-black/35 to-transparent pt-8 pb-2.5 px-3 pointer-events-none">
                     <span className="flex items-center gap-1.5 text-sm font-medium text-white drop-shadow">
-                      <Users className="h-3.5 w-3.5 text-sky-400 shrink-0" />
+                      <Users className="h-3.5 w-3.5 text-primary shrink-0" />
                       <span className="truncate">{person.title}</span>
                     </span>
                     <span className="text-xs text-white/75 drop-shadow">

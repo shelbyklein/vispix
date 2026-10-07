@@ -7,6 +7,8 @@ import { contrastRatio } from "./color-utils";
 const PAIRS: [keyof ColorSet, keyof ColorSet, string, number][] = [
   ["foreground", "background", "Body text on page", 4.5],
   ["card-foreground", "card", "Card text on card", 4.5],
+  ["button-foreground", "button", "Button text", 4.5],
+  ["primary", "background", "Brand color on page (links)", 4.5],
   ["primary-foreground", "primary", "Text on primary", 4.5],
   ["secondary-foreground", "secondary", "Text on secondary", 4.5],
   ["accent-foreground", "accent", "Text on accent", 4.5],

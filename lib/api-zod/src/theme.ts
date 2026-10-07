@@ -25,7 +25,9 @@ export const COLOR_TOKENS = [
   { key: "input", label: "Input border", group: "Surfaces" },
   { key: "primary", label: "Brand / primary", group: "Brand" },
   { key: "primary-foreground", label: "Text on primary", group: "Brand" },
-  { key: "secondary", label: "Secondary (navy)", group: "Brand" },
+  { key: "button", label: "Button background", group: "Brand" },
+  { key: "button-foreground", label: "Button text", group: "Brand" },
+  { key: "secondary", label: "Secondary", group: "Brand" },
   { key: "secondary-foreground", label: "Text on secondary", group: "Brand" },
   { key: "accent", label: "Hover / highlight", group: "Brand" },
   { key: "accent-foreground", label: "Text on accent", group: "Brand" },
@@ -56,14 +58,26 @@ export const COLOR_TOKENS = [
 export type ColorTokenKey = (typeof COLOR_TOKENS)[number]["key"];
 export type ColorSet = Record<ColorTokenKey, string>;
 
-/** Google Fonts offered on the Design page. Any can be body or heading. */
+/**
+ * Fonts offered on the Design page. Any can be body or heading. All are Google
+ * Fonts except ADOBE_FONTS, which load from an Adobe Fonts web project.
+ */
 export const FONT_CHOICES = [
-  "Poppins", "Inter", "DM Sans", "Manrope", "Outfit", "Figtree", "Plus Jakarta Sans",
+  "Sofia Pro", "Sofia Sans", "Karla", "Poppins", "Inter", "DM Sans", "Manrope", "Outfit", "Figtree", "Plus Jakarta Sans",
   "Work Sans", "IBM Plex Sans", "Source Sans 3", "Nunito Sans", "Space Grotesk",
   "Playfair Display", "DM Serif Display", "Lora", "Libre Baskerville", "Cormorant Garamond",
   "Fraunces", "Merriweather",
 ] as const;
 export type FontChoice = (typeof FONT_CHOICES)[number];
+
+/** Fonts served by Adobe Fonts (Typekit), not Google. */
+export const ADOBE_FONTS: ReadonlySet<string> = new Set(["Sofia Pro"]);
+
+/** Google font to show until the Adobe Fonts project is available. */
+const ADOBE_FALLBACKS: Readonly<Record<string, string>> = { "Sofia Pro": "Sofia Sans" };
+
+/** The ID in https://use.typekit.net/<id>.css: 7-12 lowercase alphanumerics. */
+export const ADOBE_PROJECT_PATTERN = /^[a-z0-9]{7,12}$/;
 
 const SERIF_FONTS: ReadonlySet<string> = new Set([
   "Playfair Display", "DM Serif Display", "Lora", "Libre Baskerville", "Cormorant Garamond", "Fraunces", "Merriweather",
@@ -73,6 +87,12 @@ export interface PlatformTheme {
   light: ColorSet;
   dark: ColorSet;
   fonts: { body: FontChoice; heading: FontChoice };
+  /** Weight (100-900, step 100) of h1-h6. */
+  headingWeight: number;
+  /** Weight (100-900, step 100) of button labels. */
+  buttonWeight: number;
+  /** Adobe Fonts web project ID, or null. Required for Adobe-only fonts to load. */
+  adobeFontsProject: string | null;
   /** Base corner radius in rem; sm/md/lg/xl derive from it. */
   radius: number;
   /** Multiplies shadow opacity: 0 = flat, 1 = default, 2 = strong. */
@@ -81,90 +101,97 @@ export interface PlatformTheme {
 
 export const DEFAULT_THEME: PlatformTheme = {
   light: {
-    background: "222 20% 97%",
-    foreground: "222 14% 15%",
-    card: "222 20% 99%",
-    "card-foreground": "222 14% 15%",
-    "card-border": "222 10% 90%",
-    popover: "222 20% 99%",
-    "popover-foreground": "222 14% 15%",
-    "popover-border": "222 10% 90%",
-    muted: "222 10% 92%",
-    "muted-foreground": "222 10% 45%",
-    border: "222 12% 88%",
-    input: "222 12% 88%",
-    primary: "222 99% 51%",
+    background: "42.9 100% 97.3%",
+    foreground: "200 12% 18%",
+    card: "43 100% 99%",
+    "card-foreground": "200 12% 18%",
+    "card-border": "36 35% 84%",
+    popover: "43 100% 99%",
+    "popover-foreground": "200 12% 18%",
+    "popover-border": "36 35% 84%",
+    muted: "38 55% 92%",
+    "muted-foreground": "200 8% 30%",
+    border: "36 35% 84%",
+    input: "36 35% 84%",
+    primary: "211 32% 36%",
     "primary-foreground": "0 0% 100%",
-    secondary: "224 60% 14%",
-    "secondary-foreground": "0 0% 100%",
-    accent: "222 30% 92%",
-    "accent-foreground": "222 60% 25%",
-    ring: "222 99% 51%",
-    "heading-primary": "222 92% 45%",
-    "heading-secondary": "224 60% 16%",
-    destructive: "0 72% 45%",
+    button: "211.2 32.5% 84.9%",
+    "button-foreground": "205 25% 18%",
+    secondary: "33.9 67.6% 73.3%",
+    "secondary-foreground": "205 25% 16%",
+    accent: "38 60% 90%",
+    "accent-foreground": "205 25% 18%",
+    ring: "211 32% 36%",
+    "heading-primary": "200 7.3% 40.2%",
+    "heading-secondary": "200 7.3% 40.2%",
+    destructive: "4 68% 44%",
     "destructive-foreground": "0 0% 100%",
     warning: "38 92% 50%",
     "warning-foreground": "26 90% 37%",
     success: "160 84% 39%",
     "success-foreground": "163 94% 24%",
-    sidebar: "222 15% 94%",
-    "sidebar-foreground": "222 14% 15%",
-    "sidebar-border": "222 12% 88%",
-    "sidebar-primary": "222 99% 51%",
+    sidebar: "33.9 67.6% 73.3%",
+    "sidebar-foreground": "205 25% 14%",
+    "sidebar-border": "34 45% 64%",
+    "sidebar-primary": "211 32% 36%",
     "sidebar-primary-foreground": "0 0% 100%",
-    "sidebar-accent": "222 30% 90%",
-    "sidebar-accent-foreground": "222 60% 25%",
-    "sidebar-ring": "222 99% 51%",
-    "chart-1": "222 99% 51%",
-    "chart-2": "224 60% 22%",
-    "chart-3": "222 90% 68%",
-    "chart-4": "222 55% 45%",
-    "chart-5": "222 30% 65%",
+    "sidebar-accent": "40 80% 88%",
+    "sidebar-accent-foreground": "205 25% 14%",
+    "sidebar-ring": "211 32% 36%",
+    "chart-1": "211 32% 36%",
+    "chart-2": "33.9 67.6% 73.3%",
+    "chart-3": "200 7.3% 40.2%",
+    "chart-4": "211 37% 70%",
+    "chart-5": "20 60% 62%",
   },
   dark: {
-    background: "224 55% 6%",
-    foreground: "222 25% 92%",
-    card: "224 45% 9%",
-    "card-foreground": "222 25% 92%",
-    "card-border": "224 35% 15%",
-    popover: "224 45% 9%",
-    "popover-foreground": "222 25% 92%",
-    "popover-border": "224 35% 15%",
-    muted: "224 35% 13%",
-    "muted-foreground": "222 15% 62%",
-    border: "224 35% 16%",
-    input: "224 35% 16%",
-    primary: "222 100% 62%",
-    "primary-foreground": "0 0% 100%",
-    secondary: "224 40% 15%",
-    "secondary-foreground": "222 25% 92%",
-    accent: "224 45% 16%",
-    "accent-foreground": "222 25% 92%",
-    ring: "222 100% 62%",
-    "heading-primary": "222 100% 66%",
-    "heading-secondary": "222 25% 88%",
-    destructive: "0 65% 50%",
+    background: "30 14% 8%",
+    foreground: "43 50% 92%",
+    card: "30 12% 11%",
+    "card-foreground": "43 50% 92%",
+    "card-border": "30 12% 20%",
+    popover: "30 12% 11%",
+    "popover-foreground": "43 50% 92%",
+    "popover-border": "30 12% 20%",
+    muted: "30 12% 15%",
+    "muted-foreground": "38 14% 66%",
+    border: "30 12% 20%",
+    input: "30 12% 20%",
+    primary: "211 50% 74%",
+    "primary-foreground": "205 25% 12%",
+    button: "211.2 32.5% 84.9%",
+    "button-foreground": "205 25% 16%",
+    secondary: "34 38% 36%",
+    "secondary-foreground": "43 60% 94%",
+    accent: "30 16% 18%",
+    "accent-foreground": "43 50% 92%",
+    ring: "211 50% 74%",
+    "heading-primary": "200 14% 74%",
+    "heading-secondary": "200 14% 74%",
+    destructive: "4 70% 48%",
     "destructive-foreground": "0 0% 100%",
     warning: "43 96% 56%",
     "warning-foreground": "43 96% 56%",
     success: "158 64% 52%",
     "success-foreground": "158 64% 52%",
-    sidebar: "224 60% 5%",
-    "sidebar-foreground": "222 25% 92%",
-    "sidebar-border": "224 35% 14%",
-    "sidebar-primary": "222 100% 62%",
-    "sidebar-primary-foreground": "0 0% 100%",
-    "sidebar-accent": "224 50% 14%",
-    "sidebar-accent-foreground": "222 25% 92%",
-    "sidebar-ring": "222 100% 62%",
-    "chart-1": "222 100% 62%",
-    "chart-2": "222 70% 45%",
-    "chart-3": "222 90% 75%",
-    "chart-4": "224 40% 35%",
-    "chart-5": "222 20% 65%",
+    sidebar: "30 18% 6%",
+    "sidebar-foreground": "43 50% 90%",
+    "sidebar-border": "30 14% 14%",
+    "sidebar-primary": "211 50% 74%",
+    "sidebar-primary-foreground": "205 25% 12%",
+    "sidebar-accent": "34 30% 18%",
+    "sidebar-accent-foreground": "43 50% 92%",
+    "sidebar-ring": "211 50% 74%",
+    "chart-1": "211 50% 74%",
+    "chart-2": "34 60% 62%",
+    "chart-3": "200 14% 60%",
+    "chart-4": "211 40% 55%",
+    "chart-5": "20 60% 60%",
   },
-  fonts: { body: "Poppins", heading: "Playfair Display" },
+  fonts: { body: "Karla", heading: "Sofia Pro" },
+  headingWeight: 600,
+  buttonWeight: 400,
+  adobeFontsProject: null,
   radius: 0.5,
   shadowStrength: 1,
 };
@@ -174,13 +201,34 @@ const colorSet = z.object(
   Object.fromEntries(COLOR_TOKENS.map((t) => [t.key, hsl])) as Record<ColorTokenKey, typeof hsl>,
 );
 
-export const PlatformThemeSchema = z.object({
-  light: colorSet,
-  dark: colorSet,
-  fonts: z.object({ body: z.enum(FONT_CHOICES), heading: z.enum(FONT_CHOICES) }),
-  radius: z.number().min(0).max(1.5),
-  shadowStrength: z.number().min(0).max(2),
-});
+const weight = z.number().int().min(100).max(900).multipleOf(100);
+
+// Themes saved before the button tokens existed lack them; their buttons were
+// painted with primary, so default to that and the look is unchanged.
+function withButtonDefaults(input: unknown): unknown {
+  if (!input || typeof input !== "object") return input;
+  const t = input as Record<string, unknown>;
+  const fill = (set: unknown) => {
+    if (!set || typeof set !== "object") return set;
+    const c = set as Record<string, unknown>;
+    return { ...c, button: c.button ?? c.primary, "button-foreground": c["button-foreground"] ?? c["primary-foreground"] };
+  };
+  return { ...t, light: fill(t.light), dark: fill(t.dark) };
+}
+
+export const PlatformThemeSchema = z.preprocess(
+  withButtonDefaults,
+  z.object({
+    light: colorSet,
+    dark: colorSet,
+    fonts: z.object({ body: z.enum(FONT_CHOICES), heading: z.enum(FONT_CHOICES) }),
+    headingWeight: weight.default(DEFAULT_THEME.headingWeight),
+    buttonWeight: weight.default(DEFAULT_THEME.buttonWeight),
+    adobeFontsProject: z.string().regex(ADOBE_PROJECT_PATTERN, "Expected 7-12 lowercase letters or digits").nullable().default(null),
+    radius: z.number().min(0).max(1.5),
+    shadowStrength: z.number().min(0).max(2),
+  }),
+);
 
 // --- API contract (implemented by api-server, consumed by the Design page) ---
 //
@@ -200,14 +248,18 @@ export interface PlatformThemeState {
 }
 
 function fontStack(name: string): string {
+  const fallback = ADOBE_FALLBACKS[name];
+  if (fallback) return `"${name}", "${fallback}", sans-serif`;
   return `"${name}", ${SERIF_FONTS.has(name) ? "Georgia, serif" : "sans-serif"}`;
 }
 
-/** Google Fonts stylesheet URL for the theme's fonts (both weights we use). */
+/**
+ * Google Fonts stylesheet URL for the theme's fonts (the weights we use).
+ * Adobe-only fonts are skipped; their Google fallback is included instead.
+ */
 export function googleFontsUrl(fonts: PlatformTheme["fonts"]): string {
-  const families = [...new Set([fonts.body, fonts.heading])].map(
-    (f) => `family=${f.replace(/ /g, "+")}:wght@400;500;600;700`,
-  );
+  const names = [fonts.body, fonts.heading].map((f) => ADOBE_FALLBACKS[f] ?? f);
+  const families = [...new Set(names)].map((f) => `family=${f.replace(/ /g, "+")}:wght@400;500;600;700`);
   return `https://fonts.googleapis.com/css2?${families.join("&")}&display=swap`;
 }
 
@@ -231,10 +283,13 @@ export function themeToCss(theme: PlatformTheme): string {
   const shared = [
     `  --app-font-sans: ${fontStack(theme.fonts.body)};`,
     `  --app-font-heading: ${fontStack(theme.fonts.heading)};`,
+    `  --heading-weight: ${theme.headingWeight};`,
+    `  --button-weight: ${theme.buttonWeight};`,
     `  --radius: ${theme.radius}rem;`,
     ...Object.entries(shadow(theme.shadowStrength)).map(([k, v]) => `  --${k}: ${v};`),
   ].join("\n");
   return [
+    ...(theme.adobeFontsProject && ADOBE_PROJECT_PATTERN.test(theme.adobeFontsProject) ? [`@import url("https://use.typekit.net/${theme.adobeFontsProject}.css");`] : []),
     `@import url("${googleFontsUrl(theme.fonts)}");`,
     `:root:root {\n${shared}\n${vars(theme.light)}\n}`,
     `:root:root.dark {\n${vars(theme.dark)}\n}`,
