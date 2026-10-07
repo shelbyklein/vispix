@@ -292,7 +292,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
               {isPerson ? (
                 <Users className="h-4 w-4 text-sky-500 shrink-0" />
               ) : (
-                <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+                <Sparkles className="h-4 w-4 text-warning shrink-0" />
               )}
               {collectionLoading ? (
                 <Skeleton className="h-7 w-48" />
@@ -316,7 +316,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
         {/* Semantic search term */}
         <div className="rounded-xl border border-border bg-muted/30 p-4 space-y-2" data-testid="smart-term-panel">
           <div className="flex items-center gap-1.5">
-            <Sparkles className="h-4 w-4 text-amber-500 shrink-0" />
+            <Sparkles className="h-4 w-4 text-warning shrink-0" />
             <span className="text-sm font-semibold">Fallback search term</span>
             <span className="text-xs text-muted-foreground">
               {isMemberDriven
@@ -447,7 +447,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                       from the semantic suggestions in the combined grid. */}
                   {inCollection && (
                     <div
-                      className="absolute top-1.5 left-1.5 z-10 flex items-center justify-center rounded-full w-5 h-5 bg-emerald-500/90 text-white shadow pointer-events-none"
+                      className="absolute top-1.5 left-1.5 z-10 flex items-center justify-center rounded-full w-5 h-5 bg-success/90 text-white shadow pointer-events-none"
                       title="In this collection"
                       data-testid="member-badge"
                     >
@@ -492,7 +492,7 @@ export default function SmartCollectionDetail({ variant = "collection" }: { vari
                       data-testid="add-to-collection-btn"
                       className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-xs font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-white/60 ${
                         inCollection
-                          ? "bg-emerald-500/90 text-white cursor-default"
+                          ? "bg-success/90 text-white cursor-default"
                           : "bg-white/20 hover:bg-white/40 text-white backdrop-blur-sm"
                       }`}
                     >

@@ -52,7 +52,7 @@ export function CollectionSuggestionList({
                 key={s.id}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs",
-                  dark ? "border-amber-400/50 bg-amber-500/20 text-amber-100" : "border-primary/30 bg-rose-50 dark:bg-rose-950",
+                  dark ? "border-warning/50 bg-warning/20 text-amber-100" : "border-primary/30 bg-rose-50 dark:bg-rose-950",
                 )}
                 title={provenanceTitle(s)}
                 data-testid={`suggested-collection-${s.id}`}
@@ -93,18 +93,18 @@ export function CollectionSuggestionList({
                 key={s.id}
                 className={cn(
                   "inline-flex items-center gap-1 rounded-full border pl-2.5 pr-1 py-0.5 text-xs",
-                  dark ? "border-emerald-400/50 bg-emerald-500/20 text-emerald-100" : "border-emerald-400/40 bg-emerald-100 dark:bg-emerald-900",
+                  dark ? "border-success/50 bg-success/20 text-emerald-100" : "border-success/40 bg-success/15",
                 )}
                 title={provenanceTitle(s)}
                 data-testid={`suggested-new-collection-${s.id}`}
               >
-                <Sparkles className={cn("h-3 w-3", dark ? "text-emerald-200" : "text-emerald-600 dark:text-emerald-400")} />
+                <Sparkles className={cn("h-3 w-3", dark ? "text-emerald-200" : "text-success")} />
                 <span className={dark ? undefined : "text-foreground"}>{s.suggestedName}</span>
                 <button
                   type="button"
                   onClick={() => onCreateNew({ suggestionId: s.id, name: s.suggestedName })}
                   disabled={disabled}
-                  className={cn("rounded-full p-0.5 disabled:opacity-50", dark ? "text-emerald-200 hover:bg-white/15" : "text-emerald-600 dark:text-emerald-400 hover:bg-emerald-200 dark:hover:bg-emerald-800")}
+                  className={cn("rounded-full p-0.5 disabled:opacity-50", dark ? "text-emerald-200 hover:bg-white/15" : "text-success hover:bg-success/25")}
                   aria-label={`Create collection "${s.suggestedName}" and add photo`}
                   title="Create this collection and add photo"
                   data-testid={`accept-new-collection-suggestion-${s.id}`}

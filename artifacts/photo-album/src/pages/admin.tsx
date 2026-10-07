@@ -105,14 +105,14 @@ function CardStatus({
   }
   if (count === 0) {
     return (
-      <p className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500" data-testid="card-status-done">
+      <p className="mt-1.5 flex items-center gap-1 text-xs text-success" data-testid="card-status-done">
         <CircleCheck className="h-3.5 w-3.5 shrink-0" />
         All done
       </p>
     );
   }
   return (
-    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500" data-testid="card-status-attention">
+    <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning" data-testid="card-status-attention">
       <CircleAlert className="h-3.5 w-3.5 shrink-0" />
       {label(count)}
     </p>
@@ -272,7 +272,7 @@ export default function Admin() {
                                 <div
                                   className={cn(
                                     "h-full rounded-full transition-all",
-                                    billing.overLimit ? "bg-red-500" : billing.nearLimit ? "bg-amber-500" : "bg-primary",
+                                    billing.overLimit ? "bg-red-500" : billing.nearLimit ? "bg-warning" : "bg-primary",
                                   )}
                                   style={{ width: `${Math.min(100, Math.round(billing.ratio * 100))}%` }}
                                 />
@@ -297,12 +297,12 @@ export default function Admin() {
                       <p className="text-xs text-muted-foreground mt-0.5">{section.description}</p>
                       {section.href === "/admin/ai-services" && aiConfigured != null && (
                         aiConfigured ? (
-                          <p className="mt-1.5 flex items-center gap-1 text-xs text-emerald-600 dark:text-emerald-500" data-testid="ai-configured-status">
+                          <p className="mt-1.5 flex items-center gap-1 text-xs text-success" data-testid="ai-configured-status">
                             <CircleCheck className="h-3.5 w-3.5 shrink-0" />
                             AI provider configured
                           </p>
                         ) : (
-                          <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-500" data-testid="ai-configured-status">
+                          <p className="mt-1.5 flex items-center gap-1 text-xs font-medium text-warning" data-testid="ai-configured-status">
                             <CircleAlert className="h-3.5 w-3.5 shrink-0" />
                             No provider key yet
                           </p>

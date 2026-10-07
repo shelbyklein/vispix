@@ -341,7 +341,7 @@ export function PhotoSidebarContent({
           className={cn(
             "flex items-center justify-center h-9 w-9 rounded-lg border transition-colors disabled:cursor-not-allowed",
             isCover
-              ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-300 opacity-80"
+              ? "bg-success/20 border-success/40 text-emerald-300 opacity-80"
               : "bg-white/10 border-white/20 text-white/80 hover:bg-white/20 disabled:opacity-50"
           )}
           data-testid="lightbox-set-cover-btn"
@@ -364,7 +364,7 @@ export function PhotoSidebarContent({
           className={cn(
             "flex items-center justify-center h-9 w-9 rounded-lg border transition-colors disabled:opacity-50",
             isHidden
-              ? "bg-amber-500/20 border-amber-400/40 text-amber-300 hover:bg-amber-500/30"
+              ? "bg-warning/20 border-warning/40 text-amber-300 hover:bg-warning/30"
               : "bg-white/10 border-white/20 text-white/80 hover:bg-white/20"
           )}
           data-testid="lightbox-toggle-hidden"

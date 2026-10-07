@@ -12,15 +12,15 @@ const CRITERIA: { key: keyof PhotoAiEvaluation; label: string }[] = [
 ];
 
 function scoreTone(score: number): string {
-  if (score >= 7) return "text-emerald-700 dark:text-emerald-400";
+  if (score >= 7) return "text-success";
   if (score >= 5) return "text-foreground";
-  return "text-amber-700 dark:text-amber-400";
+  return "text-warning";
 }
 
 function barTone(score: number): string {
-  if (score >= 7) return "bg-emerald-500";
+  if (score >= 7) return "bg-success";
   if (score >= 5) return "bg-primary";
-  return "bg-amber-500";
+  return "bg-warning";
 }
 
 // AI criteria evaluation card (#181): overall score, per-criterion bars, and
@@ -69,7 +69,7 @@ export function AiEvaluationPanel({ evaluation }: { evaluation: PhotoAiEvaluatio
             <Badge
               key={flaw}
               variant="outline"
-              className="text-[10px] border-amber-500/50 text-amber-700 dark:text-amber-400"
+              className="text-[10px] border-warning/50 text-warning"
             >
               {flaw}
             </Badge>

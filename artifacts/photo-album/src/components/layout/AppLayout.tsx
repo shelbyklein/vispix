@@ -195,7 +195,7 @@ function BulkUploadBanner() {
     return (
       <div className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border shadow-lg">
         <div className="px-4 sm:px-6 lg:px-8 py-3 flex items-center gap-4">
-          <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+          <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
           <div className="flex-1 min-w-0">
             <span className="text-sm font-medium text-foreground">Upload complete — </span>
             <span className="text-sm text-muted-foreground">
@@ -409,7 +409,7 @@ function ProjectsNav({ location, dragProps }: { location: string; dragProps?: Re
                         dragOverId === project.id &&
                           "scale-[1.05] border-solid border-primary bg-primary/15 shadow-lg ring-2 ring-primary",
                         justAddedId === project.id &&
-                          "border-solid border-emerald-500 bg-emerald-500/15 ring-2 ring-emerald-500",
+                          "border-solid border-success bg-success/15 ring-2 ring-success",
                       )}
                       onDragOver={(e: DragEvent) => {
                         if (isPhotoDrag(e)) {
@@ -425,7 +425,7 @@ function ProjectsNav({ location, dragProps }: { location: string; dragProps?: Re
                         <SidebarMenuBadge
                           className={cn(
                             "transition-transform duration-200",
-                            justAddedId === project.id && "scale-150 text-emerald-400",
+                            justAddedId === project.id && "scale-150 text-success",
                           )}
                         >
                           {project.photoCount}
@@ -548,7 +548,7 @@ function CollectionsNav({ location, dragProps }: { location: string; dragProps?:
                         dragOverId === collection.id &&
                           "scale-[1.05] border-solid border-primary bg-primary/15 shadow-lg ring-2 ring-primary",
                         justAddedId === collection.id &&
-                          "border-solid border-emerald-500 bg-emerald-500/15 ring-2 ring-emerald-500",
+                          "border-solid border-success bg-success/15 ring-2 ring-success",
                       )}
                       onDragOver={(e: DragEvent) => {
                         if (isPhotoDrag(e)) {
@@ -564,7 +564,7 @@ function CollectionsNav({ location, dragProps }: { location: string; dragProps?:
                         <SidebarMenuBadge
                           className={cn(
                             "transition-transform duration-200",
-                            justAddedId === collection.id && "scale-150 text-emerald-400",
+                            justAddedId === collection.id && "scale-150 text-success",
                           )}
                         >
                           {collection.photoCount}
@@ -809,7 +809,7 @@ function AppSidebar({
                       className="flex items-center gap-2 cursor-pointer"
                       data-testid="nav-superadmin"
                     >
-                      <Shield className="h-4 w-4 text-amber-500" />
+                      <Shield className="h-4 w-4 text-warning" />
                       Superadmin
                     </Link>
                   </DropdownMenuItem>

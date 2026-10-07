@@ -48,8 +48,8 @@ export default function Superadmin() {
     <AppLayout>
       <div className="space-y-8" data-testid="superadmin-page">
         <div className="flex items-center gap-3">
-          <div className="h-10 w-10 rounded-lg bg-amber-500/10 flex items-center justify-center">
-            <Shield className="h-5 w-5 text-amber-500" />
+          <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
+            <Shield className="h-5 w-5 text-warning" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Superadmin</h1>
@@ -66,11 +66,11 @@ export default function Superadmin() {
               <Link
                 key={section.href}
                 href={section.href}
-                className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-amber-500/40 hover:bg-accent/50"
+                className="group flex items-start gap-3 rounded-xl border border-border bg-card p-4 transition-colors hover:border-warning/40 hover:bg-accent/50"
                 data-testid={`superadmin-card-${section.href.split("/").pop()}`}
               >
-                <div className="h-9 w-9 shrink-0 rounded-lg bg-amber-500/10 flex items-center justify-center">
-                  <Icon className="h-[18px] w-[18px] text-amber-500" />
+                <div className="h-9 w-9 shrink-0 rounded-lg bg-warning/10 flex items-center justify-center">
+                  <Icon className="h-[18px] w-[18px] text-warning" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-1">

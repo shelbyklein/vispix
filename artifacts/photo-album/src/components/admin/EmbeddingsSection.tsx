@@ -72,7 +72,7 @@ export function EmbeddingsSection() {
       <div className="px-5 py-4 space-y-4">
         {!isLoading && !configured && (
           <div
-            className="flex items-start gap-2 rounded-lg border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-800 dark:text-amber-300"
+            className="flex items-start gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-warning"
             data-testid="embeddings-not-configured"
           >
             <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
@@ -112,14 +112,14 @@ export function EmbeddingsSection() {
             </span>
           ) : status ? (
             <span className="text-muted-foreground">
-              <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+              <span className="text-success font-medium">
                 {status.embeddedCount}
               </span>{" "}
               embedded
               {status.missingCount > 0 && (
                 <>
                   {" · "}
-                  <span className="text-amber-700 dark:text-amber-400 font-medium">
+                  <span className="text-warning font-medium">
                     {status.missingCount}
                   </span>{" "}
                   missing
@@ -145,17 +145,17 @@ export function EmbeddingsSection() {
                   </>
                 ) : job.stopped ? (
                   <>
-                    <XCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                    <XCircle className="h-4 w-4 text-warning shrink-0" />
                     Stopped — {job.processed} of {job.total} processed
                   </>
                 ) : job.total === 0 ? (
                   <>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                     No photos needed embedding
                   </>
                 ) : (
                   <>
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
                     Done — {job.processed} of {job.total} processed
                   </>
                 )}
@@ -179,7 +179,7 @@ export function EmbeddingsSection() {
             )}
             {job.processed > 0 && (
               <div className="flex gap-4 text-xs text-muted-foreground">
-                <span className="text-emerald-700 dark:text-emerald-400">{job.succeeded} succeeded</span>
+                <span className="text-success">{job.succeeded} succeeded</span>
                 {job.failed > 0 && <span className="text-destructive">{job.failed} failed</span>}
               </div>
             )}

@@ -69,9 +69,9 @@ export function ServiceReadinessCard({
     <div className="relative rounded-xl border border-border bg-card p-4" data-testid="service-readiness">
       <div className="flex items-center gap-2 pr-8">
         {allGood ? (
-          <CircleCheck className="h-5 w-5 text-emerald-600 dark:text-emerald-500 shrink-0" />
+          <CircleCheck className="h-5 w-5 text-success shrink-0" />
         ) : (
-          <CircleAlert className="h-5 w-5 text-amber-500 shrink-0" />
+          <CircleAlert className="h-5 w-5 text-warning shrink-0" />
         )}
         <h3 className="text-sm font-semibold text-foreground">{title}</h3>
       </div>
@@ -93,11 +93,11 @@ export function ServiceReadinessCard({
         {data.services.map((s) => (
           <div key={s.key} className="flex items-start gap-1.5 text-xs" data-testid={`service-${s.key}`}>
             {s.ok ? (
-              <CircleCheck className="h-3.5 w-3.5 mt-0.5 text-emerald-600 dark:text-emerald-500 shrink-0" />
+              <CircleCheck className="h-3.5 w-3.5 mt-0.5 text-success shrink-0" />
             ) : s.optional ? (
               <CircleMinus className="h-3.5 w-3.5 mt-0.5 text-muted-foreground shrink-0" />
             ) : (
-              <CircleAlert className="h-3.5 w-3.5 mt-0.5 text-amber-500 shrink-0" />
+              <CircleAlert className="h-3.5 w-3.5 mt-0.5 text-warning shrink-0" />
             )}
             <span>
               <span className="font-medium text-foreground">
@@ -120,7 +120,7 @@ export function ServiceReadinessCard({
               <Link
                 key={item.key}
                 href={item.href}
-                className="group inline-flex items-center gap-1.5 text-xs text-amber-700 dark:text-amber-400 font-medium hover:underline"
+                className="group inline-flex items-center gap-1.5 text-xs text-warning font-medium hover:underline"
                 data-testid={`action-item-${item.key}`}
               >
                 <CircleAlert className="h-3.5 w-3.5 shrink-0" />
