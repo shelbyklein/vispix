@@ -15,8 +15,10 @@ const EMPTY_CSS = "/* built-in theme */\n";
 
 async function loadState(): Promise<PlatformThemeState> {
   const settings = await loadAppSettings();
+  // Parse so themes saved before newer fields existed come back complete.
+  const parsed = settings.theme ? PlatformThemeSchema.safeParse(settings.theme) : null;
   return {
-    theme: settings.theme ?? null,
+    theme: parsed?.success ? parsed.data : (settings.theme ?? null),
     defaults: DEFAULT_THEME,
     updatedAt: settings.themeUpdatedAt ? settings.themeUpdatedAt.toISOString() : null,
   };

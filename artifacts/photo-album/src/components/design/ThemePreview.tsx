@@ -20,7 +20,7 @@ export function ThemePreview() {
       <section className="space-y-2">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Buttons</h3>
         <div className="flex flex-wrap gap-2">
-          <Button>Primary</Button>
+          <Button>Button</Button>
           <Button variant="secondary">Secondary</Button>
           <Button variant="outline">Outline</Button>
           <Button variant="ghost">Ghost</Button>

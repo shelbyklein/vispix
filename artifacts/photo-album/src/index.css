@@ -24,6 +24,10 @@
   --color-primary-foreground: hsl(var(--primary-foreground));
   --color-primary-border: var(--primary-border);
 
+  --color-button: hsl(var(--button));
+  --color-button-foreground: hsl(var(--button-foreground));
+  --color-button-border: var(--button-border);
+
   --color-secondary: hsl(var(--secondary));
   --color-secondary-foreground: hsl(var(--secondary-foreground));
   --color-secondary-border: var(--secondary-border);
@@ -83,58 +87,66 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  /* Vispix brand palette — electric blue (#054EFE, the logo "pixels") on cool
-     navy-tinted neutrals; hue 222 throughout to match the brand blue. */
-  --background: 222 20% 97%; /* cool white */
-  --foreground: 222 14% 15%; /* near-black, navy-tinted */
-  --card: 222 20% 99%;
-  --card-foreground: 222 14% 15%;
-  --card-border: 222 10% 90%;
-  --popover: 222 20% 99%;
-  --popover-foreground: 222 14% 15%;
-  --popover-border: 222 10% 90%;
+  /* Vispix "Sunset" palette: cream page (#FFFBF1), tan secondary/sidebar
+     (#E9C18D), slate headings (#5F696E), blue-grey buttons (#CCD8E5). The
+     remaining tokens are derived to match; see docs/plans/rebrand-sunset. */
+  --background: 42.9 100% 97.3%; /* cool white */
+  --foreground: 200 12% 18%; /* near-black, slate-tinted */
+  --card: 43 100% 99%;
+  --card-foreground: 200 12% 18%;
+  --card-border: 36 35% 84%;
+  --popover: 43 100% 99%;
+  --popover-foreground: 200 12% 18%;
+  --popover-border: 36 35% 84%;
 
-  /* Primary: Vispix blue #054EFE → 222 99% 51% */
-  --primary: 222 99% 51%;
+  /* Primary: deep slate blue for links, focus rings, icons, badges */
+  --primary: 211 32% 36%;
   --primary-foreground: 0 0% 100%;
 
-  /* Secondary: the logo's deep navy field */
-  --secondary: 224 60% 14%;
-  --secondary-foreground: 0 0% 100%;
+  /* Secondary: warm tan */
+  /* Button: the default (primary) Button variant. Separate from --primary,
+     which stays the brand color for links, focus rings, icons and badges. */
+  --button: 211.2 32.5% 84.9%; /* #CCD8E5 */
+  --button-foreground: 205 25% 18%;
 
-  --muted: 222 10% 92%;
-  --muted-foreground: 222 10% 45%;
+  --secondary: 33.9 67.6% 73.3%;
+  --secondary-foreground: 205 25% 16%;
 
-  /* Accent: subtle blue tint for hover/highlight states */
-  --accent: 222 30% 92%;
-  --accent-foreground: 222 60% 25%;
+  --muted: 38 55% 92%;
+  --muted-foreground: 200 8% 30%;
 
-  --destructive: 0 72% 45%; /* danger red, distinct from the blue primary */
+  /* Accent: pale sand tint for hover/highlight states */
+  --accent: 38 60% 90%;
+  --accent-foreground: 205 25% 18%;
+
+  --destructive: 4 68% 44%; /* danger red */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 222 12% 88%;
-  --input: 222 12% 88%;
-  --ring: 222 99% 51%;
+  --border: 36 35% 84%;
+  --input: 36 35% 84%;
+  --ring: 211 32% 36%;
 
-  --sidebar: 222 15% 94%;
-  --sidebar-foreground: 222 14% 15%;
-  --sidebar-border: 222 12% 88%;
-  --sidebar-primary: 222 99% 51%; /* Vispix blue */
+  --sidebar: 33.9 67.6% 73.3%;
+  --sidebar-foreground: 205 25% 14%;
+  --sidebar-border: 34 45% 64%;
+  --sidebar-primary: 211 32% 36%; /* brand blue */
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 222 30% 90%; /* blue-tinted hover */
-  --sidebar-accent-foreground: 222 60% 25%;
-  --sidebar-ring: 222 99% 51%;
+  --sidebar-accent: 40 80% 88%; /* sand hover */
+  --sidebar-accent-foreground: 205 25% 14%;
+  --sidebar-ring: 211 32% 36%;
 
-  --chart-1: 222 99% 51%; /* Vispix blue */
-  --chart-2: 224 60% 22%; /* deep navy */
-  --chart-3: 222 90% 68%; /* light blue */
-  --chart-4: 222 55% 45%; /* mid blue */
-  --chart-5: 222 30% 65%; /* muted blue-gray */
+  --chart-1: 211 32% 36%; /* brand blue */
+  --chart-2: 33.9 67.6% 73.3%; /* tan */
+  --chart-3: 200 7.3% 40.2%; /* slate */
+  --chart-4: 211 37% 70%; /* light blue */
+  --chart-5: 20 60% 62%; /* terracotta */
 
-  --app-font-sans: "Poppins", sans-serif;
+  --app-font-sans: "Karla", sans-serif;
+  --heading-weight: 600;
+  --button-weight: 400;
   --app-font-serif: "Georgia", serif;
   --app-font-mono: "Menlo", monospace;
-  --app-font-heading: "Playfair Display", "Georgia", serif;
+  --app-font-heading: "Sofia Pro", "Sofia Sans", sans-serif;
   --radius: 0.5rem;
   
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -142,6 +154,7 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
   --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
 
+  --button-border: hsl(from hsl(var(--button)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --primary-border: hsl(from hsl(var(--primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --secondary-border: hsl(from hsl(var(--secondary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --muted-border: hsl(from hsl(var(--muted)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
@@ -150,9 +163,9 @@
   --sidebar-primary-border: hsl(from hsl(var(--sidebar-primary)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
   --sidebar-accent-border: hsl(from hsl(var(--sidebar-accent)) h s calc(l + var(--opaque-button-border-intensity)) / alpha);
 
-  /* Heading accent colors — brand blue / deep navy, tuned per theme for contrast */
-  --heading-primary: 222 92% 45%;
-  --heading-secondary: 224 60% 16%;
+  /* Heading colors — slate (#5F696E), lightened in dark mode for contrast */
+  --heading-primary: 200 7.3% 40.2%;
+  --heading-secondary: 200 7.3% 40.2%;
 
   /* Status colors (defaults mirror DEFAULT_THEME in lib/api-zod/src/theme.ts). */
   --warning: 38 92% 50%;
@@ -174,55 +187,59 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  /* Dark mode: anchored to the logo's near-black navy field (#030919). */
-  --background: 224 55% 6%;
-  --foreground: 222 25% 92%;
-  --card: 224 45% 9%;
-  --card-foreground: 222 25% 92%;
-  --card-border: 224 35% 15%;
-  --popover: 224 45% 9%;
-  --popover-foreground: 222 25% 92%;
-  --popover-border: 224 35% 15%;
+  /* Dark mode: warm near-black with cream text. */
+  --background: 30 14% 8%;
+  --foreground: 43 50% 92%;
+  --card: 30 12% 11%;
+  --card-foreground: 43 50% 92%;
+  --card-border: 30 12% 20%;
+  --popover: 30 12% 11%;
+  --popover-foreground: 43 50% 92%;
+  --popover-border: 30 12% 20%;
 
   /* Primary: brand blue, brightened a touch for dark-mode readability */
-  --primary: 222 100% 62%;
-  --primary-foreground: 0 0% 100%;
+  --primary: 211 50% 74%;
+  --primary-foreground: 205 25% 12%;
 
-  --secondary: 224 40% 15%;
-  --secondary-foreground: 222 25% 92%;
+  /* Button keeps the light blue-grey fill in dark mode, with dark text. */
+  --button: 211.2 32.5% 84.9%;
+  --button-foreground: 205 25% 16%;
 
-  --muted: 224 35% 13%;
-  --muted-foreground: 222 15% 62%;
+  --secondary: 34 38% 36%;
+  --secondary-foreground: 43 60% 94%;
 
-  /* Accent: dark blue tint for hover states */
-  --accent: 224 45% 16%;
-  --accent-foreground: 222 25% 92%;
+  --muted: 30 12% 15%;
+  --muted-foreground: 38 14% 66%;
 
-  --destructive: 0 65% 50%; /* distinct danger red for dark bg */
+  /* Accent: warm dark tint for hover states */
+  --accent: 30 16% 18%;
+  --accent-foreground: 43 50% 92%;
+
+  --destructive: 4 70% 48%; /* distinct danger red for dark bg */
   --destructive-foreground: 0 0% 100%;
 
-  --border: 224 35% 16%;
-  --input: 224 35% 16%;
-  --ring: 222 100% 62%;
+  --border: 30 12% 20%;
+  --input: 30 12% 20%;
+  --ring: 211 50% 74%;
 
-  --sidebar: 224 60% 5%; /* a hair darker than the page, like the logo field */
-  --sidebar-foreground: 222 25% 92%;
-  --sidebar-border: 224 35% 14%;
-  --sidebar-primary: 222 100% 62%; /* brightened Vispix blue */
-  --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 224 50% 14%; /* dark blue-tinted hover */
-  --sidebar-accent-foreground: 222 25% 92%;
-  --sidebar-ring: 222 100% 62%;
+  --sidebar: 30 18% 6%; /* a hair darker than the page */
+  --sidebar-foreground: 43 50% 90%;
+  --sidebar-border: 30 14% 14%;
+  --sidebar-primary: 211 50% 74%; /* brightened brand blue */
+  --sidebar-primary-foreground: 205 25% 12%;
+  --sidebar-accent: 34 30% 18%; /* warm dark hover */
+  --sidebar-accent-foreground: 43 50% 92%;
+  --sidebar-ring: 211 50% 74%;
 
-  --chart-1: 222 100% 62%; /* brightened Vispix blue */
-  --chart-2: 222 70% 45%;  /* mid blue */
-  --chart-3: 222 90% 75%;  /* light blue */
-  --chart-4: 224 40% 35%;  /* deep muted blue */
-  --chart-5: 222 20% 65%;  /* blue-gray */
+  --chart-1: 211 50% 74%; /* brightened brand blue */
+  --chart-2: 34 60% 62%;  /* tan */
+  --chart-3: 200 14% 60%;  /* slate */
+  --chart-4: 211 40% 55%;  /* mid blue */
+  --chart-5: 20 60% 60%;  /* terracotta */
 
   /* Heading accent colors — brightened for contrast on dark backgrounds */
-  --heading-primary: 222 100% 66%;
-  --heading-secondary: 222 25% 88%;
+  --heading-primary: 200 14% 74%;
+  --heading-secondary: 200 14% 74%;
 
   --warning: 43 96% 56%;
   --warning-foreground: 43 96% 56%;
@@ -259,11 +276,16 @@
     color: hsl(var(--heading-primary)) !important;
   }
 
+  /* !important for the same reason as the colors: pages hard-code font-bold. */
+  h1, h2, h3, h4, h5, h6 {
+    font-weight: var(--heading-weight) !important;
+  }
+
   h2, h3, h4, h5, h6 {
     color: hsl(var(--heading-secondary)) !important;
   }
 
-  /* Elegant display serif for headings (pairs with the Poppins body). */
+  /* Sofia Pro headings (Sofia Sans until the Adobe Fonts project is set) over a Karla body. */
   h1, h2, h3, h4, h5, h6 {
     font-family: var(--app-font-heading);
     letter-spacing: 0.005em;

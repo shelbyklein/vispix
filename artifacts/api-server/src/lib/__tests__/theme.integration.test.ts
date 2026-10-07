@@ -15,7 +15,7 @@ import type { Server } from "node:http";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { eq } from "drizzle-orm";
-import { COLOR_TOKENS, DEFAULT_THEME, googleFontsUrl, type PlatformTheme, type PlatformThemeState } from "@workspace/api-zod/theme";
+import { COLOR_TOKENS, DEFAULT_THEME, PlatformThemeSchema, googleFontsUrl, themeToCss, type PlatformTheme, type PlatformThemeState } from "@workspace/api-zod/theme";
 import app from "../../app";
 import { db, pool, appSettingsTable, APP_SETTINGS_SINGLETON_ID } from "@workspace/db";
 import { resetDb, createUser, createOrganization, addOrganizationMember } from "./testDb";
@@ -103,6 +103,11 @@ describe("platform theme (#253)", () => {
     expect((await req(platform, "PUT", "/platform/theme", badHsl)).status).toBe(400);
     const badFont = { ...custom(), fonts: { body: "Comic Sans", heading: "Lora" } };
     expect((await req(platform, "PUT", "/platform/theme", badFont)).status).toBe(400);
+    for (const adobeFontsProject of ["ABC1DEF", "short", "has space", "toolongtoolongtoolong", "a\"b;c1234"]) {
+      expect((await req(platform, "PUT", "/platform/theme", { ...custom(), adobeFontsProject })).status, adobeFontsProject).toBe(400);
+    }
+    expect((await req(platform, "PUT", "/platform/theme", { ...custom(), headingWeight: 650 })).status).toBe(400);
+    expect((await req(platform, "PUT", "/platform/theme", { ...custom(), buttonWeight: 1000 })).status).toBe(400);
     const res = await req(platform, "PUT", "/platform/theme", { ...custom(), radius: 5 });
     expect(res.status).toBe(400);
     expect(((await res.json()) as { issues: unknown[] }).issues.length).toBeGreaterThan(0);
@@ -140,6 +145,86 @@ describe("platform theme (#253)", () => {
   });
 });
 
+describe("theme contract (rebrand)", () => {
+  // A theme as saved before button tokens, weights and the Adobe project existed.
+  const oldTheme = () => {
+    const t = structuredClone(DEFAULT_THEME) as unknown as Record<string, any>;
+    for (const mode of ["light", "dark"]) {
+      delete t[mode].button;
+      delete t[mode]["button-foreground"];
+      t[mode].primary = mode === "light" ? "222 99% 51%" : "222 100% 62%";
+      t[mode]["primary-foreground"] = "0 0% 100%";
+    }
+    delete t.headingWeight;
+    delete t.buttonWeight;
+    delete t.adobeFontsProject;
+    t.fonts = { body: "Poppins", heading: "Playfair Display" };
+    return t;
+  };
+
+  it("parses an old saved theme: defaults applied, button falls back to primary", () => {
+    const parsed = PlatformThemeSchema.parse(oldTheme());
+    expect(parsed.headingWeight).toBe(DEFAULT_THEME.headingWeight);
+    expect(parsed.buttonWeight).toBe(DEFAULT_THEME.buttonWeight);
+    expect(parsed.adobeFontsProject).toBeNull();
+    expect(parsed.light.button).toBe("222 99% 51%");
+    expect(parsed.light["button-foreground"]).toBe("0 0% 100%");
+    expect(parsed.dark.button).toBe("222 100% 62%");
+  });
+
+  it("keeps an explicit button color when present", () => {
+    const t = oldTheme();
+    t.light.button = "10 50% 50%";
+    expect(PlatformThemeSchema.parse(t).light.button).toBe("10 50% 50%");
+  });
+
+  it("serves and returns an old saved theme in full", async () => {
+    await db.update(appSettingsTable).set({ theme: oldTheme() as unknown as PlatformTheme, themeUpdatedAt: new Date() }).where(eq(appSettingsTable.id, APP_SETTINGS_SINGLETON_ID));
+    const state = (await (await req(platform, "GET", "/platform/theme")).json()) as PlatformThemeState;
+    expect(state.theme?.light.button).toBe("222 99% 51%");
+    expect(state.theme?.buttonWeight).toBe(400);
+    const css = await (await req(null, "GET", "/theme.css")).text();
+    expect(css).toContain("--button: 222 99% 51%;");
+    expect(css).toContain("--heading-weight: 600;");
+    await req(platform, "DELETE", "/platform/theme");
+  });
+
+  it("accepts and saves a valid Adobe Fonts project", async () => {
+    const theme = { ...custom(), adobeFontsProject: "abc1def" };
+    const put = await req(platform, "PUT", "/platform/theme", theme);
+    expect(put.status).toBe(200);
+    const css = await (await req(null, "GET", "/theme.css")).text();
+    expect(css).toContain('@import url("https://use.typekit.net/abc1def.css");');
+    await req(platform, "DELETE", "/platform/theme");
+  });
+
+  it("themeToCss emits the typekit import only when a project is set, before the Google import", () => {
+    const without = themeToCss(DEFAULT_THEME);
+    expect(without).not.toContain("typekit");
+    const withProject = themeToCss({ ...DEFAULT_THEME, adobeFontsProject: "abc1def" });
+    const kit = withProject.indexOf("use.typekit.net/abc1def.css");
+    expect(kit).toBeGreaterThan(-1);
+    expect(kit).toBeLessThan(withProject.indexOf("fonts.googleapis.com"));
+  });
+
+  it("themeToCss emits weight vars, the button tokens and the Sofia stack", () => {
+    const css = themeToCss({ ...DEFAULT_THEME, headingWeight: 700, buttonWeight: 500 });
+    expect(css).toContain("--heading-weight: 700;");
+    expect(css).toContain("--button-weight: 500;");
+    expect(css).toContain("--button: 211.2 32.5% 84.9%;");
+    expect(css).toContain("--button-foreground: 205 25% 18%;");
+    expect(css).toContain('--app-font-heading: "Sofia Pro", "Sofia Sans", sans-serif;');
+  });
+
+  it("googleFontsUrl skips Adobe fonts but includes the Sofia Sans fallback", () => {
+    const url = googleFontsUrl({ body: "Karla", heading: "Sofia Pro" });
+    expect(url).toContain("family=Karla");
+    expect(url).toContain("family=Sofia+Sans");
+    expect(url).not.toContain("Sofia+Pro");
+    expect(googleFontsUrl({ body: "Inter", heading: "Lora" })).not.toContain("Sofia");
+  });
+});
+
 // DEFAULT_THEME is a copy of index.css's tokens; keep them in lockstep.
 describe("DEFAULT_THEME matches index.css", () => {
   const css = readFileSync(fileURLToPath(new URL("../../../../photo-album/src/index.css", import.meta.url)), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -160,6 +245,14 @@ describe("DEFAULT_THEME matches index.css", () => {
       }
     });
   }
+
+  it("fonts and weights", () => {
+    const vars = block(":root");
+    expect(vars["heading-weight"]).toBe(String(DEFAULT_THEME.headingWeight));
+    expect(vars["button-weight"]).toBe(String(DEFAULT_THEME.buttonWeight));
+    expect(vars["app-font-sans"]).toBe(`"${DEFAULT_THEME.fonts.body}", sans-serif`);
+    expect(vars["app-font-heading"]).toBe('"Sofia Pro", "Sofia Sans", sans-serif');
+  });
 
   it("radius", () => {
     expect(block(":root").radius).toBe(`${DEFAULT_THEME.radius}rem`);

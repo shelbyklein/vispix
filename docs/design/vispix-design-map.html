@@ -6,24 +6,26 @@
 <title>Vispix design map</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Karla:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Sofia+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 /* This page uses Vispix's own tokens (artifacts/photo-album/src/index.css),
    copied verbatim, so the map looks like the product it describes. */
 :root {
-  --background: 222 20% 97%; --foreground: 222 14% 15%;
-  --card: 222 20% 99%; --card-foreground: 222 14% 15%; --card-border: 222 10% 90%;
-  --popover: 222 20% 99%; --popover-border: 222 10% 90%;
-  --primary: 222 99% 51%; --primary-foreground: 0 0% 100%;
-  --secondary: 224 60% 14%; --secondary-foreground: 0 0% 100%;
-  --muted: 222 10% 92%; --muted-foreground: 222 10% 45%;
-  --accent: 222 30% 92%; --accent-foreground: 222 60% 25%;
-  --destructive: 0 72% 45%; --destructive-foreground: 0 0% 100%;
-  --border: 222 12% 88%; --input: 222 12% 88%; --ring: 222 99% 51%;
-  --sidebar: 222 15% 94%; --sidebar-foreground: 222 14% 15%; --sidebar-border: 222 12% 88%;
-  --sidebar-primary: 222 99% 51%; --sidebar-accent: 222 30% 90%; --sidebar-accent-foreground: 222 60% 25%;
-  --chart-1: 222 99% 51%; --chart-2: 224 60% 22%; --chart-3: 222 90% 68%; --chart-4: 222 55% 45%; --chart-5: 222 30% 65%;
-  --heading-primary: 222 92% 45%; --heading-secondary: 224 60% 16%;
+  --background: 42.9 100% 97.3%; --foreground: 200 12% 18%; --card: 43 100% 99%;
+  --card-foreground: 200 12% 18%; --card-border: 36 35% 84%; --popover: 43 100% 99%;
+  --popover-foreground: 200 12% 18%; --popover-border: 36 35% 84%; --muted: 38 55% 92%;
+  --muted-foreground: 200 8% 30%; --border: 36 35% 84%; --input: 36 35% 84%;
+  --primary: 211 32% 36%; --primary-foreground: 0 0% 100%; --button: 211.2 32.5% 84.9%;
+  --button-foreground: 205 25% 18%; --secondary: 33.9 67.6% 73.3%; --secondary-foreground: 205 25% 16%;
+  --accent: 38 60% 90%; --accent-foreground: 205 25% 18%; --ring: 211 32% 36%;
+  --heading-primary: 200 7.3% 40.2%; --heading-secondary: 200 7.3% 40.2%; --destructive: 4 68% 44%;
+  --destructive-foreground: 0 0% 100%; --warning: 38 92% 50%; --warning-foreground: 26 90% 37%;
+  --success: 160 84% 39%; --success-foreground: 163 94% 24%; --sidebar: 33.9 67.6% 73.3%;
+  --sidebar-foreground: 205 25% 14%; --sidebar-border: 34 45% 64%; --sidebar-primary: 211 32% 36%;
+  --sidebar-primary-foreground: 0 0% 100%; --sidebar-accent: 40 80% 88%; --sidebar-accent-foreground: 205 25% 14%;
+  --sidebar-ring: 211 32% 36%; --chart-1: 211 32% 36%; --chart-2: 33.9 67.6% 73.3%;
+  --chart-3: 200 7.3% 40.2%; --chart-4: 211 37% 70%; --chart-5: 20 60% 62%;
+  --heading-weight: 600; --button-weight: 400;
   --radius: 0.5rem;
   --button-outline: rgba(0,0,0,.10); --elevate-1: rgba(0,0,0,.03); --elevate-2: rgba(0,0,0,.08);
   --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / .05);
@@ -35,19 +37,20 @@
   color-scheme: light;
 }
 .dark {
-  --background: 224 55% 6%; --foreground: 222 25% 92%;
-  --card: 224 45% 9%; --card-foreground: 222 25% 92%; --card-border: 224 35% 15%;
-  --popover: 224 45% 9%; --popover-border: 224 35% 15%;
-  --primary: 222 100% 62%; --primary-foreground: 0 0% 100%;
-  --secondary: 224 40% 15%; --secondary-foreground: 222 25% 92%;
-  --muted: 224 35% 13%; --muted-foreground: 222 15% 62%;
-  --accent: 224 45% 16%; --accent-foreground: 222 25% 92%;
-  --destructive: 0 65% 50%; --destructive-foreground: 0 0% 100%;
-  --border: 224 35% 16%; --input: 224 35% 16%; --ring: 222 100% 62%;
-  --sidebar: 224 60% 5%; --sidebar-foreground: 222 25% 92%; --sidebar-border: 224 35% 14%;
-  --sidebar-primary: 222 100% 62%; --sidebar-accent: 224 50% 14%; --sidebar-accent-foreground: 222 25% 92%;
-  --chart-1: 222 100% 62%; --chart-2: 222 70% 45%; --chart-3: 222 90% 75%; --chart-4: 224 40% 35%; --chart-5: 222 20% 65%;
-  --heading-primary: 222 100% 66%; --heading-secondary: 222 25% 88%;
+  --background: 30 14% 8%; --foreground: 43 50% 92%; --card: 30 12% 11%;
+  --card-foreground: 43 50% 92%; --card-border: 30 12% 20%; --popover: 30 12% 11%;
+  --popover-foreground: 43 50% 92%; --popover-border: 30 12% 20%; --muted: 30 12% 15%;
+  --muted-foreground: 38 14% 66%; --border: 30 12% 20%; --input: 30 12% 20%;
+  --primary: 211 50% 74%; --primary-foreground: 205 25% 12%; --button: 211.2 32.5% 84.9%;
+  --button-foreground: 205 25% 16%; --secondary: 34 38% 36%; --secondary-foreground: 43 60% 94%;
+  --accent: 30 16% 18%; --accent-foreground: 43 50% 92%; --ring: 211 50% 74%;
+  --heading-primary: 200 14% 74%; --heading-secondary: 200 14% 74%; --destructive: 4 70% 48%;
+  --destructive-foreground: 0 0% 100%; --warning: 43 96% 56%; --warning-foreground: 43 96% 56%;
+  --success: 158 64% 52%; --success-foreground: 158 64% 52%; --sidebar: 30 18% 6%;
+  --sidebar-foreground: 43 50% 90%; --sidebar-border: 30 14% 14%; --sidebar-primary: 211 50% 74%;
+  --sidebar-primary-foreground: 205 25% 12%; --sidebar-accent: 34 30% 18%; --sidebar-accent-foreground: 43 50% 92%;
+  --sidebar-ring: 211 50% 74%; --chart-1: 211 50% 74%; --chart-2: 34 60% 62%;
+  --chart-3: 200 14% 60%; --chart-4: 211 40% 55%; --chart-5: 20 60% 60%;
   --button-outline: rgba(255,255,255,.10); --elevate-1: rgba(255,255,255,.04); --elevate-2: rgba(255,255,255,.09);
   --amber: #fbbf24; --amber-soft: rgba(245,158,11,.12); --amber-ink: #fcd34d;
   --emerald: #34d399; --emerald-soft: rgba(16,185,129,.12); --emerald-ink: #6ee7b7;
@@ -57,11 +60,11 @@
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; scroll-padding-top: 24px; }
 body {
-  margin: 0; font-family: "Poppins", sans-serif; font-size: 14px; line-height: 1.6;
+  margin: 0; font-family: "Karla", sans-serif; font-size: 14px; line-height: 1.6;
   background: hsl(var(--background)); color: hsl(var(--foreground));
   -webkit-font-smoothing: antialiased;
 }
-h1, h2, h3, h4 { font-family: "Playfair Display", Georgia, serif; letter-spacing: .005em; margin: 0; }
+h1, h2, h3, h4 { font-family: "Sofia Pro", "Sofia Sans", sans-serif; font-weight: var(--heading-weight); color: hsl(var(--heading-secondary)); letter-spacing: .005em; margin: 0; }
 h1 { color: hsl(var(--heading-primary)); font-size: 34px; line-height: 1.15; }
 h2 { color: hsl(var(--heading-secondary)); font-size: 26px; line-height: 1.2; margin-bottom: 6px; }
 h3 { color: hsl(var(--heading-secondary)); font-size: 18px; margin: 28px 0 10px; }
@@ -116,7 +119,7 @@ section:first-of-type { border-top: 0; padding-top: 0; }
 /* Framework stack */
 .stack { display: grid; gap: 8px; }
 .layer { display: grid; grid-template-columns: 170px 1fr; gap: 16px; align-items: start; padding: 14px 16px; border-radius: var(--radius); background: hsl(var(--card)); border: 1px solid hsl(var(--card-border)); }
-.layer h4 { font-family: "Poppins", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
+.layer h4 { font-family: "Karla", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
 .layer .sub { font-size: 12px; color: hsl(var(--muted-foreground)); }
 .pills { display: flex; flex-wrap: wrap; gap: 6px; }
 .pill { font-size: 12px; padding: 2px 9px; border-radius: 6px; background: hsl(var(--muted)); color: hsl(var(--foreground)); }
@@ -148,9 +151,9 @@ section:first-of-type { border-top: 0; padding-top: 0; }
 .spec .k { font-size: 12px; color: hsl(var(--muted-foreground)); }
 
 /* Demo controls reproduce the app's shadcn classes */
-.btn { display: inline-flex; align-items: center; gap: 8px; font: 500 14px "Poppins", sans-serif; min-height: 36px; padding: 0 16px; border-radius: calc(var(--radius) - 2px); border: 1px solid transparent; cursor: default; white-space: nowrap; }
+.btn { display: inline-flex; align-items: center; gap: 8px; font: var(--button-weight) 14px "Karla", sans-serif; min-height: 36px; padding: 0 16px; border-radius: calc(var(--radius) - 2px); border: 1px solid transparent; cursor: default; white-space: nowrap; }
 .btn.sm { min-height: 32px; padding: 0 12px; font-size: 12px; }
-.btn.default { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); border-color: hsl(var(--primary) / .85); }
+.btn.default { background: hsl(var(--button)); color: hsl(var(--button-foreground)); border-color: hsl(var(--button) / .85); }
 .btn.secondary { background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); }
 .btn.outline { background: transparent; color: inherit; border-color: var(--button-outline); box-shadow: var(--shadow-sm); }
 .btn.ghost { background: transparent; color: inherit; }
@@ -173,7 +176,7 @@ section:first-of-type { border-top: 0; padding-top: 0; }
 .anat .top { border-bottom: 1px solid hsl(var(--border)); display: flex; align-items: center; gap: 10px; padding: 0 12px; }
 .anat .search { flex: 0 1 300px; height: 26px; border-radius: 6px; background: hsl(var(--muted)); display: flex; align-items: center; padding: 0 8px; color: hsl(var(--muted-foreground)); }
 .anat .body { padding: 16px 20px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
-.anat .ph1 { font-family: "Playfair Display", serif; font-size: 20px; color: hsl(var(--heading-primary)); font-weight: 700; }
+.anat .ph1 { font-family: "Sofia Pro", "Sofia Sans", sans-serif; font-size: 20px; color: hsl(var(--heading-primary)); font-weight: 600; }
 .anat .tiles { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .anat .tiles i { aspect-ratio: 1; border-radius: 6px; background: linear-gradient(135deg, hsl(var(--chart-3) / .55), hsl(var(--chart-2) / .55)); }
 .callout { position: relative; }
@@ -186,7 +189,7 @@ section:first-of-type { border-top: 0; padding-top: 0; }
 .ia li { padding: 4px 0; border-bottom: 1px dashed hsl(var(--border)); display: flex; justify-content: space-between; gap: 8px; }
 .ia li:last-child { border-bottom: 0; }
 .ia li code { background: none; padding: 0; color: hsl(var(--muted-foreground)); }
-.ia h4 { font-family: "Poppins", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
+.ia h4 { font-family: "Karla", sans-serif; font-size: 13px; font-weight: 600; color: hsl(var(--foreground)); }
 
 table { width: 100%; border-collapse: collapse; font-size: 13px; }
 th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid hsl(var(--border)); vertical-align: top; }
@@ -235,14 +238,14 @@ td code { white-space: nowrap; }
       <h1>Vispix design map</h1>
       <p class="lede">The current design system and front-end framework of the Vispix web app, in one place, as a starting point for design changes. Every color, font and size on this page is the app's real value. Toggle dark mode in the sidebar to see both themes.</p>
       <div class="meta">
-        <span class="chip">Snapshot <b>2026-10-06</b></span>
-        <span class="chip">Source <b>dev @ 5eeb921</b></span>
+        <span class="chip">Snapshot <b>2026-10-07</b></span>
+        <span class="chip">Source <b>dev @ ffb48c8 + rebrand</b></span>
         <span class="chip">App <b>artifacts/photo-album</b></span>
-        <span class="chip blue">Brand blue <b style="color:inherit">#054EFE</b></span>
+        <span class="chip blue">Palette <b style="color:inherit">Sunset: #FFFBF1 · #E9C18D · #5F696E · #CCD8E5</b></span>
       </div>
       <div class="grid g4" style="margin-top:20px">
-        <div class="card"><div class="muted" style="font-size:12px">Visual identity</div><div style="font-weight:600">Electric blue on navy-tinted neutrals</div><div class="muted" style="font-size:12px">Every neutral is hue 222, the brand blue's hue.</div></div>
-        <div class="card"><div class="muted" style="font-size:12px">Type pairing</div><div style="font-weight:600"><span style="font-family:'Playfair Display',serif">Playfair Display</span> + Poppins</div><div class="muted" style="font-size:12px">Serif headings, geometric sans body.</div></div>
+        <div class="card"><div class="muted" style="font-size:12px">Visual identity</div><div style="font-weight:600">Sunset: cream, tan and slate</div><div class="muted" style="font-size:12px">Cream page, tan sidebar, slate headings, blue-grey buttons.</div></div>
+        <div class="card"><div class="muted" style="font-size:12px">Type pairing</div><div style="font-weight:600"><span style="font-family:'Sofia Pro','Sofia Sans',sans-serif">Sofia Pro</span> + Karla</div><div class="muted" style="font-size:12px">Sofia Pro semibold headings (Sofia Sans until the Adobe Fonts project is set), Karla body and buttons.</div></div>
         <div class="card"><div class="muted" style="font-size:12px">Component base</div><div style="font-weight:600">shadcn/ui “new-york”</div><div class="muted" style="font-size:12px">53 primitives, Radix underneath, some locally edited.</div></div>
         <div class="card"><div class="muted" style="font-size:12px">Themes</div><div style="font-weight:600">Light and dark</div><div class="muted" style="font-size:12px">A <code>.dark</code> class on the root swaps every token.</div></div>
       </div>
@@ -273,7 +276,7 @@ td code { white-space: nowrap; }
       <h2>How styling flows</h2>
       <p class="muted">A color change made in step 1 reaches every screen. Changes made in steps 4–5 stay local.</p>
       <div class="flow">
-        <div class="step"><div class="n">1 · Tokens</div><div class="t">index.css</div><div class="d"><code>:root</code> and <code>.dark</code> hold HSL values: <code>--primary: 222 99% 51%</code></div></div>
+        <div class="step"><div class="n">1 · Tokens</div><div class="t">index.css</div><div class="d"><code>:root</code> and <code>.dark</code> hold HSL values: <code>--primary: 211 32% 36%</code></div></div>
         <div class="step"><div class="n">2 · Theme bridge</div><div class="t">@theme inline</div><div class="d">Maps each token to a Tailwind color: <code>--color-primary</code></div></div>
         <div class="step"><div class="n">3 · Utilities</div><div class="t">Tailwind classes</div><div class="d"><code>bg-primary</code>, <code>text-muted-foreground</code>, <code>rounded-lg</code></div></div>
         <div class="step"><div class="n">4 · Primitives</div><div class="t">components/ui/*</div><div class="d">Variants via <code>cva</code>: Button, Badge, Card, Dialog…</div></div>
@@ -288,10 +291,11 @@ td code { white-space: nowrap; }
 
       <h3>Brand and actions</h3>
       <div class="grid g4">
-        <div class="sw"><div class="c" style="background:hsl(var(--primary));color:#fff">Aa</div><div class="i"><b>primary</b><span>222 99% 51% · dark 222 100% 62%</span><br>Buttons, links, focus ring, active nav</div></div>
-        <div class="sw"><div class="c" style="background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Aa</div><div class="i"><b>secondary</b><span>224 60% 14% · dark 224 40% 15%</span><br>The logo's deep navy field</div></div>
-        <div class="sw"><div class="c" style="background:hsl(var(--accent));color:hsl(var(--accent-foreground))">Aa</div><div class="i"><b>accent</b><span>222 30% 92% · dark 224 45% 16%</span><br>Hover and highlight tint</div></div>
-        <div class="sw"><div class="c" style="background:hsl(var(--destructive));color:#fff">Aa</div><div class="i"><b>destructive</b><span>0 72% 45% · dark 0 65% 50%</span><br>Delete, danger zones</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--button));color:hsl(var(--button-foreground))">Aa</div><div class="i"><b>button</b><span>211.2 32.5% 84.9% · dark 211.2 32.5% 84.9%</span><br>Default Button fill (#CCD8E5), dark text</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--primary));color:hsl(var(--primary-foreground))">Aa</div><div class="i"><b>primary</b><span>211 32% 36% · dark 211 50% 74%</span><br>Links, focus ring, active nav, icons, badges</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--secondary));color:hsl(var(--secondary-foreground))">Aa</div><div class="i"><b>secondary</b><span>33.9 67.6% 73.3% · dark 34 38% 36%</span><br>Warm tan (#E9C18D); also the sidebar</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--accent));color:hsl(var(--accent-foreground))">Aa</div><div class="i"><b>accent</b><span>38 60% 90% · dark 30 16% 18%</span><br>Hover and highlight tint</div></div>
+        <div class="sw"><div class="c" style="background:hsl(var(--destructive));color:#fff">Aa</div><div class="i"><b>destructive</b><span>4 68% 44% · dark 4 70% 48%</span><br>Delete, danger zones</div></div>
       </div>
 
       <h3>Surfaces and text</h3>
@@ -329,11 +333,11 @@ td code { white-space: nowrap; }
       <h2>Typography</h2>
       <p class="muted">Loaded from Google Fonts in <code>index.html</code>. Assigned through <code>--app-font-sans</code> and <code>--app-font-heading</code>. All h1–h6 get the serif and a heading color automatically, regardless of their classes.</p>
       <div class="card">
-        <div class="spec"><div class="k">Page title · h1<br>Playfair 700 · text-2xl</div><div style="font-family:'Playfair Display',serif;font-size:24px;font-weight:700;color:hsl(var(--heading-primary))">Spring Open selects</div></div>
-        <div class="spec"><div class="k">Section · h2/h3<br>Playfair 600</div><div style="font-family:'Playfair Display',serif;font-size:18px;font-weight:600;color:hsl(var(--heading-secondary))">AI description</div></div>
-        <div class="spec"><div class="k">Body · text-sm<br>Poppins 400 · most used (360)</div><div style="font-size:14px">Group photos by what they are — an event, a trip, a theme.</div></div>
-        <div class="spec"><div class="k">Small · text-xs<br>Poppins · second most used (325)</div><div style="font-size:12px" class="muted">Quality not evaluated · 6000×4000 · Oct 04, 2026</div></div>
-        <div class="spec"><div class="k">Label / button<br>Poppins 500 · text-sm</div><div style="font-size:14px;font-weight:500">Add to project</div></div>
+        <div class="spec"><div class="k">Page title · h1<br>Sofia Pro 600 · text-2xl</div><div style="font-family:'Sofia Pro','Sofia Sans',sans-serif;font-size:24px;font-weight:600;color:hsl(var(--heading-primary))">Spring Open selects</div></div>
+        <div class="spec"><div class="k">Section · h2/h3<br>Sofia Pro 600</div><div style="font-family:'Sofia Pro','Sofia Sans',sans-serif;font-size:18px;font-weight:600;color:hsl(var(--heading-secondary))">AI description</div></div>
+        <div class="spec"><div class="k">Body · text-sm<br>Karla 400 · most used (360)</div><div style="font-size:14px">Group photos by what they are — an event, a trip, a theme.</div></div>
+        <div class="spec"><div class="k">Small · text-xs<br>Karla · second most used (325)</div><div style="font-size:12px" class="muted">Quality not evaluated · 6000×4000 · Oct 04, 2026</div></div>
+        <div class="spec"><div class="k">Label / button<br>Karla 400 (--button-weight) · text-sm</div><div style="font-size:14px;font-weight:400">Add to project</div></div>
         <div class="spec"><div class="k">Mono<br>Menlo</div><div class="mono">/objects/orgs/1/photos/…</div></div>
       </div>
       <h3>Type sizes in use</h3>
@@ -461,7 +465,7 @@ td code { white-space: nowrap; }
       <table>
         <thead><tr><th style="width:22%">Pattern</th><th>What it looks like</th><th style="width:28%">Where</th></tr></thead>
         <tbody>
-          <tr><td><b>Page header</b></td><td>Playfair h1 in brand blue, muted one-line subtitle, actions top-right.</td><td>Repeated by hand in ~16 pages</td></tr>
+          <tr><td><b>Page header</b></td><td>Sofia Pro h1 in slate, muted one-line subtitle, actions top-right.</td><td>Repeated by hand in ~16 pages</td></tr>
           <tr><td><b>Status chips</b></td><td>Rounded-full outline chips, amber for “needs attention”, emerald for “done”.</td><td><code>DashboardStatusBar</code>, usage-rights, admin</td></tr>
           <tr><td><b>Photo grid</b></td><td>Dense thumbnail grid with zoom control, selection mode and a selection bar.</td><td><code>PhotoGrid</code>, <code>GridZoomControl</code></td></tr>
           <tr><td><b>Lightbox</b></td><td>Full-screen image with a side panel of details and ratings.</td><td><code>PhotoLightbox</code>, <code>photo-lightbox/*</code></td></tr>
