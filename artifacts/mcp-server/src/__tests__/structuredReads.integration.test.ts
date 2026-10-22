@@ -105,7 +105,7 @@ describe("tool surface", () => {
   it("advertises an output schema for every read tool, keeping the existing names", async () => {
     const { tools } = await A.listTools();
     expect(tools.map((t) => t.name).sort()).toEqual(
-      ["get_asset", "get_photo", "list_albums", "list_assets", "list_people", "list_usage_rights", "search_photos"],
+      ["get_asset", "get_photo", "get_project", "list_albums", "list_assets", "list_people", "list_projects", "list_usage_rights", "search_photos"],
     );
     for (const t of tools) expect(t.outputSchema, t.name).toBeTruthy();
   });

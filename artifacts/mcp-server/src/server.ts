@@ -12,6 +12,7 @@ import {
   type PhotoSummary,
 } from "./photoLibrary.js";
 import { listAssets, getAssetDetail, loadAssetImage, MAX_ASSET_PAGE, type AssetSummary } from "./assetLibrary.js";
+import { listProjects, getProject, MAX_PROJECT_PAGE } from "./projectLibrary.js";
 import type { IssuedMediaLink, MediaLinkIssuer } from "./mediaGrants.js";
 import {
   MAX_INLINE_THUMBNAIL_BYTES,
@@ -24,6 +25,8 @@ import {
   listAssetsOutput,
   listPeopleOutput,
   listUsageRightsOutput,
+  listProjectsOutput,
+  getProjectOutput,
   mimeFromFilename,
   searchPhotosOutput,
   thumbnailFilename,
@@ -363,6 +366,60 @@ export function createServer(options: ServerOptions = {}): McpServer {
       };
     },
   );
+
+  server.registerTool("list_projects", {
+    title: "List projects",
+    description: "List your organization's curated photo shortlists (projects), with descriptions and visible-photo counts. Filter by exact name, then use get_project for photos or list_assets(project: name) for project and global assets. Ordered by project id; pass page.nextCursor to continue.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      name: z.string().optional().describe("Exact project name (case-insensitive)"),
+      limit: z.number().int().min(1).max(MAX_PROJECT_PAGE).default(100),
+      cursor: z.string().optional().describe("page.nextCursor from the same listing and name filter"),
+    },
+    outputSchema: listProjectsOutput,
+  }, async ({ name, limit, cursor }) => {
+    try {
+      const result = await listProjects({ name, limit, cursor, organizationId: options.organizationId });
+      const lines = result.items.map(p => `#${p.id} ${p.name} — ${p.photoCount} photos${p.description ? `\n${p.description}` : ""}`);
+      return {
+        content: [textBlock((lines.join("\n\n") || "No projects found.") + (result.page.nextCursor ? `\n\nnext page cursor: ${result.page.nextCursor}` : ""))],
+        structuredContent: { schemaVersion: TOOL_SCHEMA_VERSION, status: "ok" as const, ...result, error: null, notes: [] },
+      };
+    } catch (err) {
+      const error = actionableError(err);
+      if (!error) throw err;
+      return { isError: true, content: [textBlock(error.message)], structuredContent: { schemaVersion: TOOL_SCHEMA_VERSION, status: "invalid_request" as const, items: [], page: emptyPage, error, notes: [] } };
+    }
+  });
+
+  server.registerTool("get_project", {
+    title: "Get a project and its shortlisted photos",
+    description: "Read a project's metadata and a page of its visible shortlisted photos, including current recorded usage rights and thumbnail links. Use get_photo(id) for original download links. Hidden photos and other organizations' projects are never exposed. Photos are ordered by id; pass page.nextCursor to continue. Rights are team records, not legal clearance.",
+    annotations: { readOnlyHint: true },
+    inputSchema: {
+      id: z.number().int().positive().describe("Project id from list_projects"),
+      limit: z.number().int().min(1).max(50).default(50),
+      cursor: z.string().optional().describe("page.nextCursor from the same project"),
+      includeImages: z.boolean().default(false).describe("Inline thumbnails (off by default for compact project reads)"),
+      maxImages: z.number().int().min(1).max(MAX_INLINE_IMAGES).default(MAX_INLINE_IMAGES),
+    },
+    outputSchema: getProjectOutput,
+  }, async ({ id, limit, cursor, includeImages, maxImages }) => {
+    try {
+      const result = await getProject({ id, limit, cursor, organizationId: options.organizationId });
+      const { blocks, info } = await inlineThumbnails(result.photos, includeImages, maxImages, true);
+      const lines = result.photos.map(p => `photo #${p.id}${p.filename ? ` | ${p.filename}` : ""} | rights: ${p.rights.length ? p.rights.join(", ") : "not recorded"}`);
+      const content: ContentBlock[] = [textBlock(`#${result.project.id} ${result.project.name} — ${result.project.photoCount} photos\n${result.project.description ?? ""}\n${lines.join("\n")}${result.page.nextCursor ? `\nnext page cursor: ${result.page.nextCursor}` : ""}`)];
+      if (options.mediaLinks) for (const p of result.photos) if (p.thumbnailKey) content.push(thumbnailLink(options.mediaLinks.photo(p.id, "thumbnail"), p.id, p.filename));
+      content.push(...blocks);
+      return { content, structuredContent: { schemaVersion: TOOL_SCHEMA_VERSION, status: "ok" as const, project: result.project, photos: result.photos.map(photoItem), page: result.page, images: info, error: null, notes: [] } };
+    } catch (err) {
+      const error = actionableError(err);
+      if (!error) throw err;
+      const status = error.code === "not_found" ? "not_found" as const : "invalid_request" as const;
+      return { isError: true, content: [textBlock(error.message)], structuredContent: { schemaVersion: TOOL_SCHEMA_VERSION, status, project: null, photos: [], page: emptyPage, images: NO_IMAGES, error, notes: [] } };
+    }
+  });
 
   // The three small enumerations return the whole (org-scoped) list in one page;
   // `page` is still present so every tool shares one envelope.
