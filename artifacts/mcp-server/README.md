@@ -16,6 +16,8 @@ reads the same root `.env` as the api-server; whichever `DATABASE_URL` /
 | --- | --- |
 | `search_photos(query, count, exclude?, minRating?, rightsTag?, includeImages?)` | Semantic ranking with optional rating / usage-rights filters; inline thumbnails for the top results |
 | `get_photo(id)` | Full metadata, thumbnail, and a ~1h download link for the full-resolution file (see [Media links](#media-links)) |
+| `list_projects(name?, limit?, cursor?)` | Projects with descriptions and visible-photo counts |
+| `get_project(id, limit?, cursor?, includeImages?, maxImages?)` | Project metadata and paginated shortlisted photos with current rights; use `get_photo` for originals and `list_assets(project: name)` for assets |
 | `list_albums` | Albums with photo counts |
 | `list_usage_rights` | Attribution / usage-rights tags with cleared-photo counts |
 | `list_assets(kind?, project?)` | Asset library: brand assets (logos to embed) and reference works (past output to match); project filter includes global assets |

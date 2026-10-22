@@ -138,6 +138,18 @@ export const listAlbumsOutput = { ...listEnvelope, items: z.array(albumItem), pa
 export const listPeopleOutput = { ...listEnvelope, items: z.array(personItem), page };
 export const listUsageRightsOutput = { ...listEnvelope, items: z.array(rightsItem), page };
 
+const projectItem = z.object({
+  id: z.number().int(), name: z.string(), description: z.string().nullable(),
+  createdAt: z.string(), updatedAt: z.string(), photoCount: z.number().int(),
+});
+export const listProjectsOutput = {
+  ...envelope, status: z.enum(["ok", "invalid_request"]), items: z.array(projectItem), page,
+};
+export const getProjectOutput = {
+  ...envelope, status: z.enum(["ok", "not_found", "invalid_request"]),
+  project: projectItem.nullable(), photos: z.array(photoItem), page, images,
+};
+
 const assetItem = z.object({
   id: z.number().int(),
   kind: z.enum(["brand", "reference"]),

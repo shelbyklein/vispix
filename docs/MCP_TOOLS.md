@@ -187,10 +187,45 @@ Inputs: `id`, `includeImages` (default true).
 
 Another organization's asset id is `not_found` (`isError: true`).
 
+### `list_projects`
+
+Inputs: `name` (optional exact name, case-insensitive and literal), `limit`
+(1-200, default 100), `cursor`.
+
+Returns `{ schemaVersion, status, items: ProjectItem[], page, error, notes }`.
+A `ProjectItem` contains `id`, `name`, nullable `description`, ISO `createdAt`
+and `updatedAt`, and `photoCount` (visible photos only). Ordered by id.
+`status` is `ok` or `invalid_request`. The name filter can return multiple
+projects when names repeat. Use the returned id for an unambiguous read.
+
+### `get_project`
+
+Inputs: `id` (positive integer), `limit` (1-50, default 50), `cursor`,
+`includeImages` (default **false**), `maxImages` (1-10, default 10).
+
+Returns `{ schemaVersion, status, project: ProjectItem | null,
+photos: PhotoItem[], page, images, error, notes }`. Photos are ordered by id;
+`page.total` and `project.photoCount` count only visible photos in the org.
+The photo records carry current recorded rights, rather than rights snapshots
+from the time of shortlisting. `get_photo` provides original download links;
+`list_assets(project: project.name)` provides project assets plus global assets.
+Thumbnail grants and optional inline images follow the existing media limits.
+
+Both tools are read-only and organization-scoped. Local stdio resolves
+`VISPIX_MCP_ORGANIZATION_ID`, or the only organization if exactly one exists;
+otherwise it returns `invalid_scope`. HTTP uses the connector token's org.
+Hidden and foreign photos do not appear in results or counts. A missing or
+foreign project returns `not_found` with `isError: true`. Invalid cursors
+return `invalid_request` with `invalid_cursor` or `cursor_mismatch`; cursors
+are bound to the operation, org, project and name filter. Continue with the
+same inputs and `page.nextCursor`. Lists traverse by id, independent of the
+web app's manual card order. Changes during traversal can change counts;
+this is a live view, not a frozen snapshot.
+
 ## Writes (not enabled)
 
 **Proposal only. Nothing here is implemented, and enabling it needs an owner
-decision.** Issue #214 also covers project listing and shortlist
+decision.** Project reads are implemented above. Issue #214 also covers shortlist
 save/add/remove. These are blocked on a token-approval policy; no write tool,
 token scope or permission change ships with the read tools above.
 

@@ -59,7 +59,7 @@ export interface PhotoSummary {
   match?: RetrievalMatch | null;
 }
 
-async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
+export async function buildSummaries(ids: number[]): Promise<PhotoSummary[]> {
   if (ids.length === 0) return [];
   const [rows, ratingRows, rightsRows, evalRows] = await Promise.all([
     db
@@ -177,7 +177,7 @@ function outcome(partial: Partial<SearchOutcome> & Pick<SearchOutcome, "status">
  * organization: VISPIX_MCP_ORGANIZATION_ID, or the only organization when
  * exactly one exists. Null when it can't tell.
  */
-async function resolveLocalOrganizationId(): Promise<number | null> {
+export async function resolveLocalOrganizationId(): Promise<number | null> {
   const configured = Number(process.env.VISPIX_MCP_ORGANIZATION_ID);
   if (Number.isSafeInteger(configured) && configured > 0) return configured;
   const orgs = await db.select({ id: organizationsTable.id }).from(organizationsTable).limit(2);
